@@ -50,6 +50,11 @@
   border-radius: 50%;
   font-size: 23px;
 }
+.header-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
 .location {
   text-align: center;
   display: grid;

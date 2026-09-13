@@ -16,6 +16,8 @@ Use clear, believable painted illustrations in portrait and landscape 2.5D rooms
 
 A small building overview marks Colin's floor and the elevator's position. Select a floor to preview its room without moving Colin; tap a destination in that room to send him there through the nearest staircase. Följ Colin returns to his current floor without moving him. Zoom with the mouse wheel or touch-friendly +/− buttons, then drag with a mouse or one finger. Drags never issue walking/object actions. Floor/building changes restore the default room view: fitted in portrait, filling the viewport in landscape.
 
+Installed launch requests fullscreen. In the browser, or an existing installation still using standalone mode, choose Helskärm in the menu or the ⛶ button beside Settings (open Kontroller first in landscape). Keep rotation unrestricted and respect the user's fullscreen exit. Browser and Android system gestures can temporarily reveal their bars; fullscreen is a request to the platform, not a CSS layout setting.
+
 ## Three buildings
 
 Rooms have generous perspective floor space, with 1448×1086 painted plates and a shared doorway plane. Keep Colin and doors at believable relative sizes. Version-3 saves add character depth and doorway waypoints; migrate versions 1 and 2 without resetting lifts, passengers, routes, or settings.

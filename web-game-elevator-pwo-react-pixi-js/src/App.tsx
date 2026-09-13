@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { FullscreenButton } from './components/FullscreenButton';
 import { GameUpdate } from './components/GameUpdate';
 import { copy } from './copy';
 import { GameSession } from './game/session';
@@ -83,6 +84,7 @@ export function App() {
               <span aria-hidden='true'>→</span>
             </button>
             <p className='coming-soon'>Tre hus. Helt i din egen takt.</p>
+            <FullscreenButton />
             <button className='about-button' type='button' onClick={() => about.current?.showModal()}>
               {copy.about}
               <span aria-hidden='true'>↗</span>

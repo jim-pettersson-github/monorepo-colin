@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { buildings, currentBuilding, definition, isOpen, layout, liftPhase, playerLevel } from '../game/model';
 import type { GameSession } from '../game/session';
+import { FullscreenButton } from './FullscreenButton';
 import { GameScene } from './GameScene';
 import { GameUpdate } from './GameUpdate';
 import '../game.css';
@@ -84,18 +85,21 @@ export function GameView({ session, onMenu }: { session: GameSession; onMenu: ()
           <strong>{building ? definition(building.id).name : 'Mellan husen'}</strong>
           <span>{building ? `${definition(building.id).rooms[currentFloor]} · Våning ${currentFloor}` : 'Välj ett hus att besöka'}</span>
         </div>
-        <button
-          type='button'
-          className='round-control'
-          aria-label='Inställningar'
-          onClick={() => {
-            setConfirmRestart(false);
-            session.pause(true);
-            settings.current?.showModal();
-          }}
-        >
-          ☰
-        </button>
+        <div className='header-actions'>
+          <FullscreenButton compact />
+          <button
+            type='button'
+            className='round-control'
+            aria-label='Inställningar'
+            onClick={() => {
+              setConfirmRestart(false);
+              session.pause(true);
+              settings.current?.showModal();
+            }}
+          >
+            ☰
+          </button>
+        </div>
       </header>
 
       <div className='world-wrap'>

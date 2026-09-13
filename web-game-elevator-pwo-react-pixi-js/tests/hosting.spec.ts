@@ -18,7 +18,7 @@ test('assets, app links, manifest, and offline worker stay inside the hosted bas
   const response = await request.get(new URL('manifest.webmanifest', baseURL).href);
   expect(response.ok()).toBe(true);
   const manifest = await response.json();
-  expect(manifest).toMatchObject({ id: base.pathname, start_url: base.pathname, scope: base.pathname, orientation: 'any' });
+  expect(manifest).toMatchObject({ id: base.pathname, start_url: base.pathname, scope: base.pathname, orientation: 'any', display: 'fullscreen' });
   for (const icon of manifest.icons) {
     const url = new URL(icon.src, baseURL);
     expect(url.pathname.startsWith(base.pathname)).toBe(true);

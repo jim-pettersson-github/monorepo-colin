@@ -52,6 +52,8 @@ For Android installation, open the deployed HTTPS site in Chrome and use its ins
 
 Use Settings/About → Sök efter uppdatering → Uppdatera spelet to apply a downloaded update after saving. Checks also run on launch, reconnection, and return to the foreground. Older installations without this control need all game windows and Chrome game tabs closed before reopening. Android's installed orientation setting updates separately from game assets: enable Auto-rotate and allow Chrome to refresh the installation while closed, charging, and on Wi-Fi.
 
+For fullscreen, choose **Helskärm** in the menu or **⛶** beside Settings during play (in landscape, open **Kontroller** first). The installed app requests fullscreen at launch; existing Android installations may retain their old display mode until Chrome updates the installation. The button works independently of that manifest update. Android/browser exit gestures remain available, and system bars may briefly reappear after a swipe.
+
 ## GitHub Pages
 
 The [Pages workflow](../.github/workflows/pages.yml) checks relevant pull requests and pushes to `main`. It installs dependencies with Node 24, checks formatting, builds, and runs simulation plus desktop/phone browser tests, including offline play. Only a passing `main` build is uploaded and deployed; pull requests only run checks. GitHub supplies the deployment token, so no personal access token or server secrets are needed.

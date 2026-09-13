@@ -30,6 +30,8 @@ Use Swedish labels, simple pictures, and floor numbers. Do not display Colin's d
 
 The building overview previews a floor without moving Colin; tapping its room sends him there through the stairs. Följ Colin returns to his floor. Use mouse-wheel or +/− zoom and mouse/one-finger dragging within the room. Drags never move Colin or activate objects. Floor/building changes restore the default room view: fitted in portrait, filling the viewport in landscape.
 
+The installed app requests fullscreen display with unrestricted orientation. The menu and game header provide a user-triggered Helskärm button for browser play and existing installations. Fullscreen covers the document so controls and dialogs remain usable; respect browser exit gestures and never force fullscreen back on.
+
 ## Commands
 
 Run commands in this folder with Node 22.12+ (or supported newer Node) and npm.
