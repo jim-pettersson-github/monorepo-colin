@@ -1,0 +1,71 @@
+# Elevator Explorer
+
+A personal game for Colin, an autistic child around eight years old who loves elevators. Colin has blond-brown hair, brown eyes, and walks barefoot because he dislikes socks. Keep the experience predictable and tailored to him.
+
+## Stack
+
+React 19, PixiJS 8 with @pixi/react, TypeScript, Vite, and vite-plugin-pwa. HTML/CSS menus surround a Pixi canvas. No router, backend, authentication, physics engine, or React Compiler is configured.
+
+## Layout
+
+- `src/App.tsx`: menu, session lifetime, and background pause/save handling.
+- `src/components/MenuScene.tsx`: decorative menu illustration. `GameScene.tsx`: interactive world and camera. `GameView.tsx`: HTML controls and panels.
+- `src/game/model.ts`, `simulation.ts`: building data and fixed-step rules. `session.ts` coordinates rendering notifications, audio, and saving.
+- `src/game/art.ts`, `audio.ts`, `storage.ts`: Pixi drawing, local synthesized sound, and validated versioned saves with backup recovery.
+- `src/palette.ts`, `src/styles.css`, `src/game.css`, `src/copy.ts`: local colors, responsive styling, and Swedish copy.
+- `src/pwa.ts`: production service-worker registration.
+- `src/components/ArtStudy.tsx`: separate `?view=art` comparison, with three local concept images and prompts in `art-prompts.md`. Do not treat these as approved replacement game assets.
+- `public/`: local app icons. `tests/`: simulation checks and desktop/phone browser checks against a production build.
+
+## Styling
+
+Use the local palette for canvas and CSS colors. Keep a clear illustrated style, generous spacing, and at least 48-pixel menu targets. Support touch, keyboard, reduced motion, and phone safe areas.
+
+Corridors are 825 world units (1.5× the original); retain normal character/door sizes and horizontal camera panning. Keep flame pictograms, alarm call points, and neighboring warning triangles detailed and separate. Version-2 snapshots migrate old indoor positions while keeping outdoor coordinates unchanged; retain the existing storage keys for recovery.
+
+Use Swedish labels, simple pictures, and floor numbers. Do not display Colin's diagnosis in the UI. Provide accessible HTML alternatives for world interactions; the menu canvas stays decorative.
+
+Support mouse drag, one-finger drag, and mouse-wheel camera panning so every floor remains reachable. Distinguish drags from taps; dragging must never move Colin or activate an object. Keep the camera within the building, with a Följ Colin button and automatic following after a world tap or building change.
+
+## Commands
+
+Run commands in this folder with Node 22.12+ (or supported newer Node) and npm.
+
+```sh
+npm ci
+npm start           # development, port 4010
+npm run typecheck
+npm run check       # Biome, no rewriting
+npm run build       # TypeScript + Vite + offline precache
+npm run preview     # production preview, port 4011
+npm test            # simulation + production browser tests; build first
+```
+
+Install the test browser once with `npx playwright install chromium`. Test artifacts and build output are ignored by Git.
+
+## Forms and panels
+
+Use accessible HTML controls and right-side panels for simple menu information/settings. Preserve keyboard focus, Escape dismissal, and a labelled close control. Do not add a form library for simple controls.
+
+## Game behavior
+
+Follow [PLAN.md](PLAN.md). Portrait side-on free exploration: hotel, shopping centre, and an old apartment house, three floors each (0–2), connected outdoors. The green-signed door is a stairwell on every floor, including the entry floor; a separate regular door marked UT leads outside from each entry floor. Keep warning signs and repeatable light switches.
+
+Tap to walk or approach an object. Tapping another floor routes Colin via the nearest staircase (currently one per building) and then to the tapped position; a new tap replaces the destination after completing any active stair flight. Preserve routes in saves. Elevators run independently: select a floor, step out during a five-second delay, and take the stairs to meet the lift. Timing: stairs three seconds/floor, elevator five seconds/floor, doors one second. No scores, losing, or time limits.
+
+Make doorway blocking an intentional interaction: Colin can stand between closing doors to stop and reopen them, and repeat this without penalties. Doors/gates cannot close through a character; the lift cannot move until all required doors/gates are closed and the threshold is clear. The apartment house has an old lift with a manually operated lattice gate.
+
+Add unhurried passengers so Colin can press buttons for them and watch them ride: 2–3 shoppers, 1–2 hotel guests, and occasional residents (default 0–3) in the old apartment house. Show their desired floor with a number bubble; let Colin operate the lift for them without requiring him to ride. Passengers wait patiently and never take over his buttons or turn the interaction into a timed task.
+
+Sound is optional and synthesized locally. Alarm demos last three seconds, are stoppable and independently adjustable, and never start automatically. No music by default.
+
+## Notes
+
+The three-building game is playable. Preserve the independently running lifts, doorway interlocks, patient passengers, per-floor lights/doors, settings, and local save recovery. Physical-phone installation and sound comfort still need a device review.
+
+Simulation state outlives rendered scenes. Use one fixed-step ticker and refs for continuous motion, not React state every frame. Pause simulation/audio when hidden; resume without elapsed-time catch-up.
+
+Bundle assets locally. Production precaching includes the full game. Updates wait for existing clients to close and never force a reload. Versioned localStorage saves remain separate from service-worker caches; validate snapshots and preserve a previous valid backup.
+
+GitHub Pages deploys through `../.github/workflows/pages.yml`. Local development defaults to `/`; CI sets `VITE_BASE_PATH` to the repository subpath for both build and tests. Use `import.meta.env.BASE_URL` in app links and public asset URLs. Keep manifest start/scope and the offline worker scoped to that same path. Only passing `main` builds deploy.
+

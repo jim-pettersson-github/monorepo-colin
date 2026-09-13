@@ -1,0 +1,411 @@
+.game {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--paper);
+  color: var(--ink);
+}
+.game button {
+  min-height: 48px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--trim);
+  border-radius: 12px;
+  padding: 8px 12px;
+}
+.game button:disabled {
+  opacity: 0.42;
+  cursor: default;
+}
+.game button:active:not(:disabled) {
+  background: var(--light);
+}
+.game-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-shrink: 0;
+  padding: max(10px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) 10px max(18px, env(safe-area-inset-left));
+  background: var(--surface);
+  border-bottom: 1px solid var(--trim);
+  z-index: 1;
+}
+.game .round-control {
+  min-width: 48px;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border-radius: 50%;
+  font-size: 23px;
+}
+.location {
+  text-align: center;
+  display: grid;
+  gap: 4px;
+}
+.location strong {
+  font-family: Georgia, serif;
+  font-size: 23px;
+  font-weight: 400;
+}
+.location span {
+  font-size: 11px;
+  color: var(--muted);
+}
+.world-wrap {
+  flex: 1;
+  min-height: 200px;
+  position: relative;
+  overflow: hidden;
+}
+.game-scene {
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+}
+.game-scene:active {
+  cursor: grabbing;
+}
+.game .camera-follow {
+  position: absolute;
+  right: max(14px, env(safe-area-inset-right));
+  bottom: 12px;
+  z-index: 2;
+  box-shadow: 0 3px 15px color-mix(in srgb, var(--ink) 15%, transparent);
+}
+.game-scene canvas {
+  display: block;
+}
+.world-tip {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--surface);
+  padding: 7px 14px;
+  border-radius: 20px;
+  font-size: 11px;
+  white-space: nowrap;
+  pointer-events: none;
+  margin: 0;
+}
+.journey-label {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 7px 16px;
+  background: var(--ink);
+  color: var(--surface);
+  border-radius: 20px;
+  font-size: 12px;
+  pointer-events: none;
+}
+.game-controls {
+  flex-shrink: 0;
+  width: 100%;
+  max-width: 780px;
+  align-self: center;
+  background: var(--paper);
+  padding: 10px max(14px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
+  border-top: 1px solid var(--trim);
+}
+.lift-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 30px;
+  font-size: 12px;
+}
+.floor-display {
+  display: inline-block;
+  min-width: 50px;
+  padding: 5px 9px;
+  text-align: center;
+  background: var(--ink);
+  color: var(--light);
+  border-radius: 6px;
+  font: bold 16px monospace;
+}
+.lift-kind {
+  margin-left: auto;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+}
+.action-tabs {
+  border: 0;
+  padding: 0;
+  min-width: 0;
+  display: flex;
+  margin: 5px 0 9px;
+  gap: 20px;
+}
+.game .action-tabs button {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  min-height: 48px;
+  padding: 7px 2px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.game .action-tabs button[aria-pressed="true"] {
+  color: var(--ink);
+  border-bottom-color: var(--accent);
+}
+.action-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 7px;
+}
+.game .action-grid button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 62px;
+  font-size: 11px;
+  padding: 8px 3px;
+}
+.action-grid button span {
+  font-size: 21px;
+  line-height: 1;
+}
+.game .action-grid button[aria-pressed="true"] {
+  background: var(--light);
+}
+.travel-controls,
+.gate-controls {
+  display: flex;
+  gap: 7px;
+  margin-top: 8px;
+}
+.game .travel-controls button,
+.game .gate-controls button {
+  flex: 1;
+  font-size: 12px;
+}
+.game .exit-control {
+  background: var(--exit);
+  color: var(--surface);
+  border-color: var(--exit);
+}
+.passenger-controls {
+  display: flex;
+  gap: 7px;
+  overflow-x: auto;
+}
+.passenger-controls:not(:empty) {
+  margin-top: 8px;
+}
+.game .passenger-controls button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  flex: 1;
+  white-space: nowrap;
+}
+.passenger-controls b {
+  background: var(--ink);
+  color: var(--surface);
+  border-radius: 50%;
+  padding: 3px 7px;
+}
+.game-notice {
+  font-size: 11px;
+  color: var(--muted);
+  min-height: 28px;
+  max-height: 42px;
+  overflow-y: auto;
+  margin: 8px 2px 0;
+  line-height: 1.4;
+}
+.building-choices {
+  display: flex;
+  gap: 9px;
+}
+.game .building-choices button {
+  flex: 1;
+  display: grid;
+  gap: 7px;
+  font-size: 13px;
+  min-height: 80px;
+}
+.building-choices button span {
+  font-family: Georgia, serif;
+  color: var(--accent);
+  font-size: 24px;
+}
+.floor-panel {
+  position: fixed;
+  z-index: 3;
+  left: 50%;
+  bottom: max(18px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  width: min(420px, calc(100% - 28px));
+  background: var(--ink);
+  color: var(--surface);
+  border: 3px solid var(--frame);
+  border-radius: 20px;
+  padding: 16px;
+  box-shadow: 0 8px 50px color-mix(in srgb, var(--ink) 35%, transparent);
+}
+.floor-panel > div:first-child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.floor-panel strong {
+  font-size: 15px;
+}
+.floor-buttons {
+  display: flex;
+  gap: 14px;
+  margin-top: 16px;
+}
+.game .floor-buttons button {
+  flex: 1;
+  height: 70px;
+  border-radius: 14px;
+  font: 30px monospace;
+}
+.game .floor-buttons button[aria-pressed="true"] {
+  background: var(--light);
+}
+.settings-panel form {
+  margin-bottom: 24px;
+}
+.toggle-setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 58px;
+  border-bottom: 1px solid var(--trim);
+  gap: 15px;
+}
+.toggle-setting input {
+  width: 25px;
+  height: 25px;
+  accent-color: var(--ink);
+}
+.slider-setting {
+  display: block;
+  margin: 24px 0;
+}
+.slider-setting output {
+  float: right;
+  font-size: 13px;
+  color: var(--muted);
+}
+.slider-setting input {
+  display: block;
+  width: 100%;
+  min-height: 48px;
+  accent-color: var(--ink);
+}
+.save-status {
+  font-size: 12px;
+  color: var(--muted);
+}
+.game-help {
+  border-top: 1px solid var(--trim);
+  padding: 12px 0;
+}
+.game-help summary {
+  cursor: pointer;
+  padding: 15px 0;
+}
+.game-help p {
+  font-size: 14px;
+}
+.game .restart-button {
+  width: 100%;
+  margin-top: 20px;
+}
+.restart-confirm {
+  border-top: 1px solid var(--trim);
+  padding-top: 10px;
+}
+.game .restart-confirm button {
+  width: 100%;
+  margin: 5px 0;
+}
+.warning-art {
+  display: grid;
+  place-items: center;
+  background: var(--light);
+  color: var(--ink);
+  width: 150px;
+  height: 150px;
+  margin: 30px auto;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  padding-top: 35px;
+  font:
+    bold 80px Georgia,
+    serif;
+}
+@media (min-width: 850px) {
+  .game-controls {
+    max-width: 960px;
+  }
+  .action-grid {
+    gap: 14px;
+  }
+  .game .action-grid button {
+    flex-direction: row;
+    gap: 14px;
+    font-size: 14px;
+    min-height: 54px;
+  }
+  .passenger-controls {
+    max-width: 500px;
+  }
+}
+@media (max-height: 700px) and (orientation: portrait) {
+  .game-header {
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+  .game-controls {
+    padding-top: 6px;
+  }
+  .game .action-grid button {
+    min-height: 52px;
+  }
+  .world-tip {
+    display: none;
+  }
+  .game-notice {
+    min-height: 16px;
+    max-height: 28px;
+  }
+}
+@media (orientation: landscape) and (max-height: 600px) {
+  .game {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 350px;
+    grid-template-rows: 65px minmax(0, 1fr);
+  }
+  .game-header {
+    grid-column: 1 / -1;
+  }
+  .world-wrap {
+    height: 100%;
+    min-height: 0;
+  }
+  .game-controls {
+    height: 100%;
+    overflow-y: auto;
+    border-top: 0;
+    border-left: 1px solid var(--trim);
+  }
+}

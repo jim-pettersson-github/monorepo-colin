@@ -1,0 +1,159 @@
+.art-study {
+  min-height: 100svh;
+  padding: max(24px, env(safe-area-inset-top)) max(24px, 4vw) max(24px, env(safe-area-inset-bottom));
+  background: var(--paper);
+}
+.art-study-header,
+.art-study-card-heading,
+.art-study-dialog-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+}
+.art-study-header {
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--trim);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+}
+.art-study-header a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 48px;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.art-study-intro {
+  max-width: 940px;
+  margin: 20px 0 12px;
+}
+.art-study-intro h1 {
+  font-size: clamp(34px, 4vw, 48px);
+  letter-spacing: -0.045em;
+  margin: 8px 0 12px;
+}
+.art-study-intro p {
+  line-height: 1.5;
+  margin: 10px 0;
+}
+.art-study-note {
+  font-size: 13px;
+  color: var(--muted);
+}
+.art-study-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(280px, 1fr));
+  gap: 24px;
+  overflow-x: auto;
+  padding: 6px 6px 24px;
+  scroll-snap-type: x proximity;
+}
+.art-study-card {
+  min-width: 0;
+  scroll-snap-align: start;
+}
+.art-study-card-heading {
+  justify-content: flex-start;
+  gap: 12px;
+  min-height: 54px;
+}
+.art-study-card-heading span {
+  font-size: 25px;
+  font-family: Georgia, serif;
+  color: var(--muted);
+}
+.art-study-card-heading p {
+  font-size: 12px;
+}
+.art-study-image {
+  display: block;
+  position: relative;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: var(--trim);
+  border-radius: 9px;
+  overflow: hidden;
+}
+.art-study-image img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  object-fit: contain;
+}
+.art-study-image span {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  background: var(--paper);
+  color: var(--ink);
+}
+.art-study-card h2 {
+  margin: 22px 0 10px;
+  font-size: 23px;
+  letter-spacing: -0.03em;
+}
+.art-study-card > p {
+  margin: 0;
+  max-width: 38ch;
+  line-height: 1.6;
+  color: var(--muted);
+  font-size: 14px;
+}
+.art-study-footer {
+  margin-top: 24px;
+  border-top: 1px solid var(--trim);
+  padding-top: 22px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.art-study-dialog {
+  max-width: min(94vw, 1150px);
+  max-height: 94svh;
+  padding: 20px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--paper);
+  color: var(--ink);
+}
+.art-study-dialog::backdrop {
+  background: rgb(0 0 0 / 75%);
+}
+.art-study-dialog-heading {
+  margin-bottom: 16px;
+}
+.art-study-dialog-heading h2 {
+  font-size: 22px;
+  margin: 0;
+}
+.art-study-dialog button {
+  min-height: 48px;
+  padding: 8px 16px;
+  border: 1px solid var(--trim);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+}
+.art-study-dialog > img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+@media (max-width: 600px) {
+  .art-study-header > span {
+    max-width: 145px;
+    text-align: right;
+    line-height: 1.6;
+  }
+  .art-study-intro {
+    margin-top: 24px;
+  }
+}

@@ -1,0 +1,127 @@
+import { expect, test } from '@playwright/test';
+import { layout } from '../src/game/model';
+
+test('tap another floor to walk upstairs, return to the entrance, and use the separate outside door', async ({ page }) => {
+  test.slow();
+  await page.goto('./');
+  await page.getByRole('button', { name: 'Spela', exact: true }).click();
+  const canvas = page.locator('.game-scene canvas');
+  await expect(canvas).toBeVisible();
+  const bounds = await canvas.boundingBox();
+  if (!bounds) throw new Error('Missing game canvas');
+  const scale = Math.min(Math.max(0.75, Math.min(1.25, bounds.width / layout.width)), bounds.height / 350);
+  const cameraX = (playerX: number) =>
+    bounds.width > layout.width * scale
+      ? (bounds.width - layout.width * scale) / 2
+      : Math.max(bounds.width - layout.width * scale, Math.min(0, bounds.width / 2 - playerX * scale));
+  await canvas.click({ position: { x: cameraX(670) + 430 * scale, y: bounds.height * 0.86 + (-310 + 20) * scale } });
+  await expect
+    .poll(
+      () =>
+        page.evaluate(() => {
+          const player = JSON.parse(localStorage.getItem('colin-game-v1') ?? '{}').player;
+          return player && [player.floor, Math.round(player.x), player.stairs];
+        }),
+      { timeout: 10000 },
+    )
+    .toEqual([1, 430, null]);
+  await page.getByRole('button', { name: '↓ Till entrén', exact: true }).click();
+  await expect
+    .poll(
+      () =>
+        page.evaluate(() => {
+          const player = JSON.parse(localStorage.getItem('colin-game-v1') ?? '{}').player;
+          return player && [player.floor, Math.round(player.x), player.stairs];
+        }),
+      { timeout: 10000 },
+    )
+    .toEqual([0, 215, null]);
+  await canvas.click({ position: { x: cameraX(215) + 215 * scale, y: bounds.height * 0.86 - 177 * scale } });
+  await expect(page.locator('main.game')).toHaveAttribute('data-place', 'outside');
+});
+
+test('help a passenger, block the doorway, take the stairs, and resume the saved game', async ({ page }) => {
+  test.slow();
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.goto('./');
+  await page.getByRole('button', { name: 'Spela', exact: true }).click();
+  const game = page.locator('main.game');
+  await expect(game).toHaveAttribute('data-place', 'hotel');
+  await expect(page.locator('.game-scene canvas')).toBeVisible();
+  await page.getByRole('button', { name: 'Hjälp Liv till våning 2' }).click();
+  await expect(page.getByRole('button', { name: 'Hjälp Liv till våning 2' })).not.toBeVisible();
+  await page.getByRole('button', { name: 'Gå in', exact: true }).click();
+  await expect(game).toHaveAttribute('data-riding', 'true');
+  await page.getByRole('button', { name: 'Välj våning', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Våning 0', exact: true })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('button', { name: 'Välj våning', exact: true })).toBeFocused();
+  await page.getByRole('button', { name: 'Välj våning', exact: true }).click();
+  await page.getByRole('button', { name: 'Våning 2', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Välj våning i hissen' })).not.toBeVisible();
+  await page.getByRole('button', { name: 'Stå i dörren' }).click();
+  await expect(page.getByLabel('Hissens läge')).toContainText('upptagen');
+  // Colin is now in the doorway, outside the cabin; the explicit ground target clears it.
+  await page.getByRole('button', { name: '↑ Trappa', exact: true }).click();
+  await expect(game).toHaveAttribute('data-floor', '1', { timeout: 8000 });
+  await expect(page.getByText('I trappan ↑', { exact: true })).not.toBeVisible();
+  await page.getByRole('button', { name: '↑ Trappa', exact: true }).click();
+  await expect(game).toHaveAttribute('data-floor', '2', { timeout: 5000 });
+  await expect(page.getByText('I trappan ↑', { exact: true })).not.toBeVisible();
+  await expect
+    .poll(
+      () =>
+        page.evaluate(() => {
+          const saved = JSON.parse(localStorage.getItem('colin-game-v1') ?? '{}');
+          return [saved.buildings?.[0]?.lift.position, saved.buildings?.[0]?.people[0]?.phase];
+        }),
+      { timeout: 18000 },
+    )
+    .toEqual([2, 'returning']);
+  await page.reload();
+  await expect(game).toHaveAttribute('data-place', 'hotel');
+  await expect(game).toHaveAttribute('data-floor', '2');
+  await expect(page.locator('.game-scene canvas')).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test('explore lights and signs, stop the alarm sample, and visit the old gate lift', async ({ page }) => {
+  test.slow();
+  await page.goto('./');
+  await page.getByRole('button', { name: 'Spela', exact: true }).click();
+  await page.getByRole('button', { name: 'Upptäck rummet' }).click();
+  await page.getByRole('button', { name: 'Släck ljuset' }).click();
+  await expect(page.getByRole('button', { name: 'Tänd ljuset' })).toBeVisible();
+  await page.getByRole('button', { name: 'Varningsskylt' }).click();
+  await expect(page.getByRole('dialog', { name: 'Akta dörrarna' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Prova larmljud' }).click();
+  await page.getByRole('button', { name: 'Stoppa ljudprov' }).click();
+  await expect(page.getByRole('button', { name: 'Prova larmljud' })).toBeVisible();
+  await page.getByRole('button', { name: '→ Utgång', exact: true }).click();
+  await expect(page.locator('main.game')).toHaveAttribute('data-place', 'outside');
+  await page.getByRole('button', { name: 'Gamla huset' }).click();
+  await expect(page.locator('main.game')).toHaveAttribute('data-place', 'house');
+  await page.getByRole('button', { name: 'Hissen', exact: true }).click();
+  await page.getByRole('button', { name: 'Stäng dörren', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Öppna dörren', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Stäng grinden', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Öppna grinden', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Inställningar' }).click();
+  await expect(page.getByRole('slider', { name: /^Hissljud/ })).toBeVisible();
+  await expect(page.getByRole('slider', { name: /^Larmljud/ })).toBeVisible();
+  await page.getByLabel('Alla ljud av').check();
+  await page.getByRole('button', { name: 'Stäng inställningar' }).click();
+  await page.reload();
+  await expect(page.locator('main.game')).toHaveAttribute('data-place', 'house');
+  await page.getByRole('button', { name: 'Inställningar' }).click();
+  await expect(page.getByLabel('Alla ljud av')).toBeChecked();
+  await page.getByRole('button', { name: 'Börja om från entrén' }).click();
+  await page.getByRole('button', { name: 'Fortsätt mitt spel' }).click();
+  await expect(page.locator('main.game')).toHaveAttribute('data-place', 'house');
+  await page.getByRole('button', { name: 'Börja om från entrén' }).click();
+  await page.getByRole('button', { name: 'Ja, börja om' }).click();
+  await expect(page.locator('main.game')).toHaveAttribute('data-place', 'hotel');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});

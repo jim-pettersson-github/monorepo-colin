@@ -1,0 +1,87 @@
+# Colins hissäventyr — game plan
+
+## Current milestone
+
+Implemented: the Swedish menu and playable three-building world, independent elevators, manual gates, doorway blocking, stairs, patient passengers, lights, signs, short sound demos, settings, and versioned local saves with backup recovery. React + PixiJS + TypeScript + Vite deliver the offline PWA. The sections below describe the game behavior to preserve.
+
+Automated acceptance covers simulation rules and desktop/phone browser flows, including offline gameplay and save restore. The GitHub Pages pipeline builds and tests the repository-path deployment before publishing `main`; its first live deployment still requires repository Pages setup and pushing the reviewed changes. Physical-phone installation, restart/update behavior, and Colin's comfort with controls and synthesized sounds still need hands-on review.
+
+## Colin and the experience
+
+Built for Colin, an autistic child around eight years old who loves elevators. His character has blond-brown hair, brown eyes, and bare feet: no shoes or socks, because he dislikes socks. Tailor the experience to Colin's preferences rather than assuming these apply to all autistic children.
+
+He enjoys switching lights on and off, green exit signs, warning signs, old elevator gates, reopening closing doors by standing in the doorway, and operating elevators for other people. These are activities to repeat and explore, with no scores, losing, time limits, or unlocking.
+
+Use clear, believable illustrations in a portrait-first, side-on cutaway. The camera follows Colin through rooms, stairs, and elevator rides. Keep Swedish labels short, touch targets large, and sound optional. Do not display his diagnosis in the game UI.
+
+Drag with a mouse or one finger to look around independently of Colin; the mouse wheel also pans between floors. Clamp the camera to the building so every floor can be brought into view. A drag never issues a walking or object action. A world tap sets the destination and resumes following; Följ Colin recenters without moving him. Building changes restore following automatically.
+
+## Three buildings
+
+Rooms have 825-unit corridors, 1.5× their original width. Keep Colin, doors, and the elevator at their normal sizes; mouse/touch camera panning reveals the wider space. Version-1 saves migrate indoor positions and routes to the new layout without resetting progress.
+
+Each building has three floors (0–2), its own elevator, and stairs. Connect their ground-floor entrances through a small outdoor area. Start a new game in the hotel lobby; everything is accessible from the beginning.
+
+| Building | Floors | Elevator | Other people |
+| --- | --- | --- | --- |
+| Hotel | Lobby, guest rooms, breakfast lounge | Enclosed lift with visible cutaway cabin and automatic sliding doors | 1–2 guests |
+| Shopping centre / department store | Shops, toys/books, café | Glass lift with automatic sliding doors | 2–3 shoppers |
+| Old apartment house | Entrance hall and two residential landings | Old lift with a manually operated folding lattice gate | A few occasional residents; default 0–3 present |
+
+Keep each elevator's buttons, appearance, and sounds distinct. The old gate should visibly fold/slide when Colin opens or closes it; model the cabin gate and landing door separately, with travel blocked until both are closed. Use the same forgiving doorway-obstruction rule across the game's lifts.
+
+## Lights, exits, and signs
+
+- Put a reachable light switch on every floor. Repeated taps turn that room's lights on and off with immediate, predictable feedback.
+- Keep Colin, routes, controls, and green exit signs readable with the room lights off. Do not turn off the whole interface or make navigation depend on seeing in darkness.
+- Every floor has a stairwell door with a recognisable green sign, including the entry floor. Tapping it goes up one floor (down on the top floor). Each entry floor also has a separate regular door marked UT that leads outdoors; keep these two doors visually distinct.
+- Place recognisable warning signs by lifts, gates, and maintenance doors. Tapping a sign approaches it and opens a simple enlarged view with a short Swedish label; it does not trigger an alarm or danger event.
+- Fire alarm stations have a large flame pictogram and a detailed red call point with glass, a press target, and BRANDLARM lettering. Keep them separate from yellow door warnings; the optional sound sample remains short and stoppable.
+- Keep these details secondary to elevators. Include a few ordinary doors to open and lamps to investigate, without turning them into objectives.
+
+## Movement and elevator operation
+
+- Tap reachable ground to walk briskly; tap an object to approach and interact. A new destination replaces the old route and cancels an interaction that has not happened yet. Walls, floors, and closed doors constrain movement.
+- Tapping another floor automatically routes Colin to the nearest staircase (one per building), through any intermediate floors, then to the tapped horizontal position. A new tap during a stair flight replaces the remaining route after that flight finishes. A tap during an elevator ride waits for arrival before routing through the stairs. Save and restore the destination with the route.
+- Tap stairs to travel one floor at a time. Finish the current flight before changing route. Initial timing is three seconds per floor, plus walking across the corridor to the stairwell.
+- Call the lift, then tap the open cabin to board. Boarding is always a separate choice. Tap the cabin panel for large floor buttons; choosing a floor dismisses that panel immediately.
+- A new destination selected with doors open starts a fresh five-second departure delay. Colin can step out and use the stairs; leaving never cancels the request. Duplicate selections do not restart the delay.
+- Initial elevator travel takes five seconds per floor; opening/closing takes about one second. For the old lift, Colin explicitly operates the gate; selecting a destination does not close the manual gate for him. After closing it, any remaining departure delay must still expire before travel.
+- Each lift keeps a deduplicated FIFO queue and completes its active journey before serving further stops. For modern lifts, a current-floor request while stationary opens or keeps open the doors; an idle lift stays open when no journey is queued. The old lift unlocks access at a stop, but its gate remains manually operated.
+- Both sliding doors and closing gates stop and reopen when Colin occupies their threshold. Provide an easy-to-tap doorway standing position; do not automatically pull him inside or outside. Repeatable obstruction has no penalty, injury, jam, or alarm. After he clears the threshold, automatic doors get a fresh departure delay; a manual gate awaits another close action.
+- No lift moves with an occupied threshold or an open required door/gate. Closed gates cannot be crossed, and characters cannot exit between floors. Old landing doors can open only when the cabin is present and stationary.
+- All three elevators continue independently off screen and while Colin explores another building. Camera and scene changes never reset their state.
+
+## Operating the lift for passengers
+
+Use small, calm groups with the building counts above. Treat the user's store reference as the shopping centre / department store; the old apartment house is the separate third building.
+
+Passengers show a desired floor using a number bubble. Tapping one invites them to wait by the elevator. Colin calls the lift, lets them board, and selects their destination using the cabin panel. He can ride along or step out before departure and watch them go. For the old lift, make the manual gate operable from either side at the doorway so he can close it for a passenger while staying outside.
+
+Passengers never choose floors automatically, demand a quick response, become upset, or take over Colin's controls. They wait while he experiments with doors and lights. On arrival at their requested floor, they leave the cabin when the doors/gate are open; if Colin sends them elsewhere, they keep their requested-floor bubble and wait patiently. With the old lift they wait for him to open the gate.
+
+Use occasional, slow resident arrivals/departures through apartment doors, capped at three present; avoid sudden appearances beside Colin. Keep active requests and passengers stable across backgrounding and saves. Characters share the doorway obstruction rules, take turns crossing, and do not overlap or permanently block the cabin.
+
+## Sound, saving, and delivery
+
+- Use recognisable clicks, motors, doors/gates, and arrival chimes, with no music by default. Include a labelled alarm demonstration panel in each building: one short sample, tap again to stop, no overlap or automatic evacuation event. Parent settings provide separate elevator/alarm volumes and mute.
+- Keep the simulation independent of React scene lifecycles. Use one fixed-step ticker with refs for continuous motion; React handles menus and discrete state changes. Define reusable building/elevator data rather than separate engines per building.
+- Save versioned local state: Colin's position/route, all three lifts' phases/timers/queues, gate and light states, passenger locations/requests, and settings. Save at transitions, periodically while moving, and on backgrounding. Pause movement/audio when hidden and restore without elapsed-time catch-up; alarm samples do not restart.
+- Parent settings use a right-side panel and pause play. Restart resets the world after confirmation while preserving settings. Validate/migrate saves and keep a previous valid snapshot for recovery.
+- Remain an Android PWA with bundled local assets, offline play, and updates that wait until existing clients close. Keep saves separate from asset caches. Publish the static build through GitHub Pages after passing checks. No accounts, backend, ads, purchases, or analytics; native packaging remains outside this milestone.
+
+## Acceptance and device review
+
+Art review: `?view=art` shows three static concepts side by side: a modern Monkey Island-inspired painted adventure, a refined illustrated game, and a tactile clay miniature. Click/tap to enlarge. These are independent of the playable scene and do not initialize or modify saves; choose a direction before replacing game art. Generation prompts are recorded in `art-prompts.md`.
+
+The hotel loop and shared systems are implemented across all three buildings. Use these scenarios for regression checks and the remaining hands-on device review.
+
+- Call, board, select floor 2, step out, climb the stairs, and meet the independently arriving lift.
+- Stand in closing doors repeatedly; verify they stop/reopen and travel remains blocked. Repeat with the old gate and with a passenger crossing the threshold.
+- Open/close the old gate manually, from inside and outside, and verify gate/landing-door interlocks without trapping Colin or passengers.
+- Send a passenger to their requested floor while Colin stays behind, joins them, or takes the stairs. Verify duplicate requests, patient waiting, wrong-floor stops, and eventual exit on arrival.
+- Exercise the intended passenger counts and occasional apartment-resident arrivals without crowds, collisions, surprise spawning, or timers.
+- Toggle lights repeatedly, inspect warning signs, use every signed stairwell, and leave through each separate entry-floor exit; controls and routes remain visible with lights off.
+- Tap floors above and below Colin, replace a route mid-flight, and restore a saved route. Confirm the final floor/position and that the entry stairwell never sends him outdoors.
+- Restore during travel, gate motion, doorway blocking, and passenger boarding. Preserve light states, requests, and positions without background time advancing.
+- Verify portrait touch controls, camera following, stoppable sound samples, fresh offline launch, and uninterrupted update downloads on Colin's actual phone before expanding scope further.
