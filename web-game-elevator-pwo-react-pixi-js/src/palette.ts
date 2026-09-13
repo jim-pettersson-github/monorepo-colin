@@ -19,6 +19,18 @@ export const palette = {
   exit: '#28754f',
 } as const;
 
+export const menuPalette = {
+  text: '#f8ecd3',
+  muted: '#c8b99a',
+  wood: '#251e18',
+  panel: '#39291e',
+  brass: '#b18a4f',
+  gold: '#edcb83',
+  teal: '#193c39',
+  shadow: '#100e0b',
+  engraving: '#2b2116',
+} as const;
+
 // Painted world colors stay separate from the high-contrast HTML controls.
 export const worldPalette = {
   ...palette,

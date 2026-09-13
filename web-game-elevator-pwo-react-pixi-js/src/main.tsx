@@ -1,12 +1,18 @@
 import { lazy, StrictMode, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
-import { palette } from './palette';
+import { menuPalette, palette } from './palette';
 import { registerOfflineMenu } from './pwa';
 import './styles.css';
 
 for (const [role, color] of Object.entries(palette)) {
   document.documentElement.style.setProperty(`--${role}`, color);
+}
+for (const [role, color] of Object.entries(menuPalette)) {
+  document.documentElement.style.setProperty(`--menu-${role}`, color);
+}
+for (const material of ['wood', 'brass', 'glass']) {
+  document.documentElement.style.setProperty(`--menu-${material}-texture`, `url("${import.meta.env.BASE_URL}painted/${material}.webp")`);
 }
 
 const root = document.getElementById('root');

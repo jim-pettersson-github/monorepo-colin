@@ -27,12 +27,49 @@ a:focus-visible {
 button {
   cursor: pointer;
 }
+.menu,
+.game {
+  --ink: var(--menu-text);
+  --muted: var(--menu-muted);
+  --paper: var(--menu-wood);
+  --surface: var(--menu-panel);
+  --wall: var(--menu-teal);
+  --trim: var(--menu-brass);
+  --accent: var(--menu-gold);
+  --light: var(--menu-gold);
+  --frame: var(--menu-brass);
+  --wood-finish:
+    linear-gradient(color-mix(in srgb, var(--menu-wood) 88%, transparent), color-mix(in srgb, var(--menu-shadow) 88%, transparent)), var(--menu-wood-texture);
+  --button-finish:
+    linear-gradient(color-mix(in srgb, var(--menu-panel) 90%, transparent), color-mix(in srgb, var(--menu-wood) 90%, transparent)), var(--menu-wood-texture);
+  --brass-finish:
+    linear-gradient(color-mix(in srgb, var(--menu-gold) 88%, transparent), color-mix(in srgb, var(--menu-brass) 88%, transparent)), var(--menu-brass-texture);
+  color: var(--ink);
+  color-scheme: dark;
+  scrollbar-color: var(--trim) var(--paper);
+}
+.menu button,
+.close-button {
+  border: 1px solid var(--trim);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--menu-gold) 22%, transparent),
+    0 2px 3px var(--menu-shadow);
+}
+.menu button:active:not(:disabled) {
+  box-shadow: inset 0 2px 5px var(--menu-shadow);
+}
 .menu {
   max-width: 1440px;
   min-height: 100svh;
   margin: auto;
-  background: var(--paper);
-  padding: max(32px, env(safe-area-inset-top)) max(5vw, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(5vw, env(safe-area-inset-left));
+  background:
+    radial-gradient(ellipse at 75% 30%, transparent, var(--menu-teal)),
+    linear-gradient(color-mix(in srgb, var(--menu-teal) 92%, transparent), color-mix(in srgb, var(--menu-wood) 96%, transparent)), var(--menu-glass-texture);
+  background-size: cover;
+  box-shadow:
+    inset 0 0 0 1px var(--trim),
+    inset 0 0 60px color-mix(in srgb, var(--menu-shadow) 45%, transparent);
+  padding: max(16px, env(safe-area-inset-top)) max(4vw, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(4vw, env(safe-area-inset-left));
   display: flex;
   flex-direction: column;
 }
@@ -67,7 +104,7 @@ button {
   align-items: center;
   gap: 5%;
   flex: 1;
-  padding: 65px 0;
+  padding: 28px 0;
 }
 .eyebrow {
   display: flex;
@@ -89,6 +126,7 @@ h1 {
   font-weight: 400;
   letter-spacing: -0.065em;
   line-height: 1.04;
+  text-shadow: 0 2px 3px var(--menu-shadow);
 }
 h1 em {
   font-weight: 400;
@@ -106,7 +144,7 @@ h1 em {
 }
 .menu-actions {
   max-width: 290px;
-  margin-top: 30px;
+  margin-top: 20px;
 }
 .play-button {
   display: flex;
@@ -114,11 +152,12 @@ h1 em {
   justify-content: center;
   gap: 14px;
   width: 100%;
-  min-height: 58px;
-  border: 0;
-  border-radius: 12px;
-  color: var(--surface);
-  background: var(--ink);
+  min-height: 48px;
+  border: 1px solid var(--trim);
+  border-radius: 6px;
+  color: var(--menu-engraving);
+  background: var(--brass-finish);
+  background-size: cover;
   font-size: 17px;
   font-weight: 700;
 }
@@ -146,10 +185,13 @@ h1 em {
   margin: auto;
   align-items: center;
   gap: 14px;
-  background: transparent;
-  border: 0;
+  background: var(--button-finish);
+  background-size: cover;
+  border: 1px solid var(--trim);
+  border-radius: 6px;
+  padding-inline: 18px;
   color: var(--ink);
-  text-decoration: underline;
+  text-decoration: none;
   text-underline-offset: 5px;
   font-size: 13px;
 }
@@ -205,7 +247,7 @@ figcaption {
   justify-content: space-between;
   align-items: center;
   border-top: 1px solid var(--trim);
-  padding-top: 22px;
+  padding-top: 12px;
   font-size: 9px;
   letter-spacing: 0.16em;
   color: var(--muted);
@@ -214,62 +256,73 @@ figcaption {
   font-size: 20px;
   color: var(--ink);
 }
+.menu-footer a {
+  color: var(--accent);
+  text-underline-offset: 3px;
+}
 .info-panel {
   position: fixed;
   inset: 0 0 0 auto;
   margin: 0;
-  width: min(440px, 100%);
+  width: min(380px, 100%);
   max-width: 100%;
   height: 100dvh;
   max-height: 100dvh;
   border: 0;
-  padding: max(32px, env(safe-area-inset-top)) 30px max(32px, env(safe-area-inset-bottom));
+  border-left: 2px solid var(--trim);
+  padding: max(12px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+  overflow-y: auto;
   color: var(--ink);
-  background: var(--surface);
+  background: var(--wood-finish);
+  background-size: cover;
+  box-shadow: inset 5px 0 15px var(--menu-shadow);
 }
 .info-panel::backdrop {
-  background: color-mix(in srgb, var(--ink) 50%, transparent);
+  background: color-mix(in srgb, var(--menu-shadow) 72%, transparent);
 }
 .info-panel form {
   display: flex;
   justify-content: flex-end;
-  margin-bottom: 48px;
+  margin-bottom: 12px;
 }
 .close-button {
   width: 48px;
   height: 48px;
   border-radius: 50%;
   border: 1px solid var(--trim);
-  background: transparent;
+  background: var(--button-finish);
+  background-size: cover;
   color: var(--ink);
   font-size: 28px;
 }
 .info-panel h2 {
   font-family: Georgia, serif;
-  font-size: 42px;
+  font-size: 32px;
+  margin: 14px 0;
   font-weight: 400;
   letter-spacing: -0.04em;
   line-height: 1.1;
 }
 .info-panel p {
-  line-height: 1.8;
+  line-height: 1.6;
 }
 .info-panel .eyebrow {
   line-height: 1.4;
 }
 .panel-intro {
-  font-size: 20px;
+  font-size: 17px;
 }
 .panel-note {
-  margin-top: 32px;
+  margin-top: 20px;
   border-top: 1px solid var(--trim);
-  padding-top: 24px;
+  padding-top: 16px;
   color: var(--muted);
   font-size: 14px;
 }
 @media (max-width: 700px) {
   .menu {
-    padding: max(20px, env(safe-area-inset-top)) 24px max(18px, env(safe-area-inset-bottom));
+    padding: max(10px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom))
+      max(18px, env(safe-area-inset-left));
   }
   .edition {
     display: none;
@@ -278,20 +331,20 @@ figcaption {
     display: flex;
     flex-direction: column;
     gap: 0;
-    padding: 28px 0;
+    padding: 12px 0;
   }
   .welcome {
     display: contents;
   }
   .eyebrow {
     align-self: center;
-    margin: 8px 0 15px;
+    margin: 4px 0 8px;
     font-size: 9px;
   }
   h1 {
     order: 0;
     text-align: center;
-    font-size: clamp(46px, 11vw, 68px);
+    font-size: clamp(38px, 10vw, 54px);
     margin: 0;
   }
   h1 br {
@@ -303,7 +356,7 @@ figcaption {
   .intro {
     order: 1;
     font-size: 15px;
-    margin: 16px 0 6px;
+    margin: 10px 0 4px;
   }
   .description {
     display: none;
@@ -311,8 +364,8 @@ figcaption {
   .illustration {
     order: 2;
     width: 100%;
-    max-width: 420px;
-    padding-top: 22px;
+    max-width: min(300px, 32svh);
+    padding-top: 12px;
   }
   .scene-caption {
     font-size: 8px;
@@ -329,7 +382,7 @@ figcaption {
     order: 3;
     width: 100%;
     max-width: 360px;
-    margin-top: 25px;
+    margin-top: 14px;
   }
   .menu-footer {
     font-size: 7px;
@@ -340,11 +393,57 @@ figcaption {
 .scene-painted {
   aspect-ratio: 1;
   border-radius: 12px;
-  border: 5px solid var(--ink);
-  box-shadow: 0 12px 30px color-mix(in srgb, var(--ink) 16%, transparent);
+  border: 5px ridge var(--trim);
+  box-shadow:
+    0 8px 24px var(--menu-shadow),
+    0 0 0 2px var(--menu-wood);
 }
 .scene-painted img {
   display: block;
   width: 100%;
   height: auto;
+}
+
+@media (orientation: landscape) and (max-height: 600px) {
+  .menu {
+    padding-block: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-bottom));
+  }
+  .menu-content {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    padding: 8px 0;
+  }
+  .welcome {
+    display: block;
+  }
+  .welcome .eyebrow,
+  .description,
+  .coming-soon,
+  .illustration figcaption,
+  .scene-caption {
+    display: none;
+  }
+  .menu h1 {
+    text-align: left;
+    font-size: clamp(30px, 5vw, 48px);
+    margin: 0;
+  }
+  .intro {
+    font-size: 13px;
+    margin: 8px 0;
+  }
+  .menu-actions {
+    margin-top: 10px;
+  }
+  .illustration {
+    padding: 0;
+    width: min(100%, calc(100svh - 110px));
+    max-width: none;
+    justify-self: center;
+  }
+  .menu-footer {
+    padding-top: 6px;
+    letter-spacing: 0.06em;
+  }
 }

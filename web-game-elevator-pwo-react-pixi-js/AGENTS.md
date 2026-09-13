@@ -26,7 +26,7 @@ Use `worldPalette` for the painted canvas and `palette` for readable HTML contro
 
 Room plates are 1448×1086 with a shared doorway plane and perspective projection. Preserve generous floor space and normal character/door sizes. Keep flame pictograms, alarm call points, and warning triangles separate. Version-3 saves include depth and doorway waypoints; migrate versions 1 and 2 and retain the existing storage keys for recovery.
 
-Use Swedish labels, simple pictures, and floor numbers. Do not display Colin's diagnosis in the UI. Provide accessible HTML alternatives for world interactions; the menu canvas stays decorative.
+Use Swedish labels, simple pictures, and floor numbers. Do not display Colin's diagnosis in the UI. Provide accessible HTML alternatives for world interactions; the menu canvas stays decorative. Menus share the game's painted wood, brass, and teal theme using `menuPalette` and existing material textures, with bright readable text and illuminated selections. Keep menus compact with 48-pixel touch targets. Support portrait and landscape, with controls beside the room on wide screens, scrollable settings, and unrestricted PWA orientation.
 
 The building overview previews a floor without moving Colin; tapping its room sends him there through the stairs. Följ Colin returns to his floor. Use mouse-wheel or +/− zoom and mouse/one-finger dragging within the room. Drags never move Colin or activate objects. Floor/building changes restore the fitted room view.
 
@@ -52,7 +52,7 @@ Use accessible HTML controls and right-side panels for simple menu information/s
 
 ## Game behavior
 
-Follow [PLAN.md](PLAN.md). Portrait-first 2.5D free exploration: hotel, shopping centre, and an old apartment house, three floors each (0–2), connected outdoors. The green-signed door is a stairwell on every floor, including the entry floor; a separate regular door marked UT leads outside from each entry floor. Keep warning signs and repeatable light switches.
+Follow [PLAN.md](PLAN.md). Portrait and landscape 2.5D free exploration: hotel, shopping centre, and an old apartment house, three floors each (0–2), connected outdoors. The green-signed door is a stairwell on every floor, including the entry floor; a separate regular door marked UT leads outside from each entry floor. Keep warning signs and repeatable light switches.
 
 Tap to walk or approach an object. Tapping another floor routes Colin via the nearest staircase (currently one per building) and then to the tapped position; a new tap replaces the destination after completing any active stair flight. Preserve routes in saves. Elevators run independently: select a floor, step out during a five-second delay, and take the stairs to meet the lift. Timing: stairs three seconds/floor, elevator five seconds/floor, doors one second. No scores, losing, or time limits.
 

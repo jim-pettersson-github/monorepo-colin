@@ -12,7 +12,7 @@ Built for Colin, an autistic child around eight years old who loves elevators. H
 
 He enjoys switching lights on and off, green exit signs, warning signs, old elevator gates, reopening closing doors by standing in the doorway, and operating elevators for other people. These are activities to repeat and explore, with no scores, losing, time limits, or unlocking.
 
-Use clear, believable painted illustrations in portrait-first 2.5D rooms. Colin walks sideways, toward the camera, and away, scaling with depth. The view follows his current floor through stairs and elevator rides. Keep Swedish labels short, touch targets large, and sound optional. Do not display his diagnosis in the game UI.
+Use clear, believable painted illustrations in portrait and landscape 2.5D rooms. Colin walks sideways, toward the camera, and away, scaling with depth. The view follows his current floor through stairs and elevator rides. Keep Swedish labels short, menus compact, touch targets at least 48 pixels, and sound optional. Landscape places controls beside the room, and the installed PWA permits rotation without restarting play. Do not display his diagnosis in the game UI.
 
 A small building overview marks Colin's floor and the elevator's position. Select a floor to preview its room without moving Colin; tap a destination in that room to send him there through the nearest staircase. Följ Colin returns to his current floor without moving him. Zoom with the mouse wheel or touch-friendly +/− buttons, then drag with a mouse or one finger. Drags never issue walking/object actions. Floor/building changes restore the fitted room view.
 
@@ -76,7 +76,7 @@ Use occasional, slow resident arrivals/departures through apartment doors, cappe
 
 The approved 2.5D direction is integrated with all three buildings, floor previews, stairs, lifts, passengers, lighting and saves. Colin has front/side walking poses, a rear pose for walking away, and a reaching pose. Source prompts are in `art-source/perspective-game.md`. The original `?view=depth` study stays isolated and unsaved for comparison; it is no longer the main game's engine.
 
-Art direction 01 is approved and implemented: locally bundled painted wall/material textures, wood/brass elevators, Colin standing/walking sprites, painted passengers, and the selected menu illustration. Preserve distinct buildings, readable signs and working lighting/doors; keep high-contrast HTML controls. Source prompts live in `art-source/README.md`.
+Art direction 01 is approved and implemented: locally bundled painted wall/material textures, wood/brass elevators, Colin standing/walking sprites, painted passengers, and the selected menu illustration. Menus, settings, and game controls share the painted wood/brass/teal theme, with readable cream text and illuminated brass selections. Preserve distinct buildings, readable signs and working lighting/doors; keep high-contrast HTML controls. Source prompts live in `art-source/README.md`.
 
 Art reference: `?view=art` preserves the three original concepts side by side: a modern Monkey Island-inspired painted adventure, a refined illustrated game, and a tactile clay miniature. Click/tap to enlarge. The comparison does not initialize or modify saves. Option 01 is the selected direction. Generation prompts are recorded in `art-prompts.md`.
 
@@ -90,4 +90,4 @@ The hotel loop and shared systems are implemented across all three buildings. Us
 - Toggle lights repeatedly, inspect warning signs, use every signed stairwell, and leave through each separate entry-floor exit; controls and routes remain visible with lights off.
 - Preview floors above and below Colin without moving him, then tap destinations at different depths, replace a route mid-flight, and restore a saved route. Confirm the final floor/position and that the entry stairwell never sends him outdoors. Check that mouse/touch drags only move the zoomed camera.
 - Restore during travel, gate motion, doorway blocking, and passenger boarding. Preserve light states, requests, and positions without background time advancing.
-- Verify portrait touch controls, camera following, stoppable sound samples, fresh offline launch, and uninterrupted update downloads on Colin's actual phone before expanding scope further.
+- Verify portrait/landscape rotation and touch controls, camera following, stoppable sound samples, fresh offline launch, and uninterrupted update downloads on Colin's actual phone before expanding scope further.
