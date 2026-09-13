@@ -6,11 +6,9 @@ export const buildings = [
 
 export type BuildingId = (typeof buildings)[number]['id'];
 export type Place = BuildingId | 'outside';
-export const layout = { width: 1055, corridor: 825, outsideWidth: 780, floorHeight: 310, ground: 850, threshold: 825, cabin: 1001, stairs: 105, exit: 215 };
+export const layout = { width: 1055, corridor: 825, outsideWidth: 780, threshold: 825, cabin: 1001, stairs: 105, exit: 1015 };
 export const worldWidth = (place: Place) => (place === 'outside' ? layout.outsideWidth : layout.width);
-export const roomDoorX = (floor: number) => (floor === 0 ? 260 : 211);
 export const timing = { walk: 240, passengerWalk: 115, stairs: 3, travel: 5, door: 1, dwell: 5 };
-export const floorY = (level: number) => layout.ground - level * layout.floorHeight;
 export const definition = (id: BuildingId) => buildings.find((building) => building.id === id) ?? buildings[0];
 
 export type Intent =
@@ -18,7 +16,11 @@ export type Intent =
   | { type: 'stairs'; direction: -1 | 1 }
   | { type: 'invite'; id: number }
   | { type: 'enter'; building: BuildingId };
-export type Command = Intent | { type: 'walk'; x: number; floor?: number } | { type: 'floor'; floor: number };
+export type Command = Intent | { type: 'walk'; x: number; floor?: number; depth?: number } | { type: 'floor'; floor: number };
+export interface FloorPoint {
+  x: number;
+  depth: number;
+}
 
 export interface Door {
   open: number;
@@ -38,6 +40,7 @@ export interface Passenger {
   floor: number;
   wanted: number;
   x: number;
+  depth: number;
   phase: 'idle' | 'waiting' | 'boarding' | 'riding' | 'leaving' | 'returning' | 'away';
   timer: number;
 }
@@ -52,10 +55,13 @@ export interface Player {
   place: Place;
   floor: number;
   x: number;
+  depth: number;
   riding: boolean;
   targetX: number | null;
+  targetDepth: number | null;
+  waypoints: FloorPoint[];
   intent: Intent | null;
-  route: { floor: number; x: number } | null;
+  route: { floor: number; x: number; depth: number } | null;
   stairs: { from: number; to: number; elapsed: number } | null;
 }
 export interface Settings {
@@ -65,7 +71,7 @@ export interface Settings {
   smoothCamera: boolean;
 }
 export interface GameState {
-  version: 2;
+  version: 3;
   started: boolean;
   time: number;
   random: number;
@@ -82,11 +88,23 @@ export function random(state: GameState) {
 
 export function createGame(seed = Date.now() >>> 0): GameState {
   return {
-    version: 2,
+    version: 3,
     started: false,
     time: 0,
     random: seed,
-    player: { place: 'hotel', floor: 0, x: 670, riding: false, targetX: null, intent: null, route: null, stairs: null },
+    player: {
+      place: 'hotel',
+      floor: 0,
+      x: 670,
+      depth: 0.4,
+      riding: false,
+      targetX: null,
+      targetDepth: null,
+      waypoints: [],
+      intent: null,
+      route: null,
+      stairs: null,
+    },
     buildings: buildings.map((building) => ({
       id: building.id,
       lift: { position: 0, destination: null, queue: [], landing: { open: 1, target: 1 }, gate: { open: 1, target: 1 }, dwell: 5, blocked: false },
@@ -97,6 +115,7 @@ export function createGame(seed = Date.now() >>> 0): GameState {
         floor: id === 2 ? 1 : 0,
         wanted: id === 0 ? 2 : id === 1 ? 1 : 0,
         x: 420 + id * 90,
+        depth: 0.24 + id * 0.12,
         phase: building.id === 'house' && id > 0 ? 'away' : 'idle',
         timer: 25 + id * 20,
       })),

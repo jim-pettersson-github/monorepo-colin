@@ -11,7 +11,7 @@ React 19, PixiJS 8 with @pixi/react, TypeScript, Vite, and vite-plugin-pwa. HTML
 - `src/App.tsx`: menu, session lifetime, and background pause/save handling.
 - `src/components/MenuScene.tsx`: approved painted menu illustration. `GameScene.tsx`: interactive world and camera. `GameView.tsx`: HTML controls and panels.
 - `src/game/model.ts`, `simulation.ts`: building data and fixed-step rules. `session.ts` coordinates rendering notifications, audio, and saving.
-- `src/game/art.ts`, `audio.ts`, `storage.ts`: Pixi drawing, local synthesized sound, and validated versioned saves with backup recovery.
+- `src/game/room-art.ts`, `spatial.ts`, `room-interaction.ts`: perspective drawing, depth movement/door collision, and room hit targets. `audio.ts` synthesizes sound; `storage.ts` validates and migrates saves with backup recovery.
 - `src/palette.ts`, `src/styles.css`, `src/game.css`, `src/copy.ts`: local colors, responsive styling, and Swedish copy.
 - `src/pwa.ts`: production service-worker registration.
 - `src/components/ArtStudy.tsx`: separate `?view=art` comparison, with three local concept images and prompts in `art-prompts.md`. Option 01 is approved and implemented in the game; the other concepts remain comparisons.
@@ -20,15 +20,15 @@ React 19, PixiJS 8 with @pixi/react, TypeScript, Vite, and vite-plugin-pwa. HTML
 
 ## Styling
 
-`?view=depth` is an isolated perspective movement study in `DepthStudy.tsx`, using its own canvas, art and transient state. Keep it separate from GameSession and saves until the user approves integration. Review goals: walk toward/away from the camera with depth scaling, a visibly recessed cabin, doorway occlusion/blocking, and standing beside the call panel while reaching to press an illuminated button.
+The approved 2.5D direction is implemented in the main game: perspective rooms, depth scaling, a recessed cabin with door occlusion, and Colin standing beside the call panel while reaching toward its illuminated button. `?view=depth` remains the original isolated, unsaved study for comparison.
 
 Use `worldPalette` for the painted canvas and `palette` for readable HTML controls. Follow approved style 01: textured dark wood, brass doors, teal/amber lighting, and barefoot Colin with standing/walk sprites. Keep doors, gates, signs, and switches on independent interactive layers. Keep a clear illustrated style, generous spacing, and at least 48-pixel menu targets. Support touch, keyboard, reduced motion, and phone safe areas.
 
-Corridors are 825 world units (1.5× the original); retain normal character/door sizes and horizontal camera panning. Keep flame pictograms, alarm call points, and neighboring warning triangles detailed and separate. Version-2 snapshots migrate old indoor positions while keeping outdoor coordinates unchanged; retain the existing storage keys for recovery.
+Room plates are 1448×1086 with a shared doorway plane and perspective projection. Preserve generous floor space and normal character/door sizes. Keep flame pictograms, alarm call points, and warning triangles separate. Version-3 saves include depth and doorway waypoints; migrate versions 1 and 2 and retain the existing storage keys for recovery.
 
 Use Swedish labels, simple pictures, and floor numbers. Do not display Colin's diagnosis in the UI. Provide accessible HTML alternatives for world interactions; the menu canvas stays decorative.
 
-Support mouse drag, one-finger drag, and mouse-wheel camera panning so every floor remains reachable. Distinguish drags from taps; dragging must never move Colin or activate an object. Keep the camera within the building, with a Följ Colin button and automatic following after a world tap or building change.
+The building overview previews a floor without moving Colin; tapping its room sends him there through the stairs. Följ Colin returns to his floor. Use mouse-wheel or +/− zoom and mouse/one-finger dragging within the room. Drags never move Colin or activate objects. Floor/building changes restore the fitted room view.
 
 ## Commands
 
@@ -52,11 +52,11 @@ Use accessible HTML controls and right-side panels for simple menu information/s
 
 ## Game behavior
 
-Follow [PLAN.md](PLAN.md). Portrait side-on free exploration: hotel, shopping centre, and an old apartment house, three floors each (0–2), connected outdoors. The green-signed door is a stairwell on every floor, including the entry floor; a separate regular door marked UT leads outside from each entry floor. Keep warning signs and repeatable light switches.
+Follow [PLAN.md](PLAN.md). Portrait-first 2.5D free exploration: hotel, shopping centre, and an old apartment house, three floors each (0–2), connected outdoors. The green-signed door is a stairwell on every floor, including the entry floor; a separate regular door marked UT leads outside from each entry floor. Keep warning signs and repeatable light switches.
 
 Tap to walk or approach an object. Tapping another floor routes Colin via the nearest staircase (currently one per building) and then to the tapped position; a new tap replaces the destination after completing any active stair flight. Preserve routes in saves. Elevators run independently: select a floor, step out during a five-second delay, and take the stairs to meet the lift. Timing: stairs three seconds/floor, elevator five seconds/floor, doors one second. No scores, losing, or time limits.
 
-Make doorway blocking an intentional interaction: Colin can stand between closing doors to stop and reopen them, and repeat this without penalties. Doors/gates cannot close through a character; the lift cannot move until all required doors/gates are closed and the threshold is clear. The apartment house has an old lift with a manually operated lattice gate.
+The cabin has visible numbered, illuminated buttons on its back wall. Tapping them after boarding selects a floor; large HTML floor controls remain available. Modern lifts also have an open/close control. Occupied doors visibly approach Colin, then reverse before reaching his body; queued automatic doors pause and retry. Door/gate interlocks keep the lift stationary while blocked. The apartment house retains separate manual landing and lattice-gate controls.
 
 Add unhurried passengers so Colin can press buttons for them and watch them ride: 2–3 shoppers, 1–2 hotel guests, and occasional residents (default 0–3) in the old apartment house. Show their desired floor with a number bubble; let Colin operate the lift for them without requiring him to ride. Passengers wait patiently and never take over his buttons or turn the interaction into a timed task.
 

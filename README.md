@@ -1,5 +1,9 @@
 # Colin — Elevator Explorer
 
+**[Play the game](https://jim-pettersson-github.github.io/monorepo-colin/)**
+
+The hosting link is also under [Settings → Pages](https://github.com/jim-pettersson-github/monorepo-colin/settings/pages). Updates publish automatically after the [Pages workflow](https://github.com/jim-pettersson-github/monorepo-colin/actions/workflows/pages.yml) passes on `main`.
+
 A personal, illustrated elevator game built with React + PixiJS. Explore three buildings with Colin, operate elevators for passengers, experiment with doors and lights, and continue from a local save.
 
 ```sh

@@ -1,8 +1,10 @@
 import { expect, test } from '@playwright/test';
-import { worldAction } from '../src/game/interaction';
-import { type Command, createGame, currentBuilding, floorY, layout, playerLevel } from '../src/game/model';
+import { type Command, createGame, currentBuilding, layout, playerLevel } from '../src/game/model';
+import { actorBounds } from '../src/game/room-art';
+import { roomAction } from '../src/game/room-interaction';
 import { GameSession } from '../src/game/session';
 import { command, createUI, requestFloor, step } from '../src/game/simulation';
+import { cabinPanel, doorClearance, projectPoint } from '../src/game/spatial';
 import { backupKey, loadGame, parseSave, saveGame, saveKey } from '../src/game/storage';
 
 function setup() {
@@ -42,6 +44,7 @@ test('entering a closing doorway reopens it; standing there is indefinitely repe
   const { state, tick, act } = setup();
   const lift = state.buildings[0].lift;
   state.player.x = layout.threshold - 50;
+  state.player.depth = 0.1;
   requestFloor(state.buildings[0], 2);
   tick(5.2);
   expect(lift.landing.open).toBeLessThan(1);
@@ -84,7 +87,7 @@ test('closed doors block walking; a new destination cancels an unperformed inter
   lift.landing = { open: 0, target: 0 };
   lift.gate = { open: 0, target: 0 };
   act({ type: 'walk', x: layout.cabin });
-  expect(state.player.x).toBeLessThan(layout.threshold);
+  expect(state.player.depth).toBeGreaterThan(0);
   expect(state.player.riding).toBe(false);
   act({ type: 'light' }, 0.05);
   act({ type: 'walk', x: 200 });
@@ -97,7 +100,7 @@ test('manual gate and landing door both interlock; Colin can send a passenger an
   const { state, ui, act, tick } = setup();
   state.player.place = 'house';
   const building = state.buildings[2];
-  act({ type: 'invite', id: 0 }, 6);
+  act({ type: 'invite', id: 0 }, 8);
   expect(building.people[0].phase).toBe('riding');
   act({ type: 'board' }, 3);
   command(state, ui, { type: 'panel' });
@@ -139,7 +142,7 @@ test('passengers board one at a time and never operate the lift themselves', () 
 test('all buildings keep moving off screen and every floor keeps its own lights and doors', () => {
   const { state, act, tick } = setup();
   act({ type: 'light' });
-  act({ type: 'roomDoor' });
+  act({ type: 'roomDoor' }, 4);
   requestFloor(state.buildings[0], 2);
   act({ type: 'exit' });
   expect(state.player.place).toBe('outside');
@@ -224,13 +227,13 @@ test('every entry floor has separate stairwell and outside doors', () => {
   for (const place of ['hotel', 'mall', 'house'] as const) {
     const { state, act } = setup();
     state.player.place = place;
-    const stairs = worldAction(state, { x: 105, y: floorY(0) - 100 });
+    const stairs = roomAction(state, { x: 240, y: 300 }, 0);
     expect(stairs).toEqual({ type: 'stairs', direction: 1 });
     act(stairs as Command, 6);
     expect(state.player.floor).toBe(1);
     expect(state.player.place).toBe(place);
-    act({ type: 'walk', floor: 0, x: 215 }, 5);
-    const exit = worldAction(state, { x: 215, y: floorY(0) - 170 });
+    act({ type: 'walk', floor: 0, x: layout.exit, depth: 0.3 }, 8);
+    const exit = roomAction(state, { x: 1210, y: 350 }, 0);
     expect(exit).toEqual({ type: 'exit' });
     act(exit as Command);
     expect(state.player.place).toBe('outside');
@@ -239,9 +242,9 @@ test('every entry floor has separate stairwell and outside doors', () => {
 
 test('a tap on another floor takes the stairs through all intermediate floors and reaches the selected spot', () => {
   const { state, act } = setup();
-  const target = worldAction(state, { x: 430, y: floorY(2) + 20 });
-  expect(target).toEqual({ type: 'walk', floor: 2, x: 430 });
-  act(target as Command, 10);
+  const target = roomAction(state, projectPoint({ x: 430, depth: 0.4 }), 2);
+  expect(target).toMatchObject({ type: 'walk', floor: 2, x: 430 });
+  act(target as Command, 11);
   expect(state.player).toMatchObject({ floor: 2, x: 430, route: null, stairs: null, place: 'hotel' });
   act({ type: 'walk', floor: 0, x: 330 }, 10);
   expect(state.player).toMatchObject({ floor: 0, x: 330, route: null, stairs: null, place: 'hotel' });
@@ -300,7 +303,7 @@ test('version-1 saves migrate doorway occupants, riders, and routes without chan
 
   old.player.x = 726;
   old.player.riding = true;
-  old.player.route = { floor: 2, x: 700 };
+  old.player.route = { floor: 2, x: 700, depth: 0.3 };
   old.player.targetX = 475;
   old.buildings[0].people[0].x = 595;
   old.buildings[0].people[0].phase = 'riding';
@@ -312,25 +315,153 @@ test('version-1 saves migrate doorway occupants, riders, and routes without chan
   old.player.x = 630;
   old.player.riding = false;
   old.player.targetX = 380;
-  old.player.route = { floor: 0, x: 700 };
+  old.player.route = { floor: 0, x: 700, depth: 0.3 };
   expect(parseSave(JSON.stringify(old))?.player).toMatchObject({ x: 630, targetX: 380, route: { floor: 0, x: 700 } });
 });
 
-test('the expanded corridor keeps alarm, light, call buttons, and cabin hit targets aligned', () => {
+test('perspective room art keeps alarm, light, call buttons, and cabin hit targets aligned', () => {
   const state = createGame(42);
+  for (const building of state.buildings) for (const person of building.people) person.phase = 'away';
   for (const place of ['hotel', 'mall', 'house'] as const) {
     state.player.place = place;
-    expect(worldAction(state, { x: 703, y: floorY(0) - 175 })).toEqual({ type: 'alarm' });
-    expect(worldAction(state, { x: 703, y: floorY(0) - 95 })).toEqual({ type: 'alarm' });
-    expect(worldAction(state, { x: 625, y: floorY(0) - 100 })).toEqual({ type: 'light' });
-    expect(worldAction(state, { x: 773, y: floorY(0) - 100 })).toEqual({ type: 'call' });
-    expect(worldAction(state, { x: layout.cabin, y: floorY(0) - 100 })).toEqual({ type: 'board' });
-    expect(worldAction(state, { x: layout.threshold, y: floorY(0) + 15 })).toEqual({ type: 'threshold' });
+    expect(roomAction(state, { x: 488, y: 329 }, 0)).toEqual({ type: 'alarm' });
+    expect(roomAction(state, { x: 577, y: 420 }, 0)).toEqual({ type: 'light' });
+    expect(roomAction(state, { x: 654, y: 416 }, 0)).toEqual({ type: 'call' });
+    expect(roomAction(state, { x: 950, y: 300 }, 0)).toEqual({ type: 'board' });
+    expect(roomAction(state, { x: 900, y: 640 }, 0)).toEqual({ type: 'threshold' });
   }
 });
 
 test('the taller painted passengers can be invited by tapping their number bubbles', () => {
   const state = createGame(42);
   const person = state.buildings[0].people[0];
-  expect(worldAction(state, { x: person.x, y: floorY(0) - 178 })).toEqual({ type: 'invite', id: person.id });
+  const bounds = actorBounds(person);
+  expect(roomAction(state, { x: bounds.x, y: bounds.y - bounds.height - 22 }, 0)).toEqual({ type: 'invite', id: person.id });
+});
+
+test('version-2 saves gain depth and crossing waypoints while keeping progress and settings', () => {
+  const old = { ...createGame(42), version: 2 };
+  old.started = true;
+  old.player.x = layout.cabin;
+  old.player.riding = true;
+  old.player.targetX = 750;
+  old.player.intent = { type: 'leave' };
+  old.player.route = { floor: 0, x: 400, depth: 0.3 };
+  old.settings.muted = true;
+  old.buildings[1].lights[2] = false;
+  const restored = parseSave(JSON.stringify(old));
+  expect(restored?.version).toBe(3);
+  expect(restored?.player).toMatchObject({ riding: true, depth: -0.18, targetDepth: 0.3, route: { floor: 0, x: 400, depth: 0.3 } });
+  expect(restored?.player.waypoints).toHaveLength(2);
+  expect(restored?.settings.muted).toBe(true);
+  expect(restored?.buildings[1].lights[2]).toBe(false);
+  expect(parseSave(JSON.stringify(restored))).toEqual(restored);
+  if (!restored) throw new Error('Missing migrated save');
+  for (let i = 0; i < 5 * 60; i++) step(restored, createUI(), 1 / 60);
+  expect(restored.player).toMatchObject({ x: 400, depth: 0.3, riding: false, targetX: null });
+  expect(parseSave(JSON.stringify({ ...restored, player: { ...restored.player, depth: NaN } }))).toBeNull();
+  expect(parseSave(JSON.stringify({ ...restored, player: { ...restored.player, waypoints: [{ x: 825, depth: -5 }] } }))).toBeNull();
+});
+
+test('depth separates walking in front of the lift from occupying its doorway', () => {
+  const { state, act, tick } = setup();
+  act({ type: 'walk', x: layout.threshold, depth: 0.7 }, 3);
+  requestFloor(state.buildings[0], 1);
+  tick(7);
+  expect(state.buildings[0].lift.blocked).toBe(false);
+  expect(state.buildings[0].lift.destination).toBe(1);
+  expect(state.player.riding).toBe(false);
+  expect(state.player.depth).toBe(0.7);
+});
+
+test('opening the floor panel while entering finishes boarding and keeps save snapshots valid', () => {
+  const { state, ui, act, tick } = setup();
+  act({ type: 'board' }, 1.5);
+  expect(state.player.riding).toBe(true);
+  expect(state.player.targetX).not.toBeNull();
+  command(state, ui, { type: 'panel' });
+  command(state, ui, { type: 'floor', floor: 1 });
+  tick(1);
+  expect(state.player).toMatchObject({ x: layout.cabin, depth: -0.18, targetX: null, riding: true });
+  expect(parseSave(JSON.stringify(state))).toEqual(state);
+  tick(12);
+  expect(state.buildings[0].lift.position).toBe(1);
+});
+
+test('the visible cabin panel stays clickable between floors while other floor previews remain destinations', () => {
+  const { state, ui, act, tick } = setup();
+  act({ type: 'board' });
+  command(state, ui, { type: 'panel' });
+  command(state, ui, { type: 'floor', floor: 2 });
+  tick(11);
+  expect(state.buildings[0].lift.destination).toBe(2);
+  expect(roomAction(state, { x: 950, y: 300 }, Math.round(playerLevel(state)))).toEqual({ type: 'panel' });
+  expect(roomAction(state, { x: 950, y: 300 }, 0)).toMatchObject({ type: 'walk', floor: 0 });
+});
+
+for (const place of ['hotel', 'mall', 'house'] as const)
+  test(`${place} doors approach a stationary Colin, reverse before touching him, and can repeat`, () => {
+    const { state, ui, act, tick } = setup();
+    state.player.place = place;
+    const building = currentBuilding(state);
+    if (!building) throw new Error('Missing building');
+    for (const person of building.people) person.phase = 'away';
+    act({ type: 'threshold' }, 3);
+    const lift = building.lift;
+    const action = { type: place === 'house' ? 'gate' : 'landing' } as const;
+    for (let repeat = 0; repeat < 2; repeat++) {
+      command(state, ui, action);
+      tick(0.25);
+      const door = place === 'house' ? lift.gate : lift.landing;
+      expect(door.target).toBe(0);
+      expect(door.open).toBeLessThan(0.9);
+      expect(lift.blocked).toBe(true);
+      expect(state.player).toMatchObject({ x: layout.threshold, depth: 0, targetX: null });
+      for (let i = 0; i < 90; i++) {
+        tick(1 / 60);
+        expect(door.open).toBeGreaterThanOrEqual(doorClearance(state.player, place === 'house'));
+        expect(lift.destination).toBeNull();
+      }
+      expect(door.open).toBe(1);
+      expect(door.target).toBe(1);
+      expect(parseSave(JSON.stringify(state))).toEqual(state);
+    }
+    act({ type: 'leave' }, 2);
+    act(action, 2);
+    expect((place === 'house' ? lift.gate : lift.landing).open).toBe(0);
+  });
+
+test('back-wall numbered buttons select a floor only after boarding and remain deduplicated', () => {
+  const { state, ui, act } = setup();
+  const point = { x: cabinPanel.x, y: cabinPanel.top + 2 * cabinPanel.spacing };
+  expect(roomAction(state, point, 0)).toEqual({ type: 'board' });
+  command(state, ui, { type: 'floor', floor: 2 });
+  expect(state.buildings[0].lift.queue).toEqual([]);
+  act({ type: 'board' }, 3);
+  const action = roomAction(state, point, 0);
+  expect(action).toEqual({ type: 'floor', floor: 2 });
+  if (!action) throw new Error('Missing button action');
+  command(state, ui, action);
+  command(state, ui, action);
+  expect(state.buildings[0].lift.queue).toEqual([2]);
+  expect(ui.panel).toBeNull();
+});
+
+test('queued automatic doors retry closing while blocked and depart only after Colin steps away', () => {
+  const { state, tick, act } = setup();
+  const lift = state.buildings[0].lift;
+  act({ type: 'threshold' }, 3);
+  requestFloor(state.buildings[0], 2);
+  let reversals = 0;
+  for (let i = 0; i < 20 * 60; i++) {
+    const target = lift.landing.target;
+    tick(1 / 60);
+    if (target === 0 && lift.landing.target === 1) reversals++;
+    expect(lift.position).toBe(0);
+    expect(lift.landing.open).toBeGreaterThanOrEqual(doorClearance(state.player));
+  }
+  expect(reversals).toBeGreaterThanOrEqual(2);
+  act({ type: 'leave' }, 2);
+  tick(17);
+  expect(lift.position).toBe(2);
 });

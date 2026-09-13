@@ -1,4 +1,5 @@
 import { buildings, type GameState, layout } from './model';
+import { defaultDepth, setWalkTarget } from './spatial';
 
 export const saveKey = 'colin-game-v1';
 export const backupKey = 'colin-game-backup-v1';
@@ -26,7 +27,7 @@ export function parseSave(raw: string | null): GameState | null {
     const value: unknown = JSON.parse(raw);
     if (
       !record(value) ||
-      ![1, 2].includes(Number(value.version)) ||
+      ![1, 2, 3].includes(Number(value.version)) ||
       typeof value.version !== 'number' ||
       typeof value.started !== 'boolean' ||
       !number(value.time, 0, 1e12) ||
@@ -34,6 +35,7 @@ export function parseSave(raw: string | null): GameState | null {
     )
       return null;
     const legacy = value.version === 1;
+    const oldSpatial = value.version !== 3;
     const width = legacy ? 780 : layout.width;
     const p = value.player;
     if (
@@ -46,10 +48,21 @@ export function parseSave(raw: string | null): GameState | null {
       return null;
     const playerWidth = p.place === 'outside' ? layout.outsideWidth : width;
     if (p.targetX !== null && !number(p.targetX, 0, playerWidth)) return null;
+    if (
+      !oldSpatial &&
+      (!number(p.depth, -0.25, 1) ||
+        (p.targetDepth !== null && !number(p.targetDepth, -0.25, 1)) ||
+        (p.targetX === null) !== (p.targetDepth === null) ||
+        !Array.isArray(p.waypoints) ||
+        p.waypoints.length > 4 ||
+        !p.waypoints.every((point) => record(point) && number(point.x, 0, playerWidth) && number(point.depth, -0.25, 1)))
+    )
+      return null;
     if (!intent(p.intent)) return null;
     // Older version-1 snapshots predate routes between floors.
     if (p.route === undefined) p.route = null;
     if (p.route !== null && (!record(p.route) || !floor(p.route.floor) || !number(p.route.x, 25, playerWidth - 30))) return null;
+    if (!oldSpatial && record(p.route) && !number(p.route.depth, -0.25, 1)) return null;
     if (
       p.stairs !== null &&
       (!record(p.stairs) ||
@@ -94,12 +107,14 @@ export function parseSave(raw: string | null): GameState | null {
           !floor(person.floor) ||
           !floor(person.wanted) ||
           !number(person.x, 0, width) ||
+          (!oldSpatial && !number(person.depth, -0.25, 1)) ||
           !number(person.timer, -100, 100)
         )
           return null;
         if (!['idle', 'waiting', 'boarding', 'riding', 'leaving', 'returning', 'away'].includes(String(person.phase))) return null;
       }
-      if (p.place === b.id && p.riding && (p.stairs !== null || Number(p.x) <= (legacy ? 570 : layout.threshold + 20))) return null;
+      if (p.place === b.id && p.riding && (p.stairs !== null || (oldSpatial ? Number(p.x) <= (legacy ? 570 : layout.threshold + 20) : Number(p.depth) >= 0)))
+        return null;
     }
     const state = value as unknown as GameState;
     if (legacy) {
@@ -111,7 +126,19 @@ export function parseSave(raw: string | null): GameState | null {
         if (state.player.route) state.player.route.x = widen(state.player.route.x);
       }
       for (const building of state.buildings) for (const person of building.people) person.x = widen(person.x);
-      state.version = 2;
+    }
+    if (oldSpatial) {
+      const player = state.player;
+      player.depth = player.riding ? -0.18 : player.place === 'outside' ? 0.3 : defaultDepth(player.x);
+      player.targetDepth = null;
+      player.waypoints = [];
+      if (player.targetX !== null) setWalkTarget(player, { x: player.targetX, depth: player.place === 'outside' ? 0.3 : defaultDepth(player.targetX) });
+      if (player.route) player.route.depth = player.place === 'outside' ? 0.3 : defaultDepth(player.route.x);
+      for (const b of state.buildings)
+        for (const person of b.people)
+          person.depth =
+            person.phase === 'riding' || (['boarding', 'leaving'].includes(person.phase) && person.x > layout.threshold) ? -0.18 : 0.24 + person.id * 0.12;
+      state.version = 3;
     }
     return state;
   } catch {

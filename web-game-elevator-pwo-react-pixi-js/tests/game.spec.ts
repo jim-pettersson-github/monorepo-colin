@@ -1,45 +1,35 @@
 import { expect, test } from '@playwright/test';
 import { layout } from '../src/game/model';
+import { floorTap, roomTap, savedPlayer } from './room-helpers';
 
-test('tap another floor to walk upstairs, return to the entrance, and use the separate outside door', async ({ page }) => {
+test('walk upstairs, return to the entrance, and use the separate outside door', async ({ page }) => {
   test.slow();
   await page.goto('./');
   await page.getByRole('button', { name: 'Spela', exact: true }).click();
-  const canvas = page.locator('.game-scene canvas');
-  await expect(canvas).toBeVisible();
-  const bounds = await canvas.boundingBox();
-  if (!bounds) throw new Error('Missing game canvas');
-  const scale = Math.min(Math.max(0.75, Math.min(1.25, bounds.width / layout.width)), bounds.height / 350);
-  const cameraX = (playerX: number) =>
-    bounds.width > layout.width * scale
-      ? (bounds.width - layout.width * scale) / 2
-      : Math.max(bounds.width - layout.width * scale, Math.min(0, bounds.width / 2 - playerX * scale));
-  await canvas.click({ position: { x: cameraX(670) + 430 * scale, y: bounds.height * 0.86 + (-310 + 20) * scale } });
+  await expect(page.locator('.game-scene canvas')).toBeVisible();
+  await floorTap(page, 1, 430, 0.4);
   await expect
     .poll(
-      () =>
-        page.evaluate(() => {
-          const player = JSON.parse(localStorage.getItem('colin-game-v1') ?? '{}').player;
-          return player && [player.floor, Math.round(player.x), player.stairs];
-        }),
-      { timeout: 10000 },
+      async () => {
+        const player = await savedPlayer(page);
+        return [player.floor, Math.round(player.x), player.targetX, player.stairs];
+      },
+      { timeout: 12000 },
     )
-    .toEqual([1, 430, null]);
+    .toEqual([1, 430, null, null]);
   await page.getByRole('button', { name: '↓ Till entrén', exact: true }).click();
   await expect
     .poll(
-      () =>
-        page.evaluate(() => {
-          const player = JSON.parse(localStorage.getItem('colin-game-v1') ?? '{}').player;
-          return player && [player.floor, Math.round(player.x), player.stairs];
-        }),
-      { timeout: 10000 },
+      async () => {
+        const player = await savedPlayer(page);
+        return [player.floor, Math.round(player.x), player.targetX, player.stairs];
+      },
+      { timeout: 12000 },
     )
-    .toEqual([0, 215, null]);
-  await canvas.click({ position: { x: cameraX(215) + 215 * scale, y: bounds.height * 0.86 - 177 * scale } });
+    .toEqual([0, layout.exit, null, null]);
+  await roomTap(page, { x: 1210, y: 350 });
   await expect(page.locator('main.game')).toHaveAttribute('data-place', 'outside');
 });
-
 test('help a passenger, block the doorway, take the stairs, and resume the saved game', async ({ page }) => {
   test.slow();
   const errors: string[] = [];

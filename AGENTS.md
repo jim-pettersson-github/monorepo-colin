@@ -12,11 +12,13 @@ Read each folder's CLAUDE.md and AGENTS.md before working there. This is standal
 
 ## Writing UI
 
-Portrait-first, side-on 2D illustrations with Swedish labels. Use large HTML buttons for menus and PixiJS for the world. Prefer right-side panels for settings and information; avoid browser confirmation popups.
+Portrait-first, painted 2.5D rooms with Swedish labels. Colin walks across a perspective floor and scales with depth. Use large HTML buttons for menus and PixiJS for the world. Prefer right-side panels for settings and information; avoid browser confirmation popups.
 
 Keep colors in local semantic palette roles and check existing components before adding primitives. Colin has blond-brown hair, brown eyes, and bare feet: no shoes or socks. Elevators are the focus; green emergency-exit signs are a small secondary theme.
 
-Keep corridors spacious: 825 world units, 1.5× the original width, with normal-sized characters and doors. Fire signage needs a recognizable flame and detailed alarm call point. Option 01, the modern Monkey Island-inspired painted adventure, is the approved game direction: warm brass, dark wood, teal shadows, and painted characters. Keep the original comparison page as a reference.
+Keep rooms spacious, with normal-sized characters and doors, mouse/touch panning, and zoom. Fire signage needs a recognizable flame and detailed alarm call point. Option 01, the modern Monkey Island-inspired painted adventure, is the approved game direction: warm brass, dark wood, teal shadows, and painted characters. Keep the original comparison page as a reference.
+
+The small building overview previews a floor without moving Colin. Tapping a destination in that room routes him through the stairs; Följ Colin returns to his floor. Keep elevator entry recessed, draw closing doors in front of cabin occupants, and make Colin stand beside the call button and reach toward it as it lights up.
 
 ## Colin's interests and game preferences
 

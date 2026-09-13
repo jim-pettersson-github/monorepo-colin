@@ -17,6 +17,11 @@ const names = [
   'passenger-0',
   'passenger-1',
   'passenger-2',
+  'room-hotel',
+  'room-mall',
+  'room-house',
+  'reach',
+  'colin-back',
 ] as const;
 export type PaintedAssets = Record<(typeof names)[number], Texture>;
 let pending: Promise<PaintedAssets> | undefined;

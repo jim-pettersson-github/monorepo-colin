@@ -89,7 +89,6 @@ export function GameView({ session, onMenu }: { session: GameSession; onMenu: ()
 
       <div className='world-wrap'>
         <GameScene session={session} paused={frozen} />
-        <p className='world-tip'>Dra för att titta · Tryck för att gå</p>
         {player.stairs && <span className='journey-label'>I trappan {player.stairs.to > player.stairs.from ? '↑' : '↓'}</span>}
         {player.riding && <span className='journey-label'>I hissen · {moving ? 'på väg' : `våning ${currentFloor}`}</span>}
       </div>
@@ -133,6 +132,17 @@ export function GameView({ session, onMenu }: { session: GameSession; onMenu: ()
                     <span aria-hidden='true'>0 1 2</span>Välj våning
                   </button>
                 </div>
+                {!manual && (
+                  <div className='gate-controls'>
+                    <button
+                      type='button'
+                      disabled={moving || !!player.stairs || lift.position !== player.floor}
+                      onClick={() => session.send({ type: 'landing' })}
+                    >
+                      {lift.landing.target ? 'Stäng dörrarna' : 'Öppna dörrarna'}
+                    </button>
+                  </div>
+                )}
                 {manual && (
                   <div className='gate-controls'>
                     <button type='button' disabled={moving || lift.position !== player.floor} onClick={() => session.send({ type: 'landing' })}>
@@ -182,7 +192,7 @@ export function GameView({ session, onMenu }: { session: GameSession; onMenu: ()
                 type='button'
                 className='exit-control'
                 disabled={!!player.stairs || (player.riding && moving)}
-                onClick={() => session.send(player.floor === 0 ? { type: 'exit' } : { type: 'walk', floor: 0, x: layout.exit })}
+                onClick={() => session.send(player.floor === 0 ? { type: 'exit' } : { type: 'walk', floor: 0, x: layout.exit, depth: 0.3 })}
               >
                 {player.floor === 0 ? '→ Utgång' : '↓ Till entrén'}
               </button>
@@ -314,8 +324,11 @@ export function GameView({ session, onMenu }: { session: GameSession; onMenu: ()
         <details className='game-help'>
           <summary>Så fungerar det</summary>
           <p>Tryck på golvet för att gå. Hämta hissen, gå in och välj en våning. Du kan kliva ut igen och ta trapporna.</p>
-          <p>Tryck på en annan våning så tar Colin trappan dit. Den gröna skylten visar trapphuset. Dörren märkt UT på entréplanet leder ut ur huset.</p>
-          <p>Dra med musen eller ett finger för att se andra våningar. Mushjulet fungerar också. Tryck på Följ Colin för att hitta tillbaka.</p>
+          <p>Välj en våning i husöversikten för att titta. Tryck sedan i rummet så tar Colin trappan dit. Följ Colin tar dig tillbaka till honom.</p>
+          <p>
+            Den gröna skylten visar trapphuset. Dörren märkt UT på entréplanet leder ut ur huset. Zooma med mushjulet och dra med musen eller ett finger för att
+            titta närmare.
+          </p>
           <p>Stå i dörröppningen för att hålla hissen kvar. I gamla huset öppnar och stänger du både dörren och grinden själv.</p>
           <p>Tryck på en person med en siffra för att hjälpa till. Personen väntar tills du trycker på hissknapparna.</p>
         </details>

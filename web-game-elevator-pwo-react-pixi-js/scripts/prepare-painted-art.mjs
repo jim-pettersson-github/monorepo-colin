@@ -40,4 +40,19 @@ for (const [name, count, prefix] of [
       .toFile(output(`${prefix}-${index}`));
   }
 }
-console.log('Prepared 15 painted game assets.');
+for (const name of ['hotel', 'mall', 'house'])
+  await sharp(`art-source/room-${name}.png`)
+    .resize(1448, 1086)
+    .webp({ quality: 91 })
+    .toFile(output(`room-${name}`));
+await sharp('art-source/depth-reach.png')
+  .trim({ background: '#00000000', threshold: 10 })
+  .resize({ height: 800 })
+  .webp({ quality: 92, alphaQuality: 100 })
+  .toFile(output('reach'));
+await sharp('art-source/colin-back.png')
+  .trim({ background: '#00000000', threshold: 10 })
+  .resize({ height: 800 })
+  .webp({ quality: 92, alphaQuality: 100 })
+  .toFile(output('colin-back'));
+console.log('Prepared 20 painted game assets.');

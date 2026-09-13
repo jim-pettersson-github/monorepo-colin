@@ -6,11 +6,13 @@ See [PLAN.md](PLAN.md) for Colin's preferences, game rules, and acceptance scena
 
 ## Playing
 
-Drag with the left mouse button or one finger to look around; the mouse wheel also moves the camera. Bring a lower floor into view, then tap it to walk there. Use **Följ Colin** to bring the camera back to Colin without moving him.
+Choose a floor in the building overview to preview its room without moving Colin. Tap a point in that room and he takes the stairs there. **Följ Colin** returns to his current floor. Zoom with the mouse wheel or +/− buttons; drag with the left mouse button or one finger to look around the enlarged room.
 
-Tap the floor to walk, or use the large buttons. Tap another floor and Colin takes the stairs there automatically. The green-signed door is the stairwell; each entry floor has a separate door marked UT for going outdoors. Call the lift, enter, choose a floor, then ride or step out and take the stairs. Stand in the doorway to keep it open. In the old house, operate both the landing door and lattice gate yourself.
+Tap the perspective floor to walk sideways, closer, or farther away, or use the large buttons. The green-signed door is the stairwell; each entry floor has a separate door marked UT for going outdoors. Colin stands beside the call button and reaches toward it. Enter the recessed cabin, choose a floor, then ride or step out and take the stairs. Stand in the doorway to keep it open. In the old house, operate both the landing door and lattice gate yourself.
 
 Tap a person with a number to help them ride; they wait for Colin to choose their floor. Explore room lights, doors, warning signs, and green exits. Settings pause play and provide separate sound volumes, mute, camera motion, and a confirmed restart.
+
+The cabin's back-wall buttons show 0/1/2 and light up when selected. Modern lifts have **Stäng dörrarna / Öppna dörrarna** controls. Stand in the doorway and close the doors to watch them approach Colin and bounce open; queued automatic lifts pause and retry until he steps away.
 
 ## Development
 
@@ -38,9 +40,9 @@ Tests cover queues, gate interlocks, doorway obstruction, passengers, offscreen 
 
 ## Structure
 
-`src/game/model.ts` defines the world; `simulation.ts` advances it independently of rendering. `session.ts` owns its lifetime, audio, and saving. `storage.ts` validates versioned snapshots and recovers a previous valid backup. `art.ts` layers the painted world, sprites, and interactive doors/signs and `audio.ts` synthesizes sounds locally.
+`src/game/model.ts` defines the world; `simulation.ts` advances it independently of rendering. `spatial.ts` handles projection, depth movement and doorway crossing; `room-interaction.ts` maps room taps to commands. `room-art.ts` layers the painted rooms and characters. `session.ts` owns simulation lifetime, local audio and saving. `storage.ts` validates version-3 snapshots, migrates versions 1/2 and recovers a valid backup.
 
-`GameScene.tsx` connects the fixed-step ticker, pointer interaction, and camera to Pixi; `GameView.tsx` provides accessible HTML controls and panels. `App.tsx` owns the menu/session and background handling. Colors live in `src/palette.ts`. `src/pwa.ts` registers the worker. Regenerate app icons with `npm run icons`. Painted sources and prompts are in `art-source/`; `node scripts/prepare-painted-art.mjs` exports the 15 runtime WebP assets into `public/painted/`.
+`GameScene.tsx` connects the ticker, floor overview, pointer interaction and camera to Pixi; `GameView.tsx` provides accessible HTML controls and panels. `App.tsx` owns the menu/session and background handling. Colors live in `src/palette.ts`. `src/pwa.ts` registers the worker. Regenerate icons with `npm run icons`. `node scripts/prepare-painted-art.mjs` exports 20 local WebP assets; new prompts are in [art-source/perspective-game.md](art-source/perspective-game.md). The original `?view=depth` prototype remains available without changing saves.
 
 ## Offline and hosting
 
@@ -52,13 +54,9 @@ For Android installation, open the deployed HTTPS site in Chrome and use its ins
 
 The [Pages workflow](../.github/workflows/pages.yml) checks relevant pull requests and pushes to `main`. It installs dependencies with Node 24, checks formatting, builds, and runs simulation plus desktop/phone browser tests, including offline play. Only a passing `main` build is uploaded and deployed; pull requests only run checks. GitHub supplies the deployment token, so no personal access token or server secrets are needed.
 
-One-time setup:
+**[Play the hosted game](https://jim-pettersson-github.github.io/monorepo-colin/)**. The link is also in the root README and [Settings → Pages](https://github.com/jim-pettersson-github/monorepo-colin/settings/pages), which shows the last deployment. The public repository uses GitHub Actions as its Pages source.
 
-1. Make the repository public for free Pages hosting.
-2. In [repository Pages settings](https://github.com/jim-pettersson-github/monorepo-colin/settings/pages), choose **Build and deployment → Source → GitHub Actions**.
-3. Review, commit, and push the project and workflow to `main`. Later relevant pushes deploy automatically; **Actions → Game checks and GitHub Pages → Run workflow** can also deploy `main` manually.
-
-After the first successful deployment, the expected URL is https://jim-pettersson-github.github.io/monorepo-colin/. The pipeline is prepared locally; this does not mean the site is already deployed. Verify online play, offline launch, and phone installation at that URL afterward.
+Push reviewed changes to `main` to deploy after all checks pass. **Actions → Game checks and GitHub Pages → Run workflow** can also deploy `main` manually. A failed build leaves the previous live version in place.
 
 The workflow derives `/monorepo-colin/` from the repository name. `VITE_BASE_PATH` controls Vite assets, links, manifest start/scope, and the service-worker fallback. To reproduce that build locally in PowerShell:
 

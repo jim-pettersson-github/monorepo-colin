@@ -4,7 +4,7 @@
 
 Implemented: the Swedish menu and playable three-building world, independent elevators, manual gates, doorway blocking, stairs, patient passengers, lights, signs, short sound demos, settings, and versioned local saves with backup recovery. React + PixiJS + TypeScript + Vite deliver the offline PWA. The sections below describe the game behavior to preserve.
 
-Automated acceptance covers simulation rules and desktop/phone browser flows, including offline gameplay and save restore. The GitHub Pages pipeline builds and tests the repository-path deployment before publishing `main`; its first live deployment still requires repository Pages setup and pushing the reviewed changes. Physical-phone installation, restart/update behavior, and Colin's comfort with controls and synthesized sounds still need hands-on review.
+Automated acceptance covers simulation rules and desktop/phone browser flows, including offline gameplay and save restore. GitHub Pages is configured to publish passing `main` builds through Actions; the root README links to the hosted game. Physical-phone installation, restart/update behavior, and Colin's comfort with controls and synthesized sounds still need hands-on review.
 
 ## Colin and the experience
 
@@ -12,13 +12,13 @@ Built for Colin, an autistic child around eight years old who loves elevators. H
 
 He enjoys switching lights on and off, green exit signs, warning signs, old elevator gates, reopening closing doors by standing in the doorway, and operating elevators for other people. These are activities to repeat and explore, with no scores, losing, time limits, or unlocking.
 
-Use clear, believable illustrations in a portrait-first, side-on cutaway. The camera follows Colin through rooms, stairs, and elevator rides. Keep Swedish labels short, touch targets large, and sound optional. Do not display his diagnosis in the game UI.
+Use clear, believable painted illustrations in portrait-first 2.5D rooms. Colin walks sideways, toward the camera, and away, scaling with depth. The view follows his current floor through stairs and elevator rides. Keep Swedish labels short, touch targets large, and sound optional. Do not display his diagnosis in the game UI.
 
-Drag with a mouse or one finger to look around independently of Colin; the mouse wheel also pans between floors. Clamp the camera to the building so every floor can be brought into view. A drag never issues a walking or object action. A world tap sets the destination and resumes following; Följ Colin recenters without moving him. Building changes restore following automatically.
+A small building overview marks Colin's floor and the elevator's position. Select a floor to preview its room without moving Colin; tap a destination in that room to send him there through the nearest staircase. Följ Colin returns to his current floor without moving him. Zoom with the mouse wheel or touch-friendly +/− buttons, then drag with a mouse or one finger. Drags never issue walking/object actions. Floor/building changes restore the fitted room view.
 
 ## Three buildings
 
-Rooms have 825-unit corridors, 1.5× their original width. Keep Colin, doors, and the elevator at their normal sizes; mouse/touch camera panning reveals the wider space. Version-1 saves migrate indoor positions and routes to the new layout without resetting progress.
+Rooms have generous perspective floor space, with 1448×1086 painted plates and a shared doorway plane. Keep Colin and doors at believable relative sizes. Version-3 saves add character depth and doorway waypoints; migrate versions 1 and 2 without resetting lifts, passengers, routes, or settings.
 
 Each building has three floors (0–2), its own elevator, and stairs. Connect their ground-floor entrances through a small outdoor area. Start a new game in the hotel lobby; everything is accessible from the beginning.
 
@@ -42,13 +42,13 @@ Keep each elevator's buttons, appearance, and sounds distinct. The old gate shou
 ## Movement and elevator operation
 
 - Tap reachable ground to walk briskly; tap an object to approach and interact. A new destination replaces the old route and cancels an interaction that has not happened yet. Walls, floors, and closed doors constrain movement.
-- Tapping another floor automatically routes Colin to the nearest staircase (one per building), through any intermediate floors, then to the tapped horizontal position. A new tap during a stair flight replaces the remaining route after that flight finishes. A tap during an elevator ride waits for arrival before routing through the stairs. Save and restore the destination with the route.
+- Selecting a floor in the overview only previews it. Tapping a point in that room routes Colin to the nearest staircase (one per building), through intermediate floors, then to the selected position and depth. A new tap during a stair flight replaces the remaining route after that flight finishes. A tap during an elevator ride waits for arrival before routing through the stairs. Save and restore the destination with the route.
 - Tap stairs to travel one floor at a time. Finish the current flight before changing route. Initial timing is three seconds per floor, plus walking across the corridor to the stairwell.
-- Call the lift, then tap the open cabin to board. Boarding is always a separate choice. Tap the cabin panel for large floor buttons; choosing a floor dismisses that panel immediately.
+- Calling the lift approaches beside the wall panel, raises Colin's arm, and illuminates the button. Then tap the open cabin to board. He walks through the threshold into its recessed floor and becomes smaller; closing doors draw in front of cabin occupants. Boarding stays a separate choice. A brass panel on the back wall has visible 0/1/2 buttons that light up when selected. Tap them after boarding or use the large HTML floor buttons; selecting a floor dismisses the large panel immediately.
 - A new destination selected with doors open starts a fresh five-second departure delay. Colin can step out and use the stairs; leaving never cancels the request. Duplicate selections do not restart the delay.
 - Initial elevator travel takes five seconds per floor; opening/closing takes about one second. For the old lift, Colin explicitly operates the gate; selecting a destination does not close the manual gate for him. After closing it, any remaining departure delay must still expire before travel.
 - Each lift keeps a deduplicated FIFO queue and completes its active journey before serving further stops. For modern lifts, a current-floor request while stationary opens or keeps open the doors; an idle lift stays open when no journey is queued. The old lift unlocks access at a stop, but its gate remains manually operated.
-- Both sliding doors and closing gates stop and reopen when Colin occupies their threshold. Provide an easy-to-tap doorway standing position; do not automatically pull him inside or outside. Repeatable obstruction has no penalty, injury, jam, or alarm. After he clears the threshold, automatic doors get a fresh departure delay; a manual gate awaits another close action.
+- Both sliding doors and closing gates visibly approach Colin, stop with clearance around his body, and reverse open when he occupies the threshold. Queued automatic doors pause five seconds and retry; a manual gate awaits another close action. Provide an easy doorway standing position and a modern open/close control that also works while he stands there. Never pull him out of the doorway to operate it. Repeatable obstruction has no penalty, injury, jam, or alarm. Clearing the threshold gives automatic doors a fresh departure delay.
 - No lift moves with an occupied threshold or an open required door/gate. Closed gates cannot be crossed, and characters cannot exit between floors. Old landing doors can open only when the cabin is present and stationary.
 - All three elevators continue independently off screen and while Colin explores another building. Camera and scene changes never reset their state.
 
@@ -72,9 +72,9 @@ Use occasional, slow resident arrivals/departures through apartment doors, cappe
 
 ## Acceptance and device review
 
-### Depth movement experiment
+### Approved perspective game
 
-`?view=depth` is a separate, unsaved 2.5D point-and-click prototype for review before changing the main engine. A perspective floor scales Colin with distance; the recessed cabin, threshold and sliding door layers make entering and blocking visible. Calling the lift approaches beside the panel, raises Colin's arm and lights the button. Source art and prompts are in `art-source/depth-study.md`. Full directional animation and integration with floors, passengers and the existing game remain pending approval of this direction.
+The approved 2.5D direction is integrated with all three buildings, floor previews, stairs, lifts, passengers, lighting and saves. Colin has front/side walking poses, a rear pose for walking away, and a reaching pose. Source prompts are in `art-source/perspective-game.md`. The original `?view=depth` study stays isolated and unsaved for comparison; it is no longer the main game's engine.
 
 Art direction 01 is approved and implemented: locally bundled painted wall/material textures, wood/brass elevators, Colin standing/walking sprites, painted passengers, and the selected menu illustration. Preserve distinct buildings, readable signs and working lighting/doors; keep high-contrast HTML controls. Source prompts live in `art-source/README.md`.
 
@@ -88,6 +88,6 @@ The hotel loop and shared systems are implemented across all three buildings. Us
 - Send a passenger to their requested floor while Colin stays behind, joins them, or takes the stairs. Verify duplicate requests, patient waiting, wrong-floor stops, and eventual exit on arrival.
 - Exercise the intended passenger counts and occasional apartment-resident arrivals without crowds, collisions, surprise spawning, or timers.
 - Toggle lights repeatedly, inspect warning signs, use every signed stairwell, and leave through each separate entry-floor exit; controls and routes remain visible with lights off.
-- Tap floors above and below Colin, replace a route mid-flight, and restore a saved route. Confirm the final floor/position and that the entry stairwell never sends him outdoors.
+- Preview floors above and below Colin without moving him, then tap destinations at different depths, replace a route mid-flight, and restore a saved route. Confirm the final floor/position and that the entry stairwell never sends him outdoors. Check that mouse/touch drags only move the zoomed camera.
 - Restore during travel, gate motion, doorway blocking, and passenger boarding. Preserve light states, requests, and positions without background time advancing.
 - Verify portrait touch controls, camera following, stoppable sound samples, fresh offline launch, and uninterrupted update downloads on Colin's actual phone before expanding scope further.
