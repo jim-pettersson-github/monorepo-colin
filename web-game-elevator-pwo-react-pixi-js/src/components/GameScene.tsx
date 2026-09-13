@@ -24,7 +24,6 @@ function World({
   onFollow,
   onManualChange,
   zoom,
-  defaultZoom,
   onZoom,
 }: {
   session: GameSession;
@@ -36,7 +35,6 @@ function World({
   onFollow: () => void;
   onManualChange: (manual: boolean) => void;
   zoom: number;
-  defaultZoom: number;
   onZoom: (zoom: number) => void;
 }) {
   const { app } = useApplication();
@@ -46,7 +44,7 @@ function World({
   const indicator = useRef<Text>(null);
   const viewedFloor = useRef(floor);
   viewedFloor.current = floor;
-  const camera = useRef({ zoom: 1, manual: false, x: 0, y: 0 });
+  const camera = useRef({ zoom, manual: false, x: 0, y: 0 });
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const gesture = useRef<
     | { kind: 'drag'; id: number; startX: number; startY: number; x: number; y: number; dragged: boolean }
@@ -126,13 +124,12 @@ function World({
   }, [app, host, frame]);
   // biome-ignore lint/correctness/useExhaustiveDependencies: Explicit view changes reset the camera.
   useEffect(() => {
-    camera.current = { zoom: defaultZoom, manual: false, x: 0, y: 0 };
+    camera.current = { ...camera.current, manual: false, x: 0, y: 0 };
     gesture.current = null;
     pointers.current.clear();
     onManualChange(false);
-    onZoom(defaultZoom);
     frame(0);
-  }, [place, floor, followRequest, defaultZoom, onManualChange, onZoom, frame]);
+  }, [place, floor, followRequest, onManualChange, frame]);
   useEffect(() => {
     const element = host.current;
     if (!element || paused) return;
@@ -286,8 +283,14 @@ export function GameScene({ session, paused }: { session: GameSession; paused: b
   const host = useRef<HTMLDivElement>(null);
   const [preview, setPreview] = useState<{ place: string; floor: number } | null>(null);
   const [manual, setManual] = useState(false);
-  const [zoom, setZoom] = useState(1);
-  const [defaultZoom, setDefaultZoom] = useState(1);
+  const [zoom, setZoom] = useState(session.state.settings.cameraZoom);
+  const changeZoom = useCallback(
+    (value: number) => {
+      session.state.settings.cameraZoom = value;
+      setZoom(value);
+    },
+    [session],
+  );
   const [followRequest, setFollowRequest] = useState(0);
   const follow = useCallback(() => setPreview(null), []);
   const state = session.state;
@@ -296,19 +299,12 @@ export function GameScene({ session, paused }: { session: GameSession; paused: b
   const inspecting = preview?.place === state.player.place;
   const floor = inspecting ? preview.floor : colinFloor;
   useEffect(() => {
-    const element = host.current;
-    if (!element) return;
-    const observer = new ResizeObserver(() => {
-      const { width, height } = element.getBoundingClientRect();
-      if (!width || !height) return;
-      const fit = Math.min(width / roomSpace.width, height / roomSpace.height);
-      const fill = Math.max(width / roomSpace.width, height / roomSpace.height);
-      setDefaultZoom(matchMedia('(orientation: landscape) and (min-width: 640px)').matches ? Math.min(2.5, fill / fit) : 1);
-    });
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, []);
-  const cameraMoved = manual || Math.abs(zoom - defaultZoom) > 0.01;
+    const save = window.setTimeout(() => {
+      if (session.state.settings.cameraZoom === zoom) session.save();
+    }, 250);
+    return () => window.clearTimeout(save);
+  }, [session, zoom]);
+  const cameraMoved = manual;
   return (
     <>
       {building && (
@@ -341,7 +337,6 @@ export function GameScene({ session, paused }: { session: GameSession; paused: b
         aria-busy={!assets}
         data-camera={cameraMoved ? 'free' : 'follow'}
         data-zoom={zoom}
-        data-default-zoom={defaultZoom}
         ref={host}
         role='img'
         aria-label='Colins hus i perspektiv. Välj en våning i husöversikten för att titta, tryck sedan i rummet för att gå dit. Dra för att flytta kameran. Nyp med två fingrar för att zooma.'
@@ -358,8 +353,7 @@ export function GameScene({ session, paused }: { session: GameSession; paused: b
               onFollow={follow}
               onManualChange={setManual}
               zoom={zoom}
-              defaultZoom={defaultZoom}
-              onZoom={setZoom}
+              onZoom={changeZoom}
             />
           </Application>
         )}
@@ -377,10 +371,10 @@ export function GameScene({ session, paused }: { session: GameSession; paused: b
       {inspecting && <p className='room-preview-caption'>Våning {floor} · Tryck i rummet för att gå dit</p>}
       {assets && (
         <fieldset className='camera-zoom' aria-label='Kamerazoom'>
-          <button type='button' aria-label='Zooma ut' disabled={paused || zoom <= 1} onClick={() => setZoom((v) => Math.max(1, v - 0.5))}>
+          <button type='button' aria-label='Zooma ut' disabled={paused || zoom <= 1} onClick={() => changeZoom(Math.max(1, zoom - 0.5))}>
             −
           </button>
-          <button type='button' aria-label='Zooma in' disabled={paused || zoom >= 2.5} onClick={() => setZoom((v) => Math.min(2.5, v + 0.5))}>
+          <button type='button' aria-label='Zooma in' disabled={paused || zoom >= 2.5} onClick={() => changeZoom(Math.min(2.5, zoom + 0.5))}>
             +
           </button>
         </fieldset>

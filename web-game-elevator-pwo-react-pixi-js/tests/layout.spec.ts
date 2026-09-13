@@ -1,5 +1,4 @@
 import { expect, test } from '@playwright/test';
-import { roomSpace } from '../src/game/spatial';
 import { showControls } from './room-helpers';
 
 test('phone rotation keeps the room, touch controls, and settings usable', async ({ page }) => {
@@ -31,10 +30,7 @@ test('phone rotation keeps the room, touch controls, and settings usable', async
       await expect(page.getByRole('button', { name: 'Zooma in', exact: true })).toBeInViewport();
       await expect(page.getByRole('button', { name: 'Zooma ut', exact: true })).toBeInViewport();
       const before = await page.locator('.game-scene canvas').boundingBox();
-      const scale = Math.min(viewport.width / roomSpace.width, viewport.height / roomSpace.height);
-      await expect
-        .poll(async () => Number(await page.locator('.game-scene').getAttribute('data-zoom')) * scale * roomSpace.width)
-        .toBeGreaterThanOrEqual(viewport.width - 1);
+      await expect(page.locator('.game-scene')).toHaveAttribute('data-zoom', '1');
       await showControls(page);
       expect(await page.locator('.game-scene canvas').boundingBox()).toEqual(before);
       const panel = await page.getByRole('region', { name: 'Spelkontroller' }).boundingBox();

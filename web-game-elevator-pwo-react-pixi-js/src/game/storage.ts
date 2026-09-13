@@ -82,6 +82,8 @@ export function parseSave(raw: string | null): GameState | null {
       typeof settings.smoothCamera !== 'boolean'
     )
       return null;
+    if (settings.cameraZoom === undefined) settings.cameraZoom = 1;
+    if (!number(settings.cameraZoom, 1, 2.5)) return null;
     if (!Array.isArray(value.buildings) || value.buildings.length !== 3) return null;
     for (const [index, b] of value.buildings.entries()) {
       if (!record(b) || b.id !== buildings[index].id || !flags(b.lights) || !flags(b.roomDoors)) return null;

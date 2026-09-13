@@ -1,6 +1,6 @@
-import { expect, test } from '@playwright/test';
 import { createGame } from '../src/game/model';
 import { projectPoint } from '../src/game/spatial';
+import { expect, gamePoll, test } from './game-clock';
 import { floorTap, roomTap, savedPlayer, showControls } from './room-helpers';
 
 for (const destination of [0, 2])
@@ -23,26 +23,24 @@ for (const destination of [0, 2])
     expect((await savedPlayer(page)).route).toBeNull();
     // The changing passenger controls resize the canvas on arrival; taps must still line up.
     await roomTap(page, projectPoint({ x: 430, depth: 0.4 }), testInfo.project.name === 'phone');
-    await expect
-      .poll(
-        async () => {
-          const player = await savedPlayer(page);
-          return [player.floor, Math.round(player.x), player.targetX, player.stairs];
-        },
-        { timeout: 14000 },
-      )
-      .toEqual([destination, 430, null, null]);
+    await gamePoll(
+      page,
+      async () => {
+        const player = await savedPlayer(page);
+        return [player.floor, Math.round(player.x), player.targetX, player.stairs];
+      },
+      { timeout: 14000 },
+    ).toEqual([destination, 430, null, null]);
     await expect(scene).toHaveAttribute('data-view-floor', String(destination));
     await floorTap(page, 2 - destination, 510, 0.7, testInfo.project.name === 'phone');
-    await expect
-      .poll(
-        async () => {
-          const player = await savedPlayer(page);
-          return [player.floor, Math.round(player.x), player.targetX, player.stairs];
-        },
-        { timeout: 14000 },
-      )
-      .toEqual([2 - destination, 510, null, null]);
+    await gamePoll(
+      page,
+      async () => {
+        const player = await savedPlayer(page);
+        return [player.floor, Math.round(player.x), player.targetX, player.stairs];
+      },
+      { timeout: 14000 },
+    ).toEqual([2 - destination, 510, null, null]);
     expect((await savedPlayer(page)).depth).toBeCloseTo(0.7);
     expect(errors).toEqual([]);
   });
@@ -56,7 +54,6 @@ test('zoom and drag with mouse or touch never move Colin; Follow restores the ro
   const scene = page.locator('.game-scene');
   await expect(scene.locator('canvas')).toBeVisible();
   await showControls(page);
-  const defaultZoom = await scene.getAttribute('data-default-zoom');
   while (await page.getByRole('button', { name: 'Zooma ut', exact: true }).isEnabled())
     await page.getByRole('button', { name: 'Zooma ut', exact: true }).click();
   await page.getByRole('button', { name: 'Zooma in', exact: true }).click();
@@ -79,8 +76,8 @@ test('zoom and drag with mouse or touch never move Colin; Follow restores the ro
   await expect(scene).toHaveAttribute('data-camera', 'free');
   expect(await savedPlayer(page)).toMatchObject({ x: 670, depth: 0.4, targetX: null, route: null, stairs: null });
   await page.getByRole('button', { name: '◎ Följ Colin', exact: true }).click();
-  await expect(scene).toHaveAttribute('data-zoom', defaultZoom ?? '1');
+  await expect(scene).toHaveAttribute('data-zoom', '1.5');
   await expect(scene).toHaveAttribute('data-camera', 'follow');
   await roomTap(page, projectPoint({ x: 600, depth: 0.8 }), testInfo.project.name === 'phone');
-  await expect.poll(async () => Math.round((await savedPlayer(page)).depth * 100)).toBe(80);
+  await gamePoll(page, async () => Math.round((await savedPlayer(page)).depth * 100)).toBe(80);
 });

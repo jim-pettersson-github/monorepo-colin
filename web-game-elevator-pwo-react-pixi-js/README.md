@@ -6,7 +6,7 @@ See [PLAN.md](PLAN.md) for Colin's preferences, game rules, and acceptance scena
 
 ## Playing
 
-Choose a floor in the building overview to preview its room without moving Colin. Tap a point in that room and he takes the stairs there. **Följ Colin** returns to his current floor. Pinch with two fingers or zoom with the mouse wheel or +/− buttons; the corner zoom buttons stay visible when landscape controls are hidden. Drag with the left mouse button or one finger to look around the enlarged room.
+Choose a floor in the building overview to preview its room without moving Colin. Tap a point in that room and he takes the stairs there. **Följ Colin** returns to his current floor. Pinch with two fingers or zoom with the mouse wheel or +/− buttons; the corner zoom buttons stay visible when landscape controls are hidden. Your zoom is remembered across houses, rotation, menu returns, and reloads. Drag with the left mouse button or one finger to look around the enlarged room.
 
 Tap the perspective floor to walk sideways, closer, or farther away, or use the large buttons. The green-signed door is the stairwell; each entry floor has a separate door marked UT for going outdoors. Colin stands beside the call button and reaches toward it. Enter the recessed cabin, choose a floor, then ride or step out and take the stairs. Stand in the doorway to keep it open. In the old house, operate both the landing door and lattice gate yourself.
 
@@ -36,7 +36,9 @@ npx playwright install chromium
 npm test
 ```
 
-Tests cover queues, gate interlocks, doorway obstruction, passengers, offscreen simulation, pause, and save recovery, plus desktop/phone play and fresh offline launch. Browser tests start their own preview on port 4011, which must be free. Two workers avoid competing WebGL renderers overwhelming the test machine. Use `npm run preview` for manual production review afterward.
+Local `npm ci` automatically installs [the pre-commit hook](../.githooks/pre-commit). It runs Biome, builds with `/monorepo-colin/`, then runs the full suite; any failure blocks the commit. Install Chromium once as above. Run `git hook run pre-commit` to check without committing, or `npm run prepare` to reinstall the hook. Checks use the working tree; stage the intended, verified changes before committing. Hook installation is skipped in CI.
+
+Tests cover queues, gate interlocks, doorway obstruction, passengers, offscreen simulation, pause, and save recovery, plus desktop/phone play and fresh offline launch. Browser tests start their own preview on port 4011, which must be free. Three local workers run tests in parallel; Windows uses Direct3D 11 so WebGL can use the graphics card instead of CPU-based SwiftShader. Use `npm test -- --workers=2` on machines with fewer resources. Long movement checks use small Playwright clock advances while preserving fixed simulation steps; offline, update, and layout checks use normal time. Use `npm run preview` for manual production review afterward, matching the build's base path.
 
 ## Structure
 
@@ -56,7 +58,7 @@ For fullscreen, choose **Helskärm** in the menu or **⛶** beside Settings duri
 
 ## GitHub Pages
 
-The [Pages workflow](../.github/workflows/pages.yml) checks relevant pull requests and pushes to `main`. It installs dependencies with Node 24, checks formatting, builds, and runs simulation plus desktop/phone browser tests, including offline play. Only a passing `main` build is uploaded and deployed; pull requests only run checks. GitHub supplies the deployment token, so no personal access token or server secrets are needed.
+The [Pages workflow](../.github/workflows/pages.yml) checks relevant pull requests and pushes to `main`. It installs dependencies with Node 24, checks formatting, and builds. Tests run locally in the pre-commit hook, keeping them out of the release pipeline. Passing `main` builds deploy; pull requests only run checks. GitHub supplies the deployment token, so no personal access token or server secrets are needed.
 
 **[Play the hosted game](https://jim-pettersson-github.github.io/monorepo-colin/)**. The link is also in the root README and [Settings → Pages](https://github.com/jim-pettersson-github/monorepo-colin/settings/pages), which shows the last deployment. The public repository uses GitHub Actions as its Pages source.
 

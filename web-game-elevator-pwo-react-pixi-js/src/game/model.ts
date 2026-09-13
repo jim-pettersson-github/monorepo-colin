@@ -69,6 +69,7 @@ export interface Settings {
   alarmVolume: number;
   muted: boolean;
   smoothCamera: boolean;
+  cameraZoom: number;
 }
 export interface GameState {
   version: 3;
@@ -120,7 +121,7 @@ export function createGame(seed = Date.now() >>> 0): GameState {
         timer: 25 + id * 20,
       })),
     })),
-    settings: { liftVolume: 0.35, alarmVolume: 0.2, muted: false, smoothCamera: true },
+    settings: { liftVolume: 0.35, alarmVolume: 0.2, muted: false, smoothCamera: true, cameraZoom: 1 },
   };
 }
 

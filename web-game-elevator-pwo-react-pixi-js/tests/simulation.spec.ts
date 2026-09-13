@@ -20,6 +20,19 @@ function setup() {
   return { state, ui, tick, act };
 }
 
+test('zoom preference migrates old saves and rejects invalid values without discarding other settings', () => {
+  const state = createGame(42);
+  const old = JSON.parse(JSON.stringify(state));
+  delete old.settings.cameraZoom;
+  expect(parseSave(JSON.stringify(old))?.settings).toEqual(state.settings);
+  state.settings.cameraZoom = 1.73;
+  expect(parseSave(JSON.stringify(state))?.settings).toEqual(state.settings);
+  for (const cameraZoom of [0, 3, null, '1.5']) {
+    old.settings.cameraZoom = cameraZoom;
+    expect(parseSave(JSON.stringify(old))).toBeNull();
+  }
+});
+
 test('ride or step out and take the stairs while the lift completes its own journey', () => {
   const { state, ui, tick, act } = setup();
   act({ type: 'board' });

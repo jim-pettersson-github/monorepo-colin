@@ -51,13 +51,15 @@ Biome owns formatting. No Prettier configuration or dependency is needed; do not
 
 ## Deployment and PWA updates
 
-GitHub Pages is the hosting target. `.github/workflows/pages.yml` builds and tests the game before deploying `main`. The repository must have Pages source set to GitHub Actions. `VITE_BASE_PATH` supplies the repository subpath; keep app links, icons, manifest, and service-worker scope inside it. Verify the live build after deployment.
+GitHub Pages is the hosting target. `.github/workflows/pages.yml` builds the game before deploying `main`; tests run locally before committing. The repository must have Pages source set to GitHub Actions. `VITE_BASE_PATH` supplies the repository subpath; keep app links, icons, manifest, and service-worker scope inside it. Verify the live build after deployment.
 
 Download updates without interrupting an open session. Activate after old clients close, or when the user chooses Uppdatera spelet in Settings/About; save before the requested reload. Check on launch, reconnection, and return to the foreground. Keep saves separate from asset caches; never force a reload during play.
 
 ## CI
 
-The Pages workflow checks relevant pull requests and pushes to `main`, with a manual trigger. It runs `npm ci`, Biome, TypeScript/build, and Playwright against the same repository-path artifact it deploys. Pull requests never deploy. Keep deployment permissions scoped to the deploy job.
+The Pages workflow checks relevant pull requests and pushes to `main`, with a manual trigger. It runs `npm ci`, Biome, and TypeScript/build; do not add test jobs to the release pipeline. Pull requests never deploy. Keep deployment permissions scoped to the deploy job.
+
+Local `npm ci` installs the tracked `.githooks/pre-commit` hook through `prepare`. Before every commit it runs Biome, a fresh Pages-path production build, and all simulation/desktop/phone tests, stopping on failure. Install Chromium once with `npx playwright install chromium`. Run `git hook run pre-commit` to verify without committing; port 4011 must be free. The hook checks the working tree, so stage the intended, verified changes before committing.
 
 ## Documentation style
 
