@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { showControls } from './room-helpers';
 
 test('boots the illustrated menu and opens a keyboard-accessible information panel', async ({ page }) => {
   const errors: string[] = [];
@@ -50,6 +51,7 @@ test('precaches the whole game, plays offline, and resumes an offline save', asy
   await expect(offline.getByRole('dialog')).toBeVisible();
   await offline.getByRole('button', { name: 'Stäng', exact: true }).click();
   await offline.getByRole('button', { name: 'Spela', exact: true }).click();
+  await showControls(offline);
   await expect(offline.locator('.game-scene canvas')).toBeVisible();
   await offline.getByRole('button', { name: '→ Utgång', exact: true }).click();
   await expect(offline.locator('main.game')).toHaveAttribute('data-place', 'outside');

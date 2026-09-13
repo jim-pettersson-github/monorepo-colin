@@ -18,6 +18,9 @@
     0 2px 3px var(--menu-shadow);
   padding: 5px 8px;
 }
+.game .controls-toggle {
+  display: none;
+}
 .game button:disabled {
   opacity: 0.42;
   cursor: default;
@@ -473,33 +476,77 @@
 }
 @media (orientation: landscape) and (min-width: 640px) {
   .game {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) clamp(250px, 30vw, 310px);
-    grid-template-rows: auto minmax(0, 1fr);
-    padding-left: env(safe-area-inset-left);
-    padding-right: env(safe-area-inset-right);
+    display: block;
+    position: relative;
+    --overlay-width: clamp(250px, 30vw, 310px);
+    --overlay-left: max(8px, env(safe-area-inset-left));
+    --overlay-right: max(8px, env(safe-area-inset-right));
+    --overlay-top: max(8px, env(safe-area-inset-top));
+    --overlay-bottom: max(8px, env(safe-area-inset-bottom));
+  }
+  .game .controls-toggle {
+    display: block;
+    position: absolute;
+    right: var(--overlay-right);
+    bottom: var(--overlay-bottom);
+    z-index: 4;
+    min-width: 140px;
+    color: var(--menu-engraving);
+    background: var(--brass-finish);
   }
   .game-header {
-    grid-column: 1;
-    padding-left: 8px;
-    padding-right: 8px;
+    position: absolute;
+    top: var(--overlay-top);
+    left: var(--overlay-left);
+    right: calc(var(--overlay-width) + var(--overlay-right) + 8px);
+    z-index: 3;
+    border: 1px solid var(--trim);
+    border-radius: 8px;
+    padding: 3px;
+  }
+  .location strong {
+    font-size: 17px;
   }
   .world-wrap {
-    grid-column: 1;
-    grid-row: 2;
+    position: absolute;
+    inset: 0;
     height: 100%;
     min-height: 0;
   }
-  .game-controls {
-    grid-column: 2;
-    grid-row: 1 / -1;
+  .perspective-scene.has-overview {
     height: 100%;
+  }
+  .game-controls {
+    position: absolute;
+    z-index: 3;
+    top: var(--overlay-top);
+    right: var(--overlay-right);
+    bottom: calc(var(--overlay-bottom) + 56px);
+    width: var(--overlay-width);
+    height: calc(100% - var(--overlay-top) - var(--overlay-bottom) - 56px);
+    align-self: auto;
     max-height: none;
     min-height: 0;
     overflow-y: auto;
-    padding: max(6px, env(safe-area-inset-top)) 8px max(6px, env(safe-area-inset-bottom));
-    border-top: 0;
-    border-left: 1px solid var(--trim);
+    padding: 6px 8px;
+    border: 1px solid var(--trim);
+    border-radius: 8px;
+    box-shadow: 0 4px 20px var(--menu-shadow);
+  }
+  .game:not(.controls-open) :is(.game-header, .game-controls, .floor-overview, .camera-zoom, .camera-follow, .room-preview-caption) {
+    display: none;
+  }
+  .camera-zoom {
+    left: var(--overlay-left);
+    bottom: var(--overlay-bottom);
+  }
+  .game .camera-follow {
+    left: calc(var(--overlay-left) + 108px);
+    right: auto;
+    bottom: var(--overlay-bottom);
+  }
+  .journey-label {
+    bottom: var(--overlay-bottom);
   }
   .action-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -514,7 +561,15 @@
     font-size: 11px;
   }
   .floor-overview {
-    width: calc(100% - 12px);
+    top: calc(var(--overlay-top) + 62px);
+    left: var(--overlay-left);
+    right: calc(var(--overlay-width) + var(--overlay-right) + 8px);
+    transform: none;
+    width: auto;
+  }
+  .room-preview-caption {
+    top: auto;
+    bottom: calc(var(--overlay-bottom) + 58px);
   }
   .game .floor-overview button {
     gap: 4px;
@@ -531,6 +586,7 @@
     min-height: 64px;
   }
   .floor-panel {
+    z-index: 5;
     left: auto;
     right: max(8px, env(safe-area-inset-right));
     bottom: max(8px, env(safe-area-inset-bottom));

@@ -26,9 +26,9 @@ Use `worldPalette` for the painted canvas and `palette` for readable HTML contro
 
 Room plates are 1448×1086 with a shared doorway plane and perspective projection. Preserve generous floor space and normal character/door sizes. Keep flame pictograms, alarm call points, and warning triangles separate. Version-3 saves include depth and doorway waypoints; migrate versions 1 and 2 and retain the existing storage keys for recovery.
 
-Use Swedish labels, simple pictures, and floor numbers. Do not display Colin's diagnosis in the UI. Provide accessible HTML alternatives for world interactions; the menu canvas stays decorative. Menus share the game's painted wood, brass, and teal theme using `menuPalette` and existing material textures, with bright readable text and illuminated selections. Keep menus compact with 48-pixel touch targets. Support portrait and landscape, with controls beside the room on wide screens, scrollable settings, and unrestricted PWA orientation.
+Use Swedish labels, simple pictures, and floor numbers. Do not display Colin's diagnosis in the UI. Provide accessible HTML alternatives for world interactions; the menu canvas stays decorative. Menus share the game's painted wood, brass, and teal theme using `menuPalette` and existing material textures, with bright readable text and illuminated selections. Keep menus compact with 48-pixel touch targets. Support portrait and landscape, with a full-viewport landscape canvas, toggleable floating controls hidden by default, scrollable settings, and unrestricted PWA orientation.
 
-The building overview previews a floor without moving Colin; tapping its room sends him there through the stairs. Följ Colin returns to his floor. Use mouse-wheel or +/− zoom and mouse/one-finger dragging within the room. Drags never move Colin or activate objects. Floor/building changes restore the fitted room view.
+The building overview previews a floor without moving Colin; tapping its room sends him there through the stairs. Följ Colin returns to his floor. Use mouse-wheel or +/− zoom and mouse/one-finger dragging within the room. Drags never move Colin or activate objects. Floor/building changes restore the default room view: fitted in portrait, filling the viewport in landscape.
 
 ## Commands
 
@@ -68,7 +68,7 @@ The three-building game is playable. Preserve the independently running lifts, d
 
 Simulation state outlives rendered scenes. Use one fixed-step ticker and refs for continuous motion, not React state every frame. Pause simulation/audio when hidden; resume without elapsed-time catch-up.
 
-Bundle assets locally. Production precaching includes the full game. Updates wait for existing clients to close and never force a reload. Versioned localStorage saves remain separate from service-worker caches; validate snapshots and preserve a previous valid backup.
+Bundle assets locally. Production precaching includes the full game. Updates check on launch, reconnection, and return to the foreground. Settings/About offers a manual check and Uppdatera spelet; save before that user-requested reload. Otherwise updates wait for old clients to close. Versioned localStorage saves remain separate from service-worker caches; validate snapshots and preserve a previous valid backup.
 
 GitHub Pages deploys through `../.github/workflows/pages.yml`. Local development defaults to `/`; CI sets `VITE_BASE_PATH` to the repository subpath for both build and tests. Use `import.meta.env.BASE_URL` in app links and public asset URLs. Keep manifest start/scope and the offline worker scoped to that same path. Only passing `main` builds deploy.
 

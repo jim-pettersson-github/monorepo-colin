@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { buildings, currentBuilding, definition, isOpen, layout, liftPhase, playerLevel } from '../game/model';
 import type { GameSession } from '../game/session';
 import { GameScene } from './GameScene';
+import { GameUpdate } from './GameUpdate';
 import '../game.css';
 
 export function GameView({ session, onMenu }: { session: GameSession; onMenu: () => void }) {
@@ -9,6 +10,7 @@ export function GameView({ session, onMenu }: { session: GameSession; onMenu: ()
   const [tab, setTab] = useState<'lift' | 'room'>('lift');
   const [confirmRestart, setConfirmRestart] = useState(false);
   const [offline, setOffline] = useState(false);
+  const [controlsOpen, setControlsOpen] = useState(false);
   const settings = useRef<HTMLDialogElement>(null);
   const sign = useRef<HTMLDialogElement>(null);
   const floorPanel = useRef<HTMLElement>(null);
@@ -64,7 +66,16 @@ export function GameView({ session, onMenu }: { session: GameSession; onMenu: ()
   };
 
   return (
-    <main className='game' data-place={player.place} data-floor={currentFloor} data-riding={player.riding}>
+    <main className={`game${controlsOpen ? ' controls-open' : ''}`} data-place={player.place} data-floor={currentFloor} data-riding={player.riding}>
+      <button
+        type='button'
+        className='controls-toggle'
+        aria-expanded={controlsOpen}
+        aria-controls='game-controls'
+        onClick={() => setControlsOpen((open) => !open)}
+      >
+        {controlsOpen ? '× Dölj kontroller' : '☰ Kontroller'}
+      </button>
       <header className='game-header'>
         <button type='button' className='round-control' aria-label='Till menyn' onClick={onMenu}>
           ←
@@ -93,7 +104,7 @@ export function GameView({ session, onMenu }: { session: GameSession; onMenu: ()
         {player.riding && <span className='journey-label'>I hissen · {moving ? 'på väg' : `våning ${currentFloor}`}</span>}
       </div>
 
-      <section className='game-controls' aria-label='Spelkontroller'>
+      <section id='game-controls' className='game-controls' aria-label='Spelkontroller'>
         {building && lift ? (
           <>
             <div className='lift-status'>
@@ -321,6 +332,7 @@ export function GameView({ session, onMenu }: { session: GameSession; onMenu: ()
             </>
           )}
         </p>
+        <GameUpdate onSave={() => session.save()} />
         <details className='game-help'>
           <summary>Så fungerar det</summary>
           <p>Tryck på golvet för att gå. Hämta hissen, gå in och välj en våning. Du kan kliva ut igen och ta trapporna.</p>

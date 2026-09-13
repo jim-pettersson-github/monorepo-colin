@@ -1,11 +1,12 @@
 import { expect, test } from '@playwright/test';
 import { layout } from '../src/game/model';
-import { floorTap, roomTap, savedPlayer } from './room-helpers';
+import { floorTap, roomTap, savedPlayer, showControls } from './room-helpers';
 
 test('walk upstairs, return to the entrance, and use the separate outside door', async ({ page }) => {
   test.slow();
   await page.goto('./');
   await page.getByRole('button', { name: 'Spela', exact: true }).click();
+  await showControls(page);
   await expect(page.locator('.game-scene canvas')).toBeVisible();
   await floorTap(page, 1, 430, 0.4);
   await expect
@@ -36,6 +37,7 @@ test('help a passenger, block the doorway, take the stairs, and resume the saved
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto('./');
   await page.getByRole('button', { name: 'Spela', exact: true }).click();
+  await showControls(page);
   const game = page.locator('main.game');
   await expect(game).toHaveAttribute('data-place', 'hotel');
   await expect(page.locator('.game-scene canvas')).toBeVisible();
@@ -70,6 +72,7 @@ test('help a passenger, block the doorway, take the stairs, and resume the saved
     )
     .toEqual([2, 'returning']);
   await page.reload();
+  await showControls(page);
   await expect(game).toHaveAttribute('data-place', 'hotel');
   await expect(game).toHaveAttribute('data-floor', '2');
   await expect(page.locator('.game-scene canvas')).toBeVisible();
@@ -80,6 +83,7 @@ test('explore lights and signs, stop the alarm sample, and visit the old gate li
   test.slow();
   await page.goto('./');
   await page.getByRole('button', { name: 'Spela', exact: true }).click();
+  await showControls(page);
   await page.getByRole('button', { name: 'Upptäck rummet' }).click();
   await page.getByRole('button', { name: 'Släck ljuset' }).click();
   await expect(page.getByRole('button', { name: 'Tänd ljuset' })).toBeVisible();
@@ -104,6 +108,7 @@ test('explore lights and signs, stop the alarm sample, and visit the old gate li
   await page.getByLabel('Alla ljud av').check();
   await page.getByRole('button', { name: 'Stäng inställningar' }).click();
   await page.reload();
+  await showControls(page);
   await expect(page.locator('main.game')).toHaveAttribute('data-place', 'house');
   await page.getByRole('button', { name: 'Inställningar' }).click();
   await expect(page.getByLabel('Alla ljud av')).toBeChecked();

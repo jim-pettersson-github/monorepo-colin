@@ -1,4 +1,6 @@
 import { expect, test } from '@playwright/test';
+import { roomSpace } from '../src/game/spatial';
+import { showControls } from './room-helpers';
 
 test('phone rotation keeps the room, touch controls, and settings usable', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -13,19 +15,33 @@ test('phone rotation keeps the room, touch controls, and settings usable', async
     { width: 390, height: 700 },
   ]) {
     await page.setViewportSize(viewport);
+    const landscape = viewport.width > viewport.height;
     await expect
       .poll(async () => {
         const room = await page.locator('.game-scene canvas').boundingBox();
+        if (!room) return false;
+        if (landscape) return Math.abs(room.width - viewport.width) <= 1 && Math.abs(room.height - viewport.height) <= 1 && room.x === 0 && room.y === 0;
         const controls = await page.getByRole('region', { name: 'Spelkontroller' }).boundingBox();
-        if (!room || !controls) return false;
-        return (
-          room.height >= 250 &&
-          room.width >= 320 &&
-          room.y + room.height <= viewport.height + 1 &&
-          (viewport.width > viewport.height ? room.x + room.width <= controls.x + 1 : room.y + room.height <= controls.y + 1)
-        );
+        return !!controls && room.height >= 250 && room.y + room.height <= controls.y + 1;
       })
       .toBe(true);
+    if (landscape) {
+      await expect(page.getByRole('region', { name: 'Spelkontroller' })).not.toBeVisible();
+      const before = await page.locator('.game-scene canvas').boundingBox();
+      const scale = Math.min(viewport.width / roomSpace.width, viewport.height / roomSpace.height);
+      await expect
+        .poll(async () => Number(await page.locator('.game-scene').getAttribute('data-zoom')) * scale * roomSpace.width)
+        .toBeGreaterThanOrEqual(viewport.width - 1);
+      await showControls(page);
+      expect(await page.locator('.game-scene canvas').boundingBox()).toEqual(before);
+      const panel = await page.getByRole('region', { name: 'Spelkontroller' }).boundingBox();
+      const toggle = await page.locator('.controls-toggle').boundingBox();
+      expect(panel && toggle && panel.y >= 0 && panel.y + panel.height <= toggle.y).toBeTruthy();
+      await page.getByRole('button', { name: '× Dölj kontroller', exact: true }).click();
+      await expect(page.getByRole('region', { name: 'Spelkontroller' })).not.toBeVisible();
+      expect(await page.locator('.game-scene canvas').boundingBox()).toEqual(before);
+    }
+    await showControls(page);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth && document.documentElement.scrollHeight <= innerHeight)).toBe(true);
     const button = page.getByRole('button', { name: 'Hämta hiss', exact: true });
     await expect(button).toBeInViewport();
@@ -36,5 +52,6 @@ test('phone rotation keeps the room, touch controls, and settings usable', async
     await expect(page.getByRole('button', { name: 'Stäng inställningar' })).toBeInViewport();
     await page.getByRole('button', { name: 'Stäng inställningar' }).click();
     await expect(page.getByRole('dialog')).not.toBeVisible();
+    if (landscape) await page.getByRole('button', { name: '× Dölj kontroller', exact: true }).click();
   }
 });

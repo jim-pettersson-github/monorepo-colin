@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { showControls } from './room-helpers';
 
 test('a failed art download can be retried before the painted world starts', async ({ page }) => {
   let blocked = true;
@@ -11,6 +12,7 @@ test('a failed art download can be retried before the painted world starts', asy
   await page.getByRole('button', { name: 'Försök igen' }).click();
   await expect(page.locator('.game-scene')).toHaveAttribute('data-art', 'painted');
   await expect(page.locator('.game-scene canvas')).toBeVisible();
+  await showControls(page);
   await page.getByRole('button', { name: 'Gå in', exact: true }).click();
   await expect(page.locator('main.game')).toHaveAttribute('data-riding', 'true');
 });

@@ -24,6 +24,7 @@ function World({
   onFollow,
   onManualChange,
   zoom,
+  defaultZoom,
   onZoom,
 }: {
   session: GameSession;
@@ -35,6 +36,7 @@ function World({
   onFollow: () => void;
   onManualChange: (manual: boolean) => void;
   zoom: number;
+  defaultZoom: number;
   onZoom: (zoom: number) => void;
 }) {
   const { app } = useApplication();
@@ -116,12 +118,12 @@ function World({
   }, [app, host, frame]);
   // biome-ignore lint/correctness/useExhaustiveDependencies: Explicit view changes reset the camera.
   useEffect(() => {
-    camera.current = { zoom: 1, manual: false, x: 0, y: 0 };
+    camera.current = { zoom: defaultZoom, manual: false, x: 0, y: 0 };
     gesture.current = null;
     onManualChange(false);
-    onZoom(1);
+    onZoom(defaultZoom);
     frame(0);
-  }, [place, floor, followRequest, onManualChange, onZoom, frame]);
+  }, [place, floor, followRequest, defaultZoom, onManualChange, onZoom, frame]);
   useEffect(() => {
     const element = host.current;
     if (!element || paused) return;
@@ -237,6 +239,7 @@ export function GameScene({ session, paused }: { session: GameSession; paused: b
   const [preview, setPreview] = useState<{ place: string; floor: number } | null>(null);
   const [manual, setManual] = useState(false);
   const [zoom, setZoom] = useState(1);
+  const [defaultZoom, setDefaultZoom] = useState(1);
   const [followRequest, setFollowRequest] = useState(0);
   const follow = useCallback(() => setPreview(null), []);
   const state = session.state;
@@ -244,6 +247,20 @@ export function GameScene({ session, paused }: { session: GameSession; paused: b
   const colinFloor = Math.round(playerLevel(state));
   const inspecting = preview?.place === state.player.place;
   const floor = inspecting ? preview.floor : colinFloor;
+  useEffect(() => {
+    const element = host.current;
+    if (!element) return;
+    const observer = new ResizeObserver(() => {
+      const { width, height } = element.getBoundingClientRect();
+      if (!width || !height) return;
+      const fit = Math.min(width / roomSpace.width, height / roomSpace.height);
+      const fill = Math.max(width / roomSpace.width, height / roomSpace.height);
+      setDefaultZoom(matchMedia('(orientation: landscape) and (min-width: 640px)').matches ? Math.min(2.5, fill / fit) : 1);
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+  const cameraMoved = manual || Math.abs(zoom - defaultZoom) > 0.01;
   return (
     <>
       {building && (
@@ -274,8 +291,9 @@ export function GameScene({ session, paused }: { session: GameSession; paused: b
         data-art={assets ? 'painted' : 'loading'}
         data-view-floor={floor}
         aria-busy={!assets}
-        data-camera={manual || zoom > 1 ? 'free' : 'follow'}
+        data-camera={cameraMoved ? 'free' : 'follow'}
         data-zoom={zoom}
+        data-default-zoom={defaultZoom}
         ref={host}
         role='img'
         aria-label='Colins hus i perspektiv. Välj en våning i husöversikten för att titta, tryck sedan i rummet för att gå dit. Dra för att flytta kameran.'
@@ -292,6 +310,7 @@ export function GameScene({ session, paused }: { session: GameSession; paused: b
               onFollow={follow}
               onManualChange={setManual}
               zoom={zoom}
+              defaultZoom={defaultZoom}
               onZoom={setZoom}
             />
           </Application>
@@ -318,7 +337,7 @@ export function GameScene({ session, paused }: { session: GameSession; paused: b
           </button>
         </fieldset>
       )}
-      {(manual || inspecting || zoom > 1) && (
+      {(cameraMoved || inspecting) && (
         <button
           type='button'
           className='camera-follow'

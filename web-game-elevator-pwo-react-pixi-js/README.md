@@ -50,6 +50,8 @@ Development has no service worker. Production precaches the complete game and bu
 
 For Android installation, open the deployed HTTPS site in Chrome and use its install/add-to-home-screen action. First installation needs internet. Saves use separate localStorage keys (`colin-game-v1` and `colin-game-backup-v1`); clearing browser site data removes both saves and the offline copy. Real-device installation, phone restart, update behavior, and comfortable sound levels still need manual verification.
 
+Use Settings/About → Sök efter uppdatering → Uppdatera spelet to apply a downloaded update after saving. Checks also run on launch, reconnection, and return to the foreground. Older installations without this control need all game windows and Chrome game tabs closed before reopening. Android's installed orientation setting updates separately from game assets: enable Auto-rotate and allow Chrome to refresh the installation while closed, charging, and on Wi-Fi.
+
 ## GitHub Pages
 
 The [Pages workflow](../.github/workflows/pages.yml) checks relevant pull requests and pushes to `main`. It installs dependencies with Node 24, checks formatting, builds, and runs simulation plus desktop/phone browser tests, including offline play. Only a passing `main` build is uploaded and deployed; pull requests only run checks. GitHub supplies the deployment token, so no personal access token or server secrets are needed.

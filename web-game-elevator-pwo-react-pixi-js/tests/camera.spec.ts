@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { createGame } from '../src/game/model';
 import { projectPoint } from '../src/game/spatial';
-import { floorTap, roomTap, savedPlayer } from './room-helpers';
+import { floorTap, roomTap, savedPlayer, showControls } from './room-helpers';
 
 for (const destination of [0, 2])
   test(`preview floor ${destination} without moving, then walk there through the stairs`, async ({ page }, testInfo) => {
@@ -16,6 +16,7 @@ for (const destination of [0, 2])
     await page.goto('./');
     const scene = page.locator('.game-scene');
     await expect(scene.locator('canvas')).toBeVisible();
+    await showControls(page);
     await page.getByRole('button', { name: `Titta på våning ${destination}`, exact: true }).click();
     await expect(scene).toHaveAttribute('data-view-floor', String(destination));
     await expect(page.locator('main.game')).toHaveAttribute('data-floor', String(2 - destination));
@@ -54,6 +55,10 @@ test('zoom and drag with mouse or touch never move Colin; Follow restores the ro
   await page.goto('./');
   const scene = page.locator('.game-scene');
   await expect(scene.locator('canvas')).toBeVisible();
+  await showControls(page);
+  const defaultZoom = await scene.getAttribute('data-default-zoom');
+  while (await page.getByRole('button', { name: 'Zooma ut', exact: true }).isEnabled())
+    await page.getByRole('button', { name: 'Zooma ut', exact: true }).click();
   await page.getByRole('button', { name: 'Zooma in', exact: true }).click();
   await expect(scene).toHaveAttribute('data-zoom', '1.5');
   const bounds = await scene.boundingBox();
@@ -74,7 +79,7 @@ test('zoom and drag with mouse or touch never move Colin; Follow restores the ro
   await expect(scene).toHaveAttribute('data-camera', 'free');
   expect(await savedPlayer(page)).toMatchObject({ x: 670, depth: 0.4, targetX: null, route: null, stairs: null });
   await page.getByRole('button', { name: '◎ Följ Colin', exact: true }).click();
-  await expect(scene).toHaveAttribute('data-zoom', '1');
+  await expect(scene).toHaveAttribute('data-zoom', defaultZoom ?? '1');
   await expect(scene).toHaveAttribute('data-camera', 'follow');
   await roomTap(page, projectPoint({ x: 600, depth: 0.8 }), testInfo.project.name === 'phone');
   await expect.poll(async () => Math.round((await savedPlayer(page)).depth * 100)).toBe(80);

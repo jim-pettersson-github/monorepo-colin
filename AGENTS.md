@@ -12,7 +12,7 @@ Read each folder's CLAUDE.md and AGENTS.md before working there. This is standal
 
 ## Writing UI
 
-Painted 2.5D rooms with Swedish labels in portrait and landscape. Colin walks across a perspective floor and scales with depth. Use compact HTML menus with at least 48-pixel touch targets and PixiJS for the world. Landscape places controls beside the room; allow the installed PWA to rotate. Prefer right-side panels for settings and information; avoid browser confirmation popups.
+Painted 2.5D rooms with Swedish labels in portrait and landscape. Colin walks across a perspective floor and scales with depth. Use compact HTML menus with at least 48-pixel touch targets and PixiJS for the world. Landscape fills the viewport with the game; controls float above it and start hidden behind a toggle. Allow the installed PWA to rotate. Prefer right-side panels for settings and information; avoid browser confirmation popups.
 
 Keep colors in local semantic palette roles and check existing components before adding primitives. Colin has blond-brown hair, brown eyes, and bare feet: no shoes or socks. Elevators are the focus; green emergency-exit signs are a small secondary theme.
 
@@ -53,7 +53,7 @@ Biome owns formatting. No Prettier configuration or dependency is needed; do not
 
 GitHub Pages is the hosting target. `.github/workflows/pages.yml` builds and tests the game before deploying `main`. The repository must have Pages source set to GitHub Actions. `VITE_BASE_PATH` supplies the repository subpath; keep app links, icons, manifest, and service-worker scope inside it. Verify the live build after deployment.
 
-Download updates without interrupting an open session. Let the service worker activate after old clients close. Keep saves separate from asset caches; never force a reload during play.
+Download updates without interrupting an open session. Activate after old clients close, or when the user chooses Uppdatera spelet in Settings/About; save before the requested reload. Check on launch, reconnection, and return to the foreground. Keep saves separate from asset caches; never force a reload during play.
 
 ## CI
 

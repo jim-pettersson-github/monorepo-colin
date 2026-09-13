@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { GameUpdate } from './components/GameUpdate';
 import { copy } from './copy';
 import { GameSession } from './game/session';
 
@@ -128,6 +129,7 @@ export function App() {
         <p className='panel-intro'>{copy.panelIntro}</p>
         <p>{copy.panelBody}</p>
         <p className='panel-note'>{copy.panelNote}</p>
+        <GameUpdate onSave={() => session.save()} />
       </dialog>
     </main>
   );
