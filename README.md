@@ -12,4 +12,4 @@ npm ci
 npm start
 ```
 
-Open http://localhost:4010. `npm ci` installs the local pre-commit hook; install its browser once with `npx playwright install chromium`. Tests run before committing; GitHub only checks formatting, builds, and deploys. See the [game README](web-game-elevator-pwo-react-pixi-js/README.md) for checks and offline preview, and [AGENTS.md](AGENTS.md) for project guidance.
+Open http://localhost:4010. `npm ci` installs the local pre-commit hook; `npm test` installs its browser automatically if missing. Tests run before committing; GitHub only checks formatting, builds, and deploys. See the [game README](web-game-elevator-pwo-react-pixi-js/README.md) for checks and offline preview, and [AGENTS.md](AGENTS.md) for project guidance.

@@ -16,6 +16,8 @@ export async function roomTap(page: Page, point: { x: number; y: number }, touch
   const floating = await toggle.isVisible();
   if (floating) await toggle.click();
   const canvas = page.locator('.game-scene canvas');
+  // Touchscreen.tap has no actionability wait; measure only after layout settles.
+  await canvas.click({ trial: true });
   const bounds = await canvas.boundingBox();
   if (!bounds) throw new Error('Missing game canvas');
   const scale = Math.min(bounds.width / roomSpace.width, bounds.height / roomSpace.height);

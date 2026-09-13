@@ -7,6 +7,7 @@ test('choose lit back-wall buttons and visibly close/reopen doors around Colin',
   test.slow();
   const saved = createGame(42);
   saved.started = true;
+  saved.settings.smoothCamera = false;
   saved.player.x = layout.cabin;
   saved.player.depth = -0.18;
   saved.player.riding = true;

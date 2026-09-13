@@ -59,7 +59,7 @@ Download updates without interrupting an open session. Activate after old client
 
 The Pages workflow checks relevant pull requests and pushes to `main`, with a manual trigger. It runs `npm ci`, Biome, and TypeScript/build; do not add test jobs to the release pipeline. Pull requests never deploy. Keep deployment permissions scoped to the deploy job.
 
-Local `npm ci` installs the tracked `.githooks/pre-commit` hook through `prepare`. Before every commit it runs Biome, a fresh Pages-path production build, and all simulation/desktop/phone tests, stopping on failure. Install Chromium once with `npx playwright install chromium`. Run `git hook run pre-commit` to verify without committing; port 4011 must be free. The hook checks the working tree, so stage the intended, verified changes before committing.
+Local `npm ci` installs the tracked `.githooks/pre-commit` hook through `prepare`. Before every commit it runs Biome, a fresh Pages-path production build, and all simulation/desktop/phone tests, stopping on failure. `npm test` installs the matching Chromium headless browser if missing. Run `git hook run pre-commit` to verify without committing; port 4011 must be free. The hook checks the working tree, so stage the intended, verified changes before committing.
 
 ## Documentation style
 
