@@ -12,11 +12,12 @@ for (const [role, color] of Object.entries(palette)) {
 const root = document.getElementById('root');
 if (!root) throw new Error('Missing application root');
 const ArtStudy = lazy(() => import('./components/ArtStudy').then((module) => ({ default: module.ArtStudy })));
-const artStudy = new URLSearchParams(window.location.search).get('view') === 'art';
+const DepthStudy = lazy(() => import('./components/DepthStudy').then((module) => ({ default: module.DepthStudy })));
+const view = new URLSearchParams(window.location.search).get('view');
 
 createRoot(root).render(
   <StrictMode>
-    <Suspense fallback={<p role='status'>Laddar…</p>}>{artStudy ? <ArtStudy /> : <App />}</Suspense>
+    <Suspense fallback={<p role='status'>Laddar…</p>}>{view === 'art' ? <ArtStudy /> : view === 'depth' ? <DepthStudy /> : <App />}</Suspense>
   </StrictMode>,
 );
 

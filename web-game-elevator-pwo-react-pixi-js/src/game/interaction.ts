@@ -17,7 +17,7 @@ export function worldAction(state: GameState, point: { x: number; y: number }): 
   if (floor !== state.player.floor || state.player.stairs || (state.player.riding && lift?.destination !== null)) return { type: 'walk', floor, x: point.x };
   const y = point.y - floorY(floor);
   const person = currentBuilding(state)?.people.find(
-    (person) => person.phase === 'idle' && person.floor === floor && Math.abs(person.x - point.x) < 30 && y < 5 && y > -165,
+    (person) => person.phase === 'idle' && person.floor === floor && Math.abs(person.x - point.x) < 30 && y < 5 && y > -205,
   );
   if (point.x < 175 && y < -25) return { type: 'stairs', direction: floor === 2 ? -1 : 1 };
   if (person) return { type: 'invite', id: person.id };

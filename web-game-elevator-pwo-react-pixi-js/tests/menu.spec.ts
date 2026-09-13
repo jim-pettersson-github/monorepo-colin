@@ -7,7 +7,7 @@ test('boots the illustrated menu and opens a keyboard-accessible information pan
 
   await expect(page.getByRole('heading', { level: 1 })).toContainText('Colins');
   await expect(page.locator('.scene')).toHaveAttribute('aria-busy', 'false');
-  await expect(page.locator('canvas')).toBeVisible();
+  await expect(page.locator('.scene-painted img')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Spela', exact: true })).toBeEnabled();
 
   const about = page.getByRole('button', { name: 'Om spelet' });
@@ -45,7 +45,7 @@ test('precaches the whole game, plays offline, and resumes an offline save', asy
   await offline.goto('./');
   await expect(offline.getByRole('heading', { level: 1 })).toContainText('Colins');
   await expect(offline.locator('.scene')).toHaveAttribute('aria-busy', 'false');
-  await expect(offline.locator('canvas')).toBeVisible();
+  await expect(offline.locator('.scene-painted img')).toBeVisible();
   await offline.getByRole('button', { name: 'Om spelet' }).click();
   await expect(offline.getByRole('dialog')).toBeVisible();
   await offline.getByRole('button', { name: 'Stäng', exact: true }).click();

@@ -14,7 +14,7 @@ Tap a person with a number to help them ride; they wait for Colin to choose thei
 
 ## Development
 
-Art comparison: open `http://127.0.0.1:4010/?view=art` or use **Jämför tre konststilar** in the menu. Three local concept illustrations can be enlarged without changing your save or the game's drawing style. Assets and their generation prompts are documented in [art-prompts.md](art-prompts.md).
+Art comparison: open `http://127.0.0.1:4010/?view=art` or use **Jämför tre konststilar** in the menu. Three original concepts can be enlarged without changing your save. Option 01 is now implemented in the playable world. Assets and their generation prompts are documented in [art-prompts.md](art-prompts.md).
 
 Use Node 22.12+ and run commands in this directory:
 
@@ -38,9 +38,9 @@ Tests cover queues, gate interlocks, doorway obstruction, passengers, offscreen 
 
 ## Structure
 
-`src/game/model.ts` defines the world; `simulation.ts` advances it independently of rendering. `session.ts` owns its lifetime, audio, and saving. `storage.ts` validates versioned snapshots and recovers a previous valid backup. `art.ts` draws the illustrated world and `audio.ts` synthesizes sounds locally.
+`src/game/model.ts` defines the world; `simulation.ts` advances it independently of rendering. `session.ts` owns its lifetime, audio, and saving. `storage.ts` validates versioned snapshots and recovers a previous valid backup. `art.ts` layers the painted world, sprites, and interactive doors/signs and `audio.ts` synthesizes sounds locally.
 
-`GameScene.tsx` connects the fixed-step ticker, pointer interaction, and camera to Pixi; `GameView.tsx` provides accessible HTML controls and panels. `App.tsx` owns the menu/session and background handling. Colors live in `src/palette.ts`. `src/pwa.ts` registers the worker. Regenerate app icons with `npm run icons`.
+`GameScene.tsx` connects the fixed-step ticker, pointer interaction, and camera to Pixi; `GameView.tsx` provides accessible HTML controls and panels. `App.tsx` owns the menu/session and background handling. Colors live in `src/palette.ts`. `src/pwa.ts` registers the worker. Regenerate app icons with `npm run icons`. Painted sources and prompts are in `art-source/`; `node scripts/prepare-painted-art.mjs` exports the 15 runtime WebP assets into `public/painted/`.
 
 ## Offline and hosting
 

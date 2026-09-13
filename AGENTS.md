@@ -16,7 +16,7 @@ Portrait-first, side-on 2D illustrations with Swedish labels. Use large HTML but
 
 Keep colors in local semantic palette roles and check existing components before adding primitives. Colin has blond-brown hair, brown eyes, and bare feet: no shoes or socks. Elevators are the focus; green emergency-exit signs are a small secondary theme.
 
-Keep corridors spacious: 825 world units, 1.5× the original width, with normal-sized characters and doors. Fire signage needs a recognizable flame and detailed alarm call point. Art experiments belong on the separate comparison page until a direction is chosen.
+Keep corridors spacious: 825 world units, 1.5× the original width, with normal-sized characters and doors. Fire signage needs a recognizable flame and detailed alarm call point. Option 01, the modern Monkey Island-inspired painted adventure, is the approved game direction: warm brass, dark wood, teal shadows, and painted characters. Keep the original comparison page as a reference.
 
 ## Colin's interests and game preferences
 

@@ -336,3 +336,15 @@ figcaption {
     padding-top: 15px;
   }
 }
+
+.scene-painted {
+  aspect-ratio: 1;
+  border-radius: 12px;
+  border: 5px solid var(--ink);
+  box-shadow: 0 12px 30px color-mix(in srgb, var(--ink) 16%, transparent);
+}
+.scene-painted img {
+  display: block;
+  width: 100%;
+  height: auto;
+}

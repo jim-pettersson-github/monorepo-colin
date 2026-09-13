@@ -4,8 +4,9 @@ import { type RefObject, useCallback, useEffect, useRef, useState } from 'react'
 import { drawBackground, drawDynamic } from '../game/art';
 import { worldAction } from '../game/interaction';
 import { buildings, currentBuilding, definition, floorY, playerLevel, worldWidth } from '../game/model';
+import { type PaintedAssets, usePaintedAssets } from '../game/painted-assets';
 import type { GameSession } from '../game/session';
-import { palette as p } from '../palette';
+import { worldPalette as p } from '../palette';
 
 extend({ Container, Graphics, Text });
 const clear = (graphics: Graphics) => {
@@ -18,12 +19,14 @@ function World({
   host,
   followRequest,
   onManualChange,
+  assets,
 }: {
   session: GameSession;
   paused: boolean;
   host: RefObject<HTMLDivElement | null>;
   followRequest: number;
   onManualChange: (manual: boolean) => void;
+  assets: PaintedAssets;
 }) {
   const { app } = useApplication();
   const world = useRef<Container>(null);
@@ -35,7 +38,7 @@ function World({
   const gesture = useRef<{ id: number; startX: number; startY: number; cameraX: number; cameraY: number; dragged: boolean } | null>(null);
   const state = session.state;
   const place = state.player.place;
-  const paint = useCallback((g: Graphics) => drawBackground(g, place), [place]);
+  const paint = useCallback((g: Graphics) => drawBackground(g, place, assets), [place, assets]);
 
   const frame = useCallback(
     (delta: number) => {
@@ -69,7 +72,7 @@ function World({
         camera.current.y = y;
       }
       cameraPlace.current = state.player.place;
-      drawDynamic(moving.current, state);
+      drawDynamic(moving.current, state, assets);
       const building = currentBuilding(state);
       for (let i = 0; i < 3; i++) {
         const text = numbers.current[i];
@@ -78,7 +81,7 @@ function World({
           text.visible = !!person && ['idle', 'waiting', 'riding'].includes(person.phase);
           if (person) {
             text.text = String(person.wanted);
-            text.position.set(person.x, floorY(person.phase === 'riding' ? (building?.lift.position ?? person.floor) : person.floor) - 143);
+            text.position.set(person.x, floorY(person.phase === 'riding' ? (building?.lift.position ?? person.floor) : person.floor) - 178);
           }
         }
         const indicator = indicators.current[i];
@@ -86,7 +89,7 @@ function World({
           indicator.text = `${building.lift.destination === null ? '•' : building.lift.destination > building.lift.position ? '↑' : '↓'} ${Math.round(building.lift.position)}`;
       }
     },
-    [app, session],
+    [app, session, assets],
   );
 
   useTick(useCallback((ticker: Ticker) => frame(ticker.deltaMS / 1000), [frame]));
@@ -96,6 +99,20 @@ function World({
     else app.start();
     app.render();
   }, [app, frame, paused]);
+
+  useEffect(() => {
+    const element = host.current;
+    if (!element) return;
+    // Pixi's resizeTo only listens for window resizes, not changing control heights.
+    const observer = new ResizeObserver(() => {
+      if (app.screen.width === element.clientWidth && app.screen.height === element.clientHeight) return;
+      app.resize();
+      frame(0);
+      app.render();
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [app, host, frame]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: Building changes and the follow button explicitly reset the camera.
   useEffect(() => {
@@ -133,7 +150,7 @@ function World({
       if (!drag || drag.id !== event.pointerId) return;
       gesture.current = null;
       if (drag.dragged || session.paused || session.hidden) return;
-      const bounds = element.getBoundingClientRect();
+      const bounds = app.canvas.getBoundingClientRect();
       if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) return;
       const point = world.current?.toLocal({
         x: ((event.clientX - bounds.left) * app.screen.width) / bounds.width,
@@ -191,7 +208,7 @@ function World({
           ))
         : [0, 1, 2].map((floor) => (
             <pixiContainer key={floor}>
-              <pixiText text='TRAPPA' x={101} y={floorY(floor) - 201} anchor={0.5} style={{ fontFamily: 'Trebuchet MS', fontSize: 11, fill: p.ink }} />
+              <pixiText text='TRAPPA' x={101} y={floorY(floor) - 201} anchor={0.5} style={{ fontFamily: 'Trebuchet MS', fontSize: 11, fill: p.surface }} />
               {floor === 0 && (
                 <pixiText
                   text='UT'
@@ -205,9 +222,9 @@ function World({
                 text={definition(place).rooms[floor]}
                 x={218}
                 y={floorY(floor) - 251}
-                style={{ fontFamily: 'Trebuchet MS', fontSize: 21, fill: p.ink, fontWeight: 'bold' }}
+                style={{ fontFamily: 'Georgia', fontSize: 21, fill: p.surface, fontWeight: 'bold' }}
               />
-              <pixiText text={`VÅNING ${floor}`} x={215} y={floorY(floor) - 219} style={{ fontFamily: 'Trebuchet MS', fontSize: 13, fill: p.ink }} />
+              <pixiText text={`VÅNING ${floor}`} x={215} y={floorY(floor) - 219} style={{ fontFamily: 'Trebuchet MS', fontSize: 13, fill: p.surface }} />
               <pixiText
                 text='BRANDLARM'
                 x={703}
@@ -243,6 +260,7 @@ function World({
 }
 
 export function GameScene({ session, paused }: { session: GameSession; paused: boolean }) {
+  const { assets, error, retry } = usePaintedAssets();
   const host = useRef<HTMLDivElement>(null);
   const [manual, setManual] = useState(false);
   const [followRequest, setFollowRequest] = useState(0);
@@ -250,15 +268,29 @@ export function GameScene({ session, paused }: { session: GameSession; paused: b
     <>
       <div
         className='game-scene'
+        data-art={assets ? 'painted' : 'loading'}
+        aria-busy={!assets}
         data-camera={manual ? 'free' : 'follow'}
         ref={host}
         role='img'
         aria-label='Colins hus. Dra med musen eller ett finger för att se andra våningar. Tryck för att gå eller undersöka något. Samma handlingar finns i knapparna nedanför.'
       >
-        <Application resizeTo={host} resolution={Math.min(window.devicePixelRatio || 1, 2)} autoDensity antialias background={p.paper} preference='webgl'>
-          <World session={session} paused={paused} host={host} followRequest={followRequest} onManualChange={setManual} />
-        </Application>
+        {assets && (
+          <Application resizeTo={host} resolution={Math.min(window.devicePixelRatio || 1, 2)} autoDensity antialias background={p.paper} preference='webgl'>
+            <World session={session} paused={paused} host={host} followRequest={followRequest} onManualChange={setManual} assets={assets} />
+          </Application>
+        )}
       </div>
+      {!assets && (
+        <div className='world-loading' role='status'>
+          <p>{error ? 'Bilderna kunde inte laddas.' : 'Målar upp Colins värld…'}</p>
+          {error && (
+            <button type='button' onClick={retry}>
+              Försök igen
+            </button>
+          )}
+        </div>
+      )}
       {manual && (
         <button type='button' className='camera-follow' onClick={() => setFollowRequest((value) => value + 1)}>
           ◎ Följ Colin

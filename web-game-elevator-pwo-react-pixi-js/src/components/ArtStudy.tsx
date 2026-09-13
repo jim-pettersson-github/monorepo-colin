@@ -32,13 +32,16 @@ export function ArtStudy() {
     <main className='art-study'>
       <header className='art-study-header'>
         <a href={import.meta.env.BASE_URL}>← Till spelet</a>
+        <a href={`${import.meta.env.BASE_URL}?view=depth`}>Prova ett rum med djup ↗</a>
         <span>COLINS HISSÄVENTYR · STILPROV</span>
       </header>
       <div className='art-study-intro'>
         <p className='eyebrow'>En pojke. En hiss. Tre uttryck.</p>
         <h1>Tre sätt att se Colin.</h1>
         <p>Jämför känslan, detaljerna och hur tydligt dörren och skyltarna syns. Tryck på en bild för att se den större.</p>
-        <p className='art-study-note'>Fristående konceptbilder — spelvärldens stil är inte utbytt. På en liten skärm kan du svepa mellan bilderna.</p>
+        <p className='art-study-note'>
+          Stil 01 är vald och används nu i spelet. Här finns de ursprungliga konceptbilderna. På en liten skärm kan du svepa mellan bilderna.
+        </p>
       </div>
       <section className='art-study-grid' aria-label='Tre stilar att jämföra'>
         {studies.map((item, index) => (

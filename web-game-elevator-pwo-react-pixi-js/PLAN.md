@@ -72,7 +72,13 @@ Use occasional, slow resident arrivals/departures through apartment doors, cappe
 
 ## Acceptance and device review
 
-Art review: `?view=art` shows three static concepts side by side: a modern Monkey Island-inspired painted adventure, a refined illustrated game, and a tactile clay miniature. Click/tap to enlarge. These are independent of the playable scene and do not initialize or modify saves; choose a direction before replacing game art. Generation prompts are recorded in `art-prompts.md`.
+### Depth movement experiment
+
+`?view=depth` is a separate, unsaved 2.5D point-and-click prototype for review before changing the main engine. A perspective floor scales Colin with distance; the recessed cabin, threshold and sliding door layers make entering and blocking visible. Calling the lift approaches beside the panel, raises Colin's arm and lights the button. Source art and prompts are in `art-source/depth-study.md`. Full directional animation and integration with floors, passengers and the existing game remain pending approval of this direction.
+
+Art direction 01 is approved and implemented: locally bundled painted wall/material textures, wood/brass elevators, Colin standing/walking sprites, painted passengers, and the selected menu illustration. Preserve distinct buildings, readable signs and working lighting/doors; keep high-contrast HTML controls. Source prompts live in `art-source/README.md`.
+
+Art reference: `?view=art` preserves the three original concepts side by side: a modern Monkey Island-inspired painted adventure, a refined illustrated game, and a tactile clay miniature. Click/tap to enlarge. The comparison does not initialize or modify saves. Option 01 is the selected direction. Generation prompts are recorded in `art-prompts.md`.
 
 The hotel loop and shared systems are implemented across all three buildings. Use these scenarios for regression checks and the remaining hands-on device review.
 

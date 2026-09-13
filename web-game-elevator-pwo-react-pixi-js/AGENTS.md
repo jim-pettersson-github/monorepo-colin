@@ -9,17 +9,20 @@ React 19, PixiJS 8 with @pixi/react, TypeScript, Vite, and vite-plugin-pwa. HTML
 ## Layout
 
 - `src/App.tsx`: menu, session lifetime, and background pause/save handling.
-- `src/components/MenuScene.tsx`: decorative menu illustration. `GameScene.tsx`: interactive world and camera. `GameView.tsx`: HTML controls and panels.
+- `src/components/MenuScene.tsx`: approved painted menu illustration. `GameScene.tsx`: interactive world and camera. `GameView.tsx`: HTML controls and panels.
 - `src/game/model.ts`, `simulation.ts`: building data and fixed-step rules. `session.ts` coordinates rendering notifications, audio, and saving.
 - `src/game/art.ts`, `audio.ts`, `storage.ts`: Pixi drawing, local synthesized sound, and validated versioned saves with backup recovery.
 - `src/palette.ts`, `src/styles.css`, `src/game.css`, `src/copy.ts`: local colors, responsive styling, and Swedish copy.
 - `src/pwa.ts`: production service-worker registration.
-- `src/components/ArtStudy.tsx`: separate `?view=art` comparison, with three local concept images and prompts in `art-prompts.md`. Do not treat these as approved replacement game assets.
+- `src/components/ArtStudy.tsx`: separate `?view=art` comparison, with three local concept images and prompts in `art-prompts.md`. Option 01 is approved and implemented in the game; the other concepts remain comparisons.
+- `src/game/painted-assets.ts`: cached local Pixi texture loading with retry. `public/painted/`: runtime WebP art; `art-source/`: generated PNG originals and prompts. Export with `node scripts/prepare-painted-art.mjs`.
 - `public/`: local app icons. `tests/`: simulation checks and desktop/phone browser checks against a production build.
 
 ## Styling
 
-Use the local palette for canvas and CSS colors. Keep a clear illustrated style, generous spacing, and at least 48-pixel menu targets. Support touch, keyboard, reduced motion, and phone safe areas.
+`?view=depth` is an isolated perspective movement study in `DepthStudy.tsx`, using its own canvas, art and transient state. Keep it separate from GameSession and saves until the user approves integration. Review goals: walk toward/away from the camera with depth scaling, a visibly recessed cabin, doorway occlusion/blocking, and standing beside the call panel while reaching to press an illuminated button.
+
+Use `worldPalette` for the painted canvas and `palette` for readable HTML controls. Follow approved style 01: textured dark wood, brass doors, teal/amber lighting, and barefoot Colin with standing/walk sprites. Keep doors, gates, signs, and switches on independent interactive layers. Keep a clear illustrated style, generous spacing, and at least 48-pixel menu targets. Support touch, keyboard, reduced motion, and phone safe areas.
 
 Corridors are 825 world units (1.5× the original); retain normal character/door sizes and horizontal camera panning. Keep flame pictograms, alarm call points, and neighboring warning triangles detailed and separate. Version-2 snapshots migrate old indoor positions while keeping outdoor coordinates unchanged; retain the existing storage keys for recovery.
 

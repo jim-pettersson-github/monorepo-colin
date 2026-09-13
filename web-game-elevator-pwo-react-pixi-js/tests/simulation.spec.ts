@@ -328,3 +328,9 @@ test('the expanded corridor keeps alarm, light, call buttons, and cabin hit targ
     expect(worldAction(state, { x: layout.threshold, y: floorY(0) + 15 })).toEqual({ type: 'threshold' });
   }
 });
+
+test('the taller painted passengers can be invited by tapping their number bubbles', () => {
+  const state = createGame(42);
+  const person = state.buildings[0].people[0];
+  expect(worldAction(state, { x: person.x, y: floorY(0) - 178 })).toEqual({ type: 'invite', id: person.id });
+});

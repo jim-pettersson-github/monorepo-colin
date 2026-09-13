@@ -409,3 +409,13 @@
     border-left: 1px solid var(--trim);
   }
 }
+
+.world-loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  background: var(--paper);
+  color: var(--ink);
+}
