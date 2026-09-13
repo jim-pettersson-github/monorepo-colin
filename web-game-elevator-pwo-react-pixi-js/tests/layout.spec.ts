@@ -3,6 +3,7 @@ import { roomSpace } from '../src/game/spatial';
 import { showControls } from './room-helpers';
 
 test('phone rotation keeps the room, touch controls, and settings usable', async ({ page }) => {
+  test.slow();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('./');
   await expect(page.getByRole('button', { name: 'Spela', exact: true })).toBeInViewport();

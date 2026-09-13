@@ -15,7 +15,7 @@ test('walk upstairs, return to the entrance, and use the separate outside door',
         const player = await savedPlayer(page);
         return [player.floor, Math.round(player.x), player.targetX, player.stairs];
       },
-      { timeout: 12000 },
+      { timeout: 20000 },
     )
     .toEqual([1, 430, null, null]);
   await page.getByRole('button', { name: '↓ Till entrén', exact: true }).click();
@@ -25,11 +25,11 @@ test('walk upstairs, return to the entrance, and use the separate outside door',
         const player = await savedPlayer(page);
         return [player.floor, Math.round(player.x), player.targetX, player.stairs];
       },
-      { timeout: 12000 },
+      { timeout: 20000 },
     )
     .toEqual([0, layout.exit, null, null]);
   await roomTap(page, { x: 1210, y: 350 });
-  await expect(page.locator('main.game')).toHaveAttribute('data-place', 'outside');
+  await expect(page.locator('main.game')).toHaveAttribute('data-place', 'outside', { timeout: 10000 });
 });
 test('help a passenger, block the doorway, take the stairs, and resume the saved game', async ({ page }) => {
   test.slow();
@@ -94,7 +94,7 @@ test('explore lights and signs, stop the alarm sample, and visit the old gate li
   await page.getByRole('button', { name: 'Stoppa ljudprov' }).click();
   await expect(page.getByRole('button', { name: 'Prova larmljud' })).toBeVisible();
   await page.getByRole('button', { name: '→ Utgång', exact: true }).click();
-  await expect(page.locator('main.game')).toHaveAttribute('data-place', 'outside');
+  await expect(page.locator('main.game')).toHaveAttribute('data-place', 'outside', { timeout: 10000 });
   await page.getByRole('button', { name: 'Gamla huset' }).click();
   await expect(page.locator('main.game')).toHaveAttribute('data-place', 'house');
   await page.getByRole('button', { name: 'Hissen', exact: true }).click();

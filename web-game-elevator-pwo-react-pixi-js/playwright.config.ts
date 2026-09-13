@@ -5,7 +5,9 @@ const baseURL = `http://127.0.0.1:4011${process.env.VITE_BASE_PATH || '/'}`;
 export default defineConfig({
   testDir: './tests',
   fullyParallel: true,
-  workers: 2,
+  // CI renders WebGL in software; concurrent rooms compete for the same CPU.
+  workers: process.env.CI ? 1 : 2,
+  reporter: 'list',
   use: { baseURL, trace: 'retain-on-failure' },
   projects: [
     { name: 'simulation', testMatch: '**/simulation.spec.ts' },
