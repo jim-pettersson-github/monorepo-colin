@@ -31,13 +31,12 @@ Open http://localhost:4010. The port is strict; an occupied port fails rather th
 
 ```sh
 npm run check
-npm run build
 npm test
 ```
 
 Local `npm ci` automatically installs [the pre-commit hook](../.githooks/pre-commit). It runs Biome, builds with `/monorepo-colin/`, then runs the full suite; any failure blocks the commit. `npm test` first ensures the matching Chromium headless browser is installed, downloading it only if missing (internet needed on first use or after a browser upgrade). Run `git hook run pre-commit` to check without committing, or `npm run prepare` to reinstall the hook. Checks use the working tree; stage the intended, verified changes before committing. Hook installation is skipped in CI.
 
-Tests cover queues, gate interlocks, doorway obstruction, passengers, offscreen simulation, pause, and save recovery, plus desktop/phone play and fresh offline launch. Browser tests start their own preview on port 4011, which must be free. Three local workers run tests in parallel; Windows uses Direct3D 11 so WebGL can use the graphics card instead of CPU-based SwiftShader. Use `npm test -- --workers=2` on machines with fewer resources. Long movement checks use small Playwright clock advances while preserving fixed simulation steps; offline, update, and layout checks use normal time. Use `npm run preview` for manual production review afterward, matching the build's base path.
+Tests cover queues, gate interlocks, doorway obstruction, passengers, offscreen simulation, pause, and save recovery, plus desktop/phone play and fresh offline launch. `npm test` builds automatically before starting its own preview on port 4011, which must be free. Build and tests share `VITE_BASE_PATH` (default `/`); no manual build or environment setup is needed. Three local workers run tests in parallel; Windows uses Direct3D 11 so WebGL can use the graphics card instead of CPU-based SwiftShader. Use `npm test -- --workers=2` on machines with fewer resources. Long movement checks use small Playwright clock advances while preserving fixed simulation steps; offline, update, and layout checks use normal time. Use `npm run preview` for manual production review afterward, matching the build's base path.
 
 ## Structure
 
@@ -67,7 +66,6 @@ The workflow derives `/monorepo-colin/` from the repository name. `VITE_BASE_PAT
 
 ```powershell
 $env:VITE_BASE_PATH = '/monorepo-colin/'
-npm run build
 npm test
 npm run preview
 ```

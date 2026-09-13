@@ -19,7 +19,7 @@ export default defineConfig({
     { name: 'phone', testIgnore: '**/simulation.spec.ts', use: { ...devices['Pixel 7'] } },
   ],
   webServer: {
-    command: 'npm run preview',
+    command: 'npm run build && npm run preview',
     url: baseURL,
     reuseExistingServer: false,
   },

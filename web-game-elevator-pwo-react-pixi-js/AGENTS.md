@@ -43,10 +43,10 @@ npm run typecheck
 npm run check       # Biome, no rewriting
 npm run build       # TypeScript + Vite + offline precache
 npm run preview     # production preview, port 4011
-npm test            # simulation + production browser tests; build first
+npm test            # fresh build + simulation + production browser tests
 ```
 
-`npm test` ensures the matching Chromium headless browser is installed through `pretest`; a missing browser is downloaded before starting tests. Local `npm ci` installs the root `.githooks/pre-commit` hook via `prepare`: Biome, a fresh Pages-path build, and all tests must pass before committing. Run it manually with `git hook run pre-commit`; port 4011 must be free. It checks the working tree, so stage the intended, verified changes before committing. Test artifacts and build output are ignored by Git.
+`npm test` ensures the matching Chromium headless browser is installed through `pretest`; a missing browser is downloaded before starting tests. Playwright builds before launching preview, using the same `VITE_BASE_PATH` as the tests (default `/`), so an older Pages-path build cannot break plain `npm test`. Local `npm ci` installs the root `.githooks/pre-commit` hook via `prepare`: Biome, a fresh Pages-path build, and all tests must pass before committing. Run it manually with `git hook run pre-commit`; port 4011 must be free. It checks the working tree, so stage the intended, verified changes before committing. Test artifacts and build output are ignored by Git.
 
 ## Forms and panels
 
