@@ -1,9 +1,11 @@
 import { type Graphics, Rectangle, Texture } from 'pixi.js';
 import { worldPalette as p } from '../palette';
-import { currentBuilding, type FloorPoint, type GameState, layout, type Passenger, playerLevel } from './model';
+import { currentBuilding, type FloorPoint, floorLabel, floors, type GameState, layout, type Passenger, playerLevel, stairProgress } from './model';
 import type { PaintedAssets } from './painted-assets';
+import { drawDigit, drawFloorPlaque, drawIndicator } from './room-details';
+import { drawFloorProps } from './room-props';
 import type { SimulationUI } from './simulation';
-import { atThreshold, cabinPanel, depthScale, portal, projectPoint, roomSpace } from './spatial';
+import { atThreshold, cabinButton, cabinDoorButton, cabinPanel, depthScale, gateLever, portal, projectPoint, roomSpace } from './spatial';
 
 const signs = new WeakMap<Texture, Texture>();
 function glowingSign(texture: Texture) {
@@ -48,9 +50,10 @@ function actor(
 
 export function drawRoom(g: Graphics, state: GameState, ui: SimulationUI, assets: PaintedAssets, floor: number) {
   g.clear();
+  g.setFillStyle({ color: 'white', alpha: 1 });
   const building = currentBuilding(state);
   if (!building) return;
-  const texture = assets[`room-${building.id}`];
+  const texture = assets[`room-${building.id}-${floor === 0 ? 'entry' : 'upper'}`];
   g.texture(texture, 'white', 0, 0, roomSpace.width, roomSpace.height);
   const lift = building.lift;
   const player = state.player;
@@ -58,11 +61,9 @@ export function drawRoom(g: Graphics, state: GameState, ui: SimulationUI, assets
   const carHere = lift.destination === null && lift.position === floor;
   const reach = ui.reach?.building === building.id && ui.reach.floor === floor ? ui.reach : null;
 
-  if (building.roomDoors[floor]) {
-    g.rect(1166, 244, 108, 399).fill(p.ink);
-    g.rect(1180, 278, 74, 330).fill({ texture: assets['outside-sky'], textureSpace: 'local' });
-    g.rect(1165, 244, 18, 402).fill({ texture: assets.wood, textureSpace: 'local' });
-  }
+  drawFloorPlaque(g, floor);
+  drawFloorProps(g, assets, building.id, floor);
+  if (!carHere) g.rect(portal.left, portal.top, portal.right - portal.left, portal.bottom - portal.top).fill(p.indicatorDark);
   // The independent light switch is a painted brass plate and an ivory rocker.
   g.roundRect(560, 393, 34, 57, 4).fill({ texture: assets.brass, textureSpace: 'local' }).stroke({ color: p.frame, width: 2 });
   g.roundRect(568, 405, 18, 32, 3)
@@ -76,43 +77,43 @@ export function drawRoom(g: Graphics, state: GameState, ui: SimulationUI, assets
   g.moveTo(653, 300).lineTo(653, 317).stroke({ color: p.ink, width: 4 });
   g.circle(653, 325, 2.5).fill(p.ink);
 
-  // Back-wall controls belong behind the occupants and sliding door leaves.
-  g.roundRect(cabinPanel.x - 44, 248, 88, 185, 8).fill({ color: p.ink, alpha: 0.45 });
-  g.roundRect(cabinPanel.x - 40, 244, 80, 185, 7)
-    .fill({ texture: assets.brass, textureSpace: 'local' })
-    .stroke({ color: p.frame, width: 3 });
-  for (const screwY of [253, 420])
-    for (const screwX of [-30, 30]) {
-      g.circle(cabinPanel.x + screwX, screwY, 2.5).fill(p.frame);
-      g.moveTo(cabinPanel.x + screwX - 1.5, screwY)
-        .lineTo(cabinPanel.x + screwX + 1.5, screwY)
+  // The panel sits behind occupants and both independent door layers.
+  if (carHere) {
+    const rows = Math.ceil(floors(building.id).length / 2);
+    const panelHeight = rows * cabinPanel.spacing + 18;
+    g.roundRect(cabinPanel.x - 33, cabinPanel.top - 35, 172, panelHeight, 7)
+      .fill({ texture: assets.brass, textureSpace: 'local' })
+      .stroke({ color: p.frame, width: 3 });
+    for (const button of floors(building.id)) {
+      const { x, y } = cabinButton(button);
+      const lit = lift.queue.includes(button) || lift.destination === button;
+      g.circle(x, y, cabinPanel.radius + 3)
+        .fill(p.frame)
         .stroke({ color: p.light, width: 1 });
+      g.circle(x, y, cabinPanel.radius)
+        .fill(lit ? p.light : p.ink)
+        .stroke({ color: lit ? p.surface : p.trim, width: 2 });
+      drawDigit(g, floorLabel(button), x - 5, y - 10, 20, lit ? p.ink : p.surface, 2.5);
     }
-  for (let button = 0; button < 3; button++) {
-    const x = cabinPanel.x,
-      y = cabinPanel.top + button * cabinPanel.spacing;
-    const lit = lift.queue.includes(button) || lift.destination === button;
-    g.circle(x, y, cabinPanel.radius + 3)
-      .fill(p.frame)
-      .stroke({ color: p.light, width: 1 });
-    g.circle(x, y, cabinPanel.radius)
-      .fill(lit ? p.light : p.ink)
-      .stroke({ color: lit ? p.surface : p.trim, width: 2 });
-    const style = { color: lit ? p.ink : p.surface, width: 3 };
-    if (button === 0) g.roundRect(x - 5, y - 8, 10, 16, 5).stroke(style);
-    if (button === 1)
-      g.moveTo(x - 4, y - 5)
-        .lineTo(x + 1, y - 8)
-        .lineTo(x + 1, y + 8)
-        .moveTo(x - 5, y + 8)
-        .lineTo(x + 6, y + 8)
-        .stroke(style);
-    if (button === 2)
-      g.moveTo(x - 6, y - 5)
-        .bezierCurveTo(x - 4, y - 12, x + 9, y - 9, x + 5, y - 2)
-        .lineTo(x - 6, y + 8)
-        .lineTo(x + 7, y + 8)
-        .stroke(style);
+    for (const target of [1, 0] as const) {
+      const { x, y } = cabinDoorButton(target);
+      g.roundRect(x - 23, y - 23, 46, 46, 6)
+        .fill(p.ink)
+        .stroke({ color: p.trim, width: 2 });
+      for (const side of [-1, 1]) {
+        const direction = side * (target ? 1 : -1);
+        const tip = x + side * 10 + direction * 5;
+        g.moveTo(x + side * 10 - direction * 5, y)
+          .lineTo(tip, y)
+          .moveTo(tip - direction * 5, y - 6)
+          .lineTo(tip, y)
+          .lineTo(tip - direction * 5, y + 6)
+          .stroke({ color: p.surface, width: 3 });
+      }
+      g.moveTo(x, y - 12)
+        .lineTo(x, y + 12)
+        .stroke({ color: p.trim, width: 2 });
+    }
   }
 
   const visible = building.people.filter(
@@ -124,16 +125,16 @@ export function drawRoom(g: Graphics, state: GameState, ui: SimulationUI, assets
       assets,
       person,
       state.time,
-      ['waiting', 'boarding', 'leaving', 'returning'].includes(person.phase),
+      ['waiting', 'boarding', 'leaving', 'returning', 'departing'].includes(person.phase),
       false,
       person.id,
-      ['leaving', 'returning'].includes(person.phase) ? -1 : 1,
+      ['leaving', 'returning', 'departing'].includes(person.phase) ? -1 : 1,
       false,
-      person.phase === 'boarding',
+      person.phase === 'boarding' || person.phase === 'departing',
     );
   const drawColin = () => {
     const next = player.waypoints[0] ?? { x: player.targetX ?? player.x, depth: player.targetDepth ?? player.depth };
-    const point = player.stairs ? { x: layout.stairs, depth: 0.025 - Math.sin((player.stairs.elapsed / 3) * Math.PI) * 0.09 } : player;
+    const point = player.stairs ? { x: layout.stairs, depth: 0.025 - Math.sin(stairProgress(player.stairs) * Math.PI) * 0.09 } : player;
     actor(
       g,
       assets,
@@ -147,8 +148,8 @@ export function drawRoom(g: Graphics, state: GameState, ui: SimulationUI, assets
       next.depth < player.depth,
     );
   };
-  for (const person of visible.filter((p) => p.depth < -0.035).sort((a, b) => a.depth - b.depth)) drawPerson(person);
-  if (playerHere && player.depth < -0.035) drawColin();
+  for (const person of visible.filter((p) => carHere && p.depth < -0.035).sort((a, b) => a.depth - b.depth)) drawPerson(person);
+  if (carHere && playerHere && player.depth < -0.035) drawColin();
 
   const opening = carHere ? lift.landing.open : 0;
   const half = (portal.right - portal.left) / 2;
@@ -157,7 +158,16 @@ export function drawRoom(g: Graphics, state: GameState, ui: SimulationUI, assets
     const width = half * (1 - opening);
     const x = side < 0 ? portal.left : portal.right - width;
     if (width > 0) {
-      g.rect(x, portal.top, width, portal.bottom - portal.top).fill({ texture: doorTexture, textureSpace: 'local' });
+      if (building.id === 'house') {
+        // A rigid barred landing grille slides clear; its latch stays in front of occupants.
+        g.rect(x, portal.top, width, portal.bottom - portal.top).fill({ color: p.steel, alpha: 0.12 });
+        for (let bar = 0; bar <= width; bar += 23) {
+          g.rect(x + bar, portal.top, Math.min(6, width - bar), portal.bottom - portal.top).fill(p.steel);
+          g.rect(x + bar, portal.top, Math.min(2, width - bar), portal.bottom - portal.top).fill(p.steelLight);
+        }
+        for (const y of [portal.top, 318, 474, portal.bottom - 8]) g.rect(x, y, width, 8).fill(p.steel);
+        if (width > 30) g.roundRect(side < 0 ? x + width - 22 : x + 8, 393, 14, 43, 3).fill(p.steelLight);
+      } else g.rect(x, portal.top, width, portal.bottom - portal.top).fill({ texture: doorTexture, textureSpace: 'local' });
       g.rect(x + (side < 0 ? Math.max(0, width - 5) : 0), portal.top, Math.min(width, 5), portal.bottom - portal.top).fill(p.frame);
     }
   }
@@ -165,12 +175,32 @@ export function drawRoom(g: Graphics, state: GameState, ui: SimulationUI, assets
     const width = (portal.right - portal.left) * (1 - lift.gate.open);
     for (let i = 0; i < 8 && width > 1; i++) {
       const x = portal.left + (width / 8) * i;
-      g.poly([x, 175, x + width / 8, 397, x, 625], false).stroke({ color: p.ink, width: 5 });
-      g.poly([x + width / 8, 175, x, 397, x + width / 8, 625], false).stroke({ color: p.light, width: 2 });
+      g.poly([x, 175, x + width / 8, 397, x, 625], false).stroke({ color: p.steel, width: 5 });
+      g.poly([x + width / 8, 175, x, 397, x + width / 8, 625], false).stroke({ color: p.steelLight, width: 2 });
     }
+  }
+  if (building.id === 'house') {
+    // The gate lever stays reachable on the jamb even with both grilles closed.
+    const { x, y, width, height } = gateLever;
+    g.roundRect(x - width / 2, y - height / 2, width, height, 6)
+      .fill(p.steel)
+      .stroke({ color: p.steelLight, width: 3 });
+    for (const side of [-1, 1]) g.rect(x + side * 15 - 2, y - 39, 4, 20).fill(p.steelLight);
+    g.moveTo(x - 15, y - 29)
+      .lineTo(x + 15, y - 29)
+      .stroke({ color: p.steelLight, width: 2 });
+    g.circle(x, y + 18, 9).fill(p.ink);
+    const handleY = y + 18 - (carHere ? lift.gate.open : 0) * 35;
+    g.moveTo(x, y + 18)
+      .lineTo(x + 10, handleY)
+      .stroke({ color: p.steelLight, width: 7 });
+    g.circle(x + 10, handleY, 10)
+      .fill(carHere ? p.light : p.trim)
+      .stroke({ color: p.ink, width: 2 });
   }
   if (!building.lights[floor]) g.rect(0, 0, roomSpace.width, roomSpace.height).fill({ color: p.ink, alpha: 0.57 });
   g.texture(glowingSign(texture), 'white', 232, 56, 122, 70);
+  drawIndicator(g, building);
   const outsideActors: Array<{ depth: number; draw: () => void }> = visible
     .filter((p) => p.depth >= -0.035)
     .map((person) => ({ depth: person.depth, draw: () => drawPerson(person) }));
@@ -197,6 +227,7 @@ export function drawRoom(g: Graphics, state: GameState, ui: SimulationUI, assets
 
 export function drawStreet(g: Graphics, state: GameState, assets: PaintedAssets) {
   g.clear();
+  g.setFillStyle({ color: 'white', alpha: 1 });
   g.texture(assets['outside-sky'], 'white', 0, 0, 1448, 700);
   g.rect(0, 650, 1448, 436).fill({ texture: assets.marble, textureSpace: 'local' });
   for (let i = 0; i < 3; i++) {

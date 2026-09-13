@@ -41,10 +41,26 @@ for (const [name, count, prefix] of [
   }
 }
 for (const name of ['hotel', 'mall', 'house'])
-  await sharp(`art-source/room-${name}.png`)
-    .resize(1448, 1086)
-    .webp({ quality: 91 })
-    .toFile(output(`room-${name}`));
+  for (const level of ['entry', 'upper'])
+    await sharp(`art-source/room-${name}-${level}.png`)
+      .resize(1448, 1086)
+      .webp({ quality: 91 })
+      .toFile(output(`room-${name}-${level}`));
+
+const props = 'art-source/floor-props.png';
+const propMeta = await sharp(props).metadata();
+if (!propMeta.hasAlpha) throw new Error('Floor props need actual alpha transparency');
+for (let index = 0; index < 22; index++) {
+  const left = Math.floor(((index % 4) * propMeta.width) / 4);
+  const top = Math.floor((Math.floor(index / 4) * propMeta.height) / 6);
+  const cell = await sharp(props)
+    .extract({ left, top, width: Math.floor(propMeta.width / 4), height: Math.floor(propMeta.height / 6) })
+    .toBuffer();
+  await sharp(cell)
+    .trim({ background: '#00000000', threshold: 10 })
+    .webp({ quality: 92, alphaQuality: 100 })
+    .toFile(output(`prop-${index}`));
+}
 await sharp('art-source/depth-reach.png')
   .trim({ background: '#00000000', threshold: 10 })
   .resize({ height: 800 })
@@ -55,4 +71,4 @@ await sharp('art-source/colin-back.png')
   .resize({ height: 800 })
   .webp({ quality: 92, alphaQuality: 100 })
   .toFile(output('colin-back'));
-console.log('Prepared 20 painted game assets.');
+console.log('Prepared painted rooms, materials, characters, and floor landmarks.');

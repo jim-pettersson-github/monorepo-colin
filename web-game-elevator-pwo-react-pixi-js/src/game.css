@@ -92,6 +92,9 @@
   height: calc(100% - 56px);
 }
 .floor-overview {
+  overflow-x: auto;
+  scrollbar-width: thin;
+  overscroll-behavior-x: contain;
   position: absolute;
   top: 4px;
   left: 50%;
@@ -102,7 +105,8 @@
   z-index: 2;
 }
 .game .floor-overview button {
-  flex: 1;
+  flex: 0 0 112px;
+  min-height: 48px;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -334,6 +338,8 @@
   font-size: 24px;
 }
 .floor-panel {
+  max-height: calc(100dvh - 24px);
+  overflow-y: auto;
   position: fixed;
   z-index: 3;
   left: 50%;
@@ -358,9 +364,13 @@
   font-size: 15px;
 }
 .floor-buttons {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(48px, 1fr));
   gap: 8px;
   margin-top: 8px;
+}
+.panel-door-controls {
+  margin-top: 10px;
 }
 .game .floor-buttons button {
   flex: 1;

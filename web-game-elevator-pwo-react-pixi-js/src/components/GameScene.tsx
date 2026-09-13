@@ -1,7 +1,7 @@
 import { Application, extend, useApplication, useTick } from '@pixi/react';
 import { Container, Graphics, Text, type Ticker } from 'pixi.js';
 import { type RefObject, useCallback, useEffect, useRef, useState } from 'react';
-import { buildings, currentBuilding, definition, playerLevel } from '../game/model';
+import { buildings, currentBuilding, definition, floorLabel, floors, playerLevel } from '../game/model';
 import { type PaintedAssets, usePaintedAssets } from '../game/painted-assets';
 import { actorBounds, drawRoom, drawStreet } from '../game/room-art';
 import { roomAction } from '../game/room-interaction';
@@ -41,7 +41,6 @@ function World({
   const world = useRef<Container>(null);
   const art = useRef<Graphics>(null);
   const numbers = useRef<(Text | null)[]>([]);
-  const indicator = useRef<Text>(null);
   const viewedFloor = useRef(floor);
   viewedFloor.current = floor;
   const camera = useRef({ zoom, manual: false, x: 0, y: 0 });
@@ -85,12 +84,10 @@ function World({
           (person.depth >= 0 || (building?.lift.landing.open ?? 0) > 0.95);
         if (person) {
           const bounds = actorBounds(person);
-          text.text = String(person.wanted);
+          text.text = floorLabel(person.wanted);
           text.position.set(bounds.x, bounds.y - bounds.height - 22);
         }
       }
-      if (indicator.current && building)
-        indicator.current.text = `${building.lift.destination === null ? '•' : building.lift.destination > building.lift.position ? '↑' : '↓'} ${Math.round(building.lift.position)}`;
     },
     [app, session, assets],
   );
@@ -252,16 +249,13 @@ function World({
           />
         ))
       ) : (
-        <>
-          <pixiText ref={indicator} text='• 0' x={890} y={112} anchor={0.5} style={{ fontFamily: 'monospace', fontSize: 27, fill: p.light }} />
-          <pixiText
-            text={floor === 0 ? 'UT' : `RUM ${floor}`}
-            x={1210}
-            y={283}
-            anchor={0.5}
-            style={{ fontFamily: 'Georgia', fontSize: 22, fill: p.surface, fontWeight: 'bold' }}
-          />
-        </>
+        <pixiText
+          text={floor === 0 ? 'UT' : ''}
+          x={1210}
+          y={283}
+          anchor={0.5}
+          style={{ fontFamily: 'Georgia', fontSize: 22, fill: p.surface, fontWeight: 'bold' }}
+        />
       )}
       {[0, 1, 2].map((index) => (
         <pixiText
@@ -281,6 +275,7 @@ function World({
 export function GameScene({ session, paused }: { session: GameSession; paused: boolean }) {
   const { assets, error, retry } = usePaintedAssets();
   const host = useRef<HTMLDivElement>(null);
+  const overview = useRef<HTMLElement>(null);
   const [preview, setPreview] = useState<{ place: string; floor: number } | null>(null);
   const [manual, setManual] = useState(false);
   const [zoom, setZoom] = useState(session.state.settings.cameraZoom);
@@ -304,36 +299,45 @@ export function GameScene({ session, paused }: { session: GameSession; paused: b
     }, 250);
     return () => window.clearTimeout(save);
   }, [session, zoom]);
+  useEffect(() => {
+    if (building?.id) overview.current?.querySelector(`[data-floor="${floor}"]`)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [floor, building?.id]);
   const cameraMoved = manual;
   return (
     <>
       {building && (
-        <nav className='floor-overview' aria-label='Husöversikt'>
-          {[2, 1, 0].map((level) => (
-            <button
-              type='button'
-              key={level}
-              aria-label={`Titta på våning ${level}`}
-              aria-pressed={floor === level}
-              disabled={paused}
-              onClick={() => setPreview({ place: building.id, floor: level })}
-            >
-              <b>{level}</b>
-              <span>
-                {definition(building.id).rooms[level]}
-                <small>
-                  {colinFloor === level ? 'Colin här' : ' '}
-                  {Math.round(building.lift.position) === level ? ' · ↕ Hiss' : ''}
-                </small>
-              </span>
-            </button>
-          ))}
+        <nav ref={overview} className='floor-overview' aria-label='Husöversikt'>
+          {floors(building.id)
+            .reverse()
+            .map((level) => (
+              <button
+                type='button'
+                key={level}
+                data-floor={level}
+                aria-label={`Titta på våning ${floorLabel(level)}`}
+                aria-pressed={floor === level}
+                disabled={paused}
+                onClick={() => setPreview({ place: building.id, floor: level })}
+              >
+                <b>{floorLabel(level)}</b>
+                <span>
+                  {definition(building.id).rooms[level]}
+                  <small>
+                    {colinFloor === level ? 'Colin här' : ' '}
+                    {Math.round(building.lift.position) === level ? ' · ↕ Hiss' : ''}
+                  </small>
+                </span>
+              </button>
+            ))}
         </nav>
       )}
       <div
         className={`game-scene perspective-scene${building ? ' has-overview' : ''}`}
         data-art={assets ? 'painted' : 'loading'}
         data-view-floor={floor}
+        data-lift-floor={building ? floorLabel(Math.round(building.lift.position)) : undefined}
+        data-indicator={building?.id}
+        data-exit={building ? floor === 0 : undefined}
         aria-busy={!assets}
         data-camera={cameraMoved ? 'free' : 'follow'}
         data-zoom={zoom}
@@ -368,7 +372,7 @@ export function GameScene({ session, paused }: { session: GameSession; paused: b
           )}
         </div>
       )}
-      {inspecting && <p className='room-preview-caption'>Våning {floor} · Tryck i rummet för att gå dit</p>}
+      {inspecting && <p className='room-preview-caption'>Våning {floorLabel(floor)} · Tryck i rummet för att gå dit</p>}
       {assets && (
         <fieldset className='camera-zoom' aria-label='Kamerazoom'>
           <button type='button' aria-label='Zooma ut' disabled={paused || zoom <= 1} onClick={() => changeZoom(Math.max(1, zoom - 0.5))}>

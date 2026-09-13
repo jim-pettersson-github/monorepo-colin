@@ -1,7 +1,21 @@
 export const buildings = [
-  { id: 'hotel', name: 'Hotellet', rooms: ['Lobbyn', 'Gästrummen', 'Frukostrummet'], manual: false, people: ['Liv', 'Bo'], tone: 660 },
-  { id: 'mall', name: 'Varuhuset', rooms: ['Butikerna', 'Leksaker & böcker', 'Kaféet'], manual: false, people: ['Mia', 'Sam', 'Ali'], tone: 880 },
-  { id: 'house', name: 'Gamla huset', rooms: ['Entrén', 'Lägenheterna', 'Vinden'], manual: true, people: ['Elsa', 'Nils', 'Kim'], tone: 440 },
+  {
+    id: 'hotel',
+    name: 'Hotellet',
+    rooms: ['Lobbyn', 'Tavlan', 'Läshörnan', 'Blommorna', 'Böckerna', 'Klockan', 'Spegeln', 'Paraplyerna', 'Växten', 'Frukostrummet'],
+    manual: false,
+    people: ['Liv', 'Bo'],
+    tone: 660,
+  },
+  { id: 'mall', name: 'Varuhuset', rooms: ['Entrén', 'Kläderna', 'Leksakerna', 'Böckerna', 'Kaféet'], manual: false, people: ['Mia', 'Sam', 'Ali'], tone: 880 },
+  {
+    id: 'house',
+    name: 'Gamla huset',
+    rooms: ['Entrén', 'Anslagstavlan', 'Elementet', 'Rören', 'Fönstret', 'Bänken', 'Hyllan'],
+    manual: true,
+    people: ['Elsa', 'Nils', 'Kim'],
+    tone: 440,
+  },
 ] as const;
 
 export type BuildingId = (typeof buildings)[number]['id'];
@@ -12,7 +26,8 @@ export const timing = { walk: 240, passengerWalk: 115, stairs: 3, travel: 5, doo
 export const definition = (id: BuildingId) => buildings.find((building) => building.id === id) ?? buildings[0];
 
 export type Intent =
-  | { type: 'call' | 'board' | 'leave' | 'threshold' | 'panel' | 'light' | 'roomDoor' | 'exit' | 'sign' | 'alarm' | 'landing' | 'gate' }
+  | { type: 'call' | 'board' | 'leave' | 'threshold' | 'panel' | 'light' | 'exit' | 'sign' | 'alarm' }
+  | { type: 'landing' | 'gate'; target?: 0 | 1 }
   | { type: 'stairs'; direction: -1 | 1 }
   | { type: 'invite'; id: number }
   | { type: 'enter'; building: BuildingId };
@@ -41,14 +56,13 @@ export interface Passenger {
   wanted: number;
   x: number;
   depth: number;
-  phase: 'idle' | 'waiting' | 'boarding' | 'riding' | 'leaving' | 'returning' | 'away';
+  phase: 'idle' | 'waiting' | 'boarding' | 'riding' | 'leaving' | 'returning' | 'departing' | 'away';
   timer: number;
 }
 export interface Building {
   id: BuildingId;
   lift: Elevator;
   lights: boolean[];
-  roomDoors: boolean[];
   people: Passenger[];
 }
 export interface Player {
@@ -62,7 +76,7 @@ export interface Player {
   waypoints: FloorPoint[];
   intent: Intent | null;
   route: { floor: number; x: number; depth: number } | null;
-  stairs: { from: number; to: number; elapsed: number } | null;
+  stairs: { from: number; to: number; elapsed: number; duration: number } | null;
 }
 export interface Settings {
   liftVolume: number;
@@ -72,7 +86,7 @@ export interface Settings {
   cameraZoom: number;
 }
 export interface GameState {
-  version: 3;
+  version: 4;
   started: boolean;
   time: number;
   random: number;
@@ -89,7 +103,7 @@ export function random(state: GameState) {
 
 export function createGame(seed = Date.now() >>> 0): GameState {
   return {
-    version: 3,
+    version: 4,
     started: false,
     time: 0,
     random: seed,
@@ -109,8 +123,7 @@ export function createGame(seed = Date.now() >>> 0): GameState {
     buildings: buildings.map((building) => ({
       id: building.id,
       lift: { position: 0, destination: null, queue: [], landing: { open: 1, target: 1 }, gate: { open: 1, target: 1 }, dwell: 5, blocked: false },
-      lights: [true, true, true],
-      roomDoors: [false, false, false],
+      lights: building.rooms.map(() => true),
       people: building.people.map((_name, id) => ({
         id,
         floor: id === 2 ? 1 : 0,
@@ -129,9 +142,16 @@ export function currentBuilding(state: GameState): Building | undefined {
   return state.buildings.find((building) => building.id === state.player.place);
 }
 
+export const floorLabel = (floor: number) => (floor === 0 ? 'E' : String(floor));
+export const floorCount = (id: BuildingId) => definition(id).rooms.length;
+export const floors = (id: BuildingId) => definition(id).rooms.map((_, floor) => floor);
+export const validFloor = (id: BuildingId, floor: number) => Number.isInteger(floor) && floor >= 0 && floor < floorCount(id);
+export const stairDuration = (gap: number) => timing.stairs / Math.min(1.6, 1 + 0.1 * Math.max(0, gap - 1));
+export const stairProgress = (stairs: NonNullable<Player['stairs']>) => Math.min(1, stairs.elapsed / stairs.duration);
+
 export function playerLevel(state: GameState) {
   const player = state.player;
-  if (player.stairs) return player.stairs.from + (player.stairs.to - player.stairs.from) * (player.stairs.elapsed / timing.stairs);
+  if (player.stairs) return player.stairs.from + (player.stairs.to - player.stairs.from) * stairProgress(player.stairs);
   return player.riding ? (currentBuilding(state)?.lift.position ?? player.floor) : player.floor;
 }
 

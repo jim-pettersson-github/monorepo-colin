@@ -4,6 +4,9 @@ import { GameUpdate } from './components/GameUpdate';
 import { copy } from './copy';
 import { GameSession } from './game/session';
 
+// Recreate the session from its save when development refresh replaces game logic.
+// @refresh reset
+
 const MenuScene = lazy(() => import('./components/MenuScene').then((module) => ({ default: module.MenuScene })));
 const GameView = lazy(() => import('./components/GameView').then((module) => ({ default: module.GameView })));
 

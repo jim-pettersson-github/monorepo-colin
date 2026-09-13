@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { buildings, currentBuilding, definition, isOpen, layout, liftPhase, playerLevel } from '../game/model';
+import { buildings, currentBuilding, definition, floorCount, floorLabel, floors, isOpen, layout, liftPhase, playerLevel } from '../game/model';
 import type { GameSession } from '../game/session';
 import { FullscreenButton } from './FullscreenButton';
 import { GameScene } from './GameScene';
@@ -83,7 +83,7 @@ export function GameView({ session, onMenu }: { session: GameSession; onMenu: ()
         </button>
         <div className='location'>
           <strong>{building ? definition(building.id).name : 'Mellan husen'}</strong>
-          <span>{building ? `${definition(building.id).rooms[currentFloor]} · Våning ${currentFloor}` : 'Välj ett hus att besöka'}</span>
+          <span>{building ? `${definition(building.id).rooms[currentFloor]} · Våning ${floorLabel(currentFloor)}` : 'Välj ett hus att besöka'}</span>
         </div>
         <div className='header-actions'>
           <FullscreenButton compact />
@@ -105,7 +105,7 @@ export function GameView({ session, onMenu }: { session: GameSession; onMenu: ()
       <div className='world-wrap'>
         <GameScene session={session} paused={frozen} />
         {player.stairs && <span className='journey-label'>I trappan {player.stairs.to > player.stairs.from ? '↑' : '↓'}</span>}
-        {player.riding && <span className='journey-label'>I hissen · {moving ? 'på väg' : `våning ${currentFloor}`}</span>}
+        {player.riding && <span className='journey-label'>I hissen · {moving ? 'på väg' : `våning ${floorLabel(currentFloor)}`}</span>}
       </div>
 
       <section id='game-controls' className='game-controls' aria-label='Spelkontroller'>
@@ -113,7 +113,7 @@ export function GameView({ session, onMenu }: { session: GameSession; onMenu: ()
           <>
             <div className='lift-status'>
               <span className='floor-display'>
-                {moving ? (lift.destination !== null && lift.destination > lift.position ? '↑' : '↓') : '•'} {Math.round(lift.position)}
+                {moving ? (lift.destination !== null && lift.destination > lift.position ? '↑' : '↓') : '•'} {floorLabel(Math.round(lift.position))}
               </span>
               <output aria-label='Hissens läge'>{liftPhase(lift)}</output>
               {manual && <span className='lift-kind'>GRINDHISS</span>}
@@ -144,7 +144,7 @@ export function GameView({ session, onMenu }: { session: GameSession; onMenu: ()
                     <span aria-hidden='true'>↔</span>Stå i dörren
                   </button>
                   <button type='button' disabled={!player.riding || !!player.stairs} onClick={() => session.send({ type: 'panel' })}>
-                    <span aria-hidden='true'>0 1 2</span>Välj våning
+                    <span aria-hidden='true'>E 1 2</span>Välj våning
                   </button>
                 </div>
                 {!manual && (
@@ -160,10 +160,7 @@ export function GameView({ session, onMenu }: { session: GameSession; onMenu: ()
                 )}
                 {manual && (
                   <div className='gate-controls'>
-                    <button type='button' disabled={moving || lift.position !== player.floor} onClick={() => session.send({ type: 'landing' })}>
-                      {lift.landing.target ? 'Stäng dörren' : 'Öppna dörren'}
-                    </button>
-                    <button type='button' disabled={moving || lift.position !== player.floor} onClick={() => session.send({ type: 'gate' })}>
+                    <button type='button' disabled={moving || !!player.stairs || lift.position !== player.floor} onClick={() => session.send({ type: 'gate' })}>
                       {lift.gate.target ? 'Stäng grinden' : 'Öppna grinden'}
                     </button>
                   </div>
@@ -174,10 +171,6 @@ export function GameView({ session, onMenu }: { session: GameSession; onMenu: ()
                 <button type='button' aria-pressed={building.lights[player.floor]} onClick={() => session.send({ type: 'light' })}>
                   <span aria-hidden='true'>☼</span>
                   {building.lights[player.floor] ? 'Släck ljuset' : 'Tänd ljuset'}
-                </button>
-                <button type='button' onClick={() => session.send({ type: 'roomDoor' })}>
-                  <span aria-hidden='true'>▯</span>
-                  {building.roomDoors[player.floor] ? 'Stäng rumsdörr' : 'Öppna rumsdörr'}
                 </button>
                 <button type='button' onClick={() => session.send({ type: 'sign' })}>
                   <span aria-hidden='true'>△ !</span>Varningsskylt
@@ -198,7 +191,7 @@ export function GameView({ session, onMenu }: { session: GameSession; onMenu: ()
               </button>
               <button
                 type='button'
-                disabled={player.floor === 2 || !!player.stairs || (player.riding && moving)}
+                disabled={player.floor === floorCount(building.id) - 1 || !!player.stairs || (player.riding && moving)}
                 onClick={() => session.send({ type: 'stairs', direction: 1 })}
               >
                 ↑ Trappa
@@ -221,9 +214,9 @@ export function GameView({ session, onMenu }: { session: GameSession; onMenu: ()
                     type='button'
                     disabled={player.riding || !!player.stairs}
                     onClick={() => session.send({ type: 'invite', id: person.id })}
-                    aria-label={`Hjälp ${definition(building.id).people[person.id]} till våning ${person.wanted}`}
+                    aria-label={`Hjälp ${definition(building.id).people[person.id]} till våning ${floorLabel(person.wanted)}`}
                   >
-                    {definition(building.id).people[person.id]} <span aria-hidden='true'>→</span> <b>{person.wanted}</b>
+                    {definition(building.id).people[person.id]} <span aria-hidden='true'>→</span> <b>{floorLabel(person.wanted)}</b>
                   </button>
                 ))}
             </section>
@@ -260,18 +253,34 @@ export function GameView({ session, onMenu }: { session: GameSession; onMenu: ()
             </button>
           </div>
           <div className='floor-buttons'>
-            {[0, 1, 2].map((floor) => (
+            {floors(building?.id ?? 'hotel').map((floor) => (
               <button
                 type='button'
                 key={floor}
-                aria-label={`Våning ${floor}`}
+                aria-label={`Våning ${floorLabel(floor)}`}
                 aria-pressed={lift?.queue.includes(floor) || lift?.destination === floor}
                 onClick={() => session.send({ type: 'floor', floor })}
               >
-                {floor}
+                {floorLabel(floor)}
               </button>
             ))}
           </div>
+          <div className='gate-controls panel-door-controls'>
+            <button type='button' disabled={moving} onClick={() => session.send({ type: 'landing', target: 1 })}>
+              <span aria-hidden='true'>← | →</span> Öppna dörrarna
+            </button>
+            <button type='button' disabled={moving} onClick={() => session.send({ type: 'landing', target: 0 })}>
+              <span aria-hidden='true'>→ | ←</span> Stäng dörrarna
+            </button>
+          </div>
+          {manual && (
+            <div className='panel-note'>
+              <p>Pilknapparna styr ytterdörrarna. Spaken styr grinden.</p>
+              <button type='button' disabled={moving} onClick={() => session.send({ type: 'gate' })}>
+                {lift?.gate.target ? 'Stäng grinden' : 'Öppna grinden'}
+              </button>
+            </div>
+          )}
         </section>
       )}
 
@@ -345,7 +354,9 @@ export function GameView({ session, onMenu }: { session: GameSession; onMenu: ()
             Den gröna skylten visar trapphuset. Dörren märkt UT på entréplanet leder ut ur huset. Zooma med mushjulet och dra med musen eller ett finger för att
             titta närmare.
           </p>
-          <p>Stå i dörröppningen för att hålla hissen kvar. I gamla huset öppnar och stänger du både dörren och grinden själv.</p>
+          <p>
+            Stå i dörröppningen för att hålla hissen kvar. I gamla huset öppnar och stänger du grinden med spaken eller knapparna. Ytterdörren går automatiskt.
+          </p>
           <p>Tryck på en person med en siffra för att hjälpa till. Personen väntar tills du trycker på hissknapparna.</p>
         </details>
         {confirmRestart ? (

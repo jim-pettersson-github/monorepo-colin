@@ -1,5 +1,4 @@
-import { buildings, type GameState, layout } from './model';
-import { defaultDepth, setWalkTarget } from './spatial';
+import { type BuildingId, buildings, floorCount, type GameState, layout, timing } from './model';
 
 export const saveKey = 'colin-game-v1';
 export const backupKey = 'colin-game-backup-v1';
@@ -7,15 +6,15 @@ export type Storage = Pick<globalThis.Storage, 'getItem' | 'setItem'>;
 const record = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 const number = (value: unknown, min: number, max: number): value is number =>
   typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max;
-const floor = (value: unknown) => number(value, 0, 2) && Number.isInteger(value);
-const flags = (value: unknown) => Array.isArray(value) && value.length === 3 && value.every((item) => typeof item === 'boolean');
+const floor = (value: unknown, count: number) => number(value, 0, count - 1) && Number.isInteger(value);
+const flags = (value: unknown, count: number) => Array.isArray(value) && value.length === count && value.every((item) => typeof item === 'boolean');
 const door = (value: unknown) => record(value) && number(value.open, 0, 1) && (value.target === 0 || value.target === 1);
 
 function intent(value: unknown) {
   if (value === null) return true;
   if (!record(value)) return false;
-  if (['call', 'board', 'leave', 'threshold', 'panel', 'light', 'roomDoor', 'exit', 'sign', 'alarm', 'landing', 'gate'].includes(String(value.type)))
-    return true;
+  if (['call', 'board', 'leave', 'threshold', 'panel', 'light', 'exit', 'sign', 'alarm'].includes(String(value.type))) return true;
+  if (value.type === 'landing' || value.type === 'gate') return value.target === undefined || value.target === 0 || value.target === 1;
   if (value.type === 'stairs') return value.direction === -1 || value.direction === 1;
   if (value.type === 'invite') return number(value.id, 0, 2) && Number.isInteger(value.id);
   return value.type === 'enter' && buildings.some((building) => building.id === value.building);
@@ -25,23 +24,16 @@ export function parseSave(raw: string | null): GameState | null {
   if (!raw || raw.length > 100_000) return null;
   try {
     const value: unknown = JSON.parse(raw);
-    if (
-      !record(value) ||
-      ![1, 2, 3].includes(Number(value.version)) ||
-      typeof value.version !== 'number' ||
-      typeof value.started !== 'boolean' ||
-      !number(value.time, 0, 1e12) ||
-      !number(value.random, 0, 4294967295)
-    )
+    if (!record(value) || value.version !== 4 || typeof value.started !== 'boolean' || !number(value.time, 0, 1e12) || !number(value.random, 0, 4294967295))
       return null;
-    const legacy = value.version === 1;
-    const oldSpatial = value.version !== 3;
-    const width = legacy ? 780 : layout.width;
+    const width = layout.width;
     const p = value.player;
+    if (!record(p) || !['hotel', 'mall', 'house', 'outside'].includes(String(p.place))) return null;
+    const count = p.place === 'outside' ? 1 : floorCount(p.place as BuildingId);
     if (
       !record(p) ||
       !['hotel', 'mall', 'house', 'outside'].includes(String(p.place)) ||
-      !floor(p.floor) ||
+      !floor(p.floor, count) ||
       !number(p.x, 0, p.place === 'outside' ? layout.outsideWidth : width) ||
       typeof p.riding !== 'boolean'
     )
@@ -49,26 +41,24 @@ export function parseSave(raw: string | null): GameState | null {
     const playerWidth = p.place === 'outside' ? layout.outsideWidth : width;
     if (p.targetX !== null && !number(p.targetX, 0, playerWidth)) return null;
     if (
-      !oldSpatial &&
-      (!number(p.depth, -0.25, 1) ||
-        (p.targetDepth !== null && !number(p.targetDepth, -0.25, 1)) ||
-        (p.targetX === null) !== (p.targetDepth === null) ||
-        !Array.isArray(p.waypoints) ||
-        p.waypoints.length > 4 ||
-        !p.waypoints.every((point) => record(point) && number(point.x, 0, playerWidth) && number(point.depth, -0.25, 1)))
+      !number(p.depth, -0.25, 1) ||
+      (p.targetDepth !== null && !number(p.targetDepth, -0.25, 1)) ||
+      (p.targetX === null) !== (p.targetDepth === null) ||
+      !Array.isArray(p.waypoints) ||
+      p.waypoints.length > 4 ||
+      !p.waypoints.every((point) => record(point) && number(point.x, 0, playerWidth) && number(point.depth, -0.25, 1))
     )
       return null;
     if (!intent(p.intent)) return null;
-    // Older version-1 snapshots predate routes between floors.
-    if (p.route === undefined) p.route = null;
-    if (p.route !== null && (!record(p.route) || !floor(p.route.floor) || !number(p.route.x, 25, playerWidth - 30))) return null;
-    if (!oldSpatial && record(p.route) && !number(p.route.depth, -0.25, 1)) return null;
+    if (p.route !== null && (!record(p.route) || !floor(p.route.floor, count) || !number(p.route.x, 25, playerWidth - 30))) return null;
+    if (record(p.route) && !number(p.route.depth, -0.25, 1)) return null;
     if (
       p.stairs !== null &&
       (!record(p.stairs) ||
-        !floor(p.stairs.from) ||
-        !floor(p.stairs.to) ||
-        !number(p.stairs.elapsed, 0, 3) ||
+        !floor(p.stairs.from, count) ||
+        !floor(p.stairs.to, count) ||
+        !number(p.stairs.duration, timing.stairs / 1.6, timing.stairs) ||
+        !number(p.stairs.elapsed, 0, Number(p.stairs.duration)) ||
         Math.abs(Number(p.stairs.to) - Number(p.stairs.from)) !== 1)
     )
       return null;
@@ -82,17 +72,17 @@ export function parseSave(raw: string | null): GameState | null {
       typeof settings.smoothCamera !== 'boolean'
     )
       return null;
-    if (settings.cameraZoom === undefined) settings.cameraZoom = 1;
     if (!number(settings.cameraZoom, 1, 2.5)) return null;
     if (!Array.isArray(value.buildings) || value.buildings.length !== 3) return null;
     for (const [index, b] of value.buildings.entries()) {
-      if (!record(b) || b.id !== buildings[index].id || !flags(b.lights) || !flags(b.roomDoors)) return null;
+      const count = buildings[index].rooms.length;
+      if (!record(b) || b.id !== buildings[index].id || !flags(b.lights, count)) return null;
       const lift = b.lift;
-      if (!record(lift) || !number(lift.position, 0, 2) || !(lift.destination === null || floor(lift.destination))) return null;
+      if (!record(lift) || !number(lift.position, 0, count - 1) || !(lift.destination === null || floor(lift.destination, count))) return null;
       if (
         !Array.isArray(lift.queue) ||
-        lift.queue.length > 3 ||
-        !lift.queue.every(floor) ||
+        lift.queue.length > count ||
+        !lift.queue.every((value) => floor(value, count)) ||
         new Set(lift.queue).size !== lift.queue.length ||
         lift.queue.includes(lift.destination)
       )
@@ -106,43 +96,18 @@ export function parseSave(raw: string | null): GameState | null {
         if (
           !record(person) ||
           person.id !== personIndex ||
-          !floor(person.floor) ||
-          !floor(person.wanted) ||
+          !floor(person.floor, count) ||
+          !floor(person.wanted, count) ||
           !number(person.x, 0, width) ||
-          (!oldSpatial && !number(person.depth, -0.25, 1)) ||
+          !number(person.depth, -0.25, 1) ||
           !number(person.timer, -100, 100)
         )
           return null;
-        if (!['idle', 'waiting', 'boarding', 'riding', 'leaving', 'returning', 'away'].includes(String(person.phase))) return null;
+        if (!['idle', 'waiting', 'boarding', 'riding', 'leaving', 'returning', 'departing', 'away'].includes(String(person.phase))) return null;
       }
-      if (p.place === b.id && p.riding && (p.stairs !== null || (oldSpatial ? Number(p.x) <= (legacy ? 570 : layout.threshold + 20) : Number(p.depth) >= 0)))
-        return null;
+      if (p.place === b.id && p.riding && (p.stairs !== null || Number(p.depth) >= 0)) return null;
     }
-    const state = value as unknown as GameState;
-    if (legacy) {
-      // Keep the left-hand doors and cabin offsets; insert the new corridor space between them.
-      const widen = (x: number) => x + Math.max(0, Math.min(1, (x - 300) / 25)) * 275;
-      if (state.player.place !== 'outside') {
-        state.player.x = widen(state.player.x);
-        if (state.player.targetX !== null) state.player.targetX = widen(state.player.targetX);
-        if (state.player.route) state.player.route.x = widen(state.player.route.x);
-      }
-      for (const building of state.buildings) for (const person of building.people) person.x = widen(person.x);
-    }
-    if (oldSpatial) {
-      const player = state.player;
-      player.depth = player.riding ? -0.18 : player.place === 'outside' ? 0.3 : defaultDepth(player.x);
-      player.targetDepth = null;
-      player.waypoints = [];
-      if (player.targetX !== null) setWalkTarget(player, { x: player.targetX, depth: player.place === 'outside' ? 0.3 : defaultDepth(player.targetX) });
-      if (player.route) player.route.depth = player.place === 'outside' ? 0.3 : defaultDepth(player.route.x);
-      for (const b of state.buildings)
-        for (const person of b.people)
-          person.depth =
-            person.phase === 'riding' || (['boarding', 'leaving'].includes(person.phase) && person.x > layout.threshold) ? -0.18 : 0.24 + person.id * 0.12;
-      state.version = 3;
-    }
-    return state;
+    return value as unknown as GameState;
   } catch {
     return null;
   }
@@ -151,6 +116,15 @@ export function parseSave(raw: string | null): GameState | null {
 export function loadGame(storage: Storage): { state: GameState | null; message: string } {
   try {
     const primary = storage.getItem(saveKey);
+    if (primary) {
+      try {
+        const header: unknown = JSON.parse(primary);
+        if (record(header) && typeof header.version === 'number' && header.version < 4)
+          return { state: null, message: 'Spelet har uppdaterats. Ett nytt äventyr börjar på entréplanet.' };
+      } catch {
+        /* A damaged current save can still use its valid backup. */
+      }
+    }
     const state = parseSave(primary);
     if (state) return { state, message: '' };
     const backup = parseSave(storage.getItem(backupKey));

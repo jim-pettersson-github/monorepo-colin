@@ -1,4 +1,4 @@
-import { createGame } from '../src/game/model';
+import { createGame, floorLabel } from '../src/game/model';
 import { projectPoint } from '../src/game/spatial';
 import { expect, gamePoll, test } from './game-clock';
 import { floorTap, roomTap, savedPlayer, showControls } from './room-helpers';
@@ -17,7 +17,7 @@ for (const destination of [0, 2])
     const scene = page.locator('.game-scene');
     await expect(scene.locator('canvas')).toBeVisible();
     await showControls(page);
-    await page.getByRole('button', { name: `Titta på våning ${destination}`, exact: true }).click();
+    await page.getByRole('button', { name: `Titta på våning ${floorLabel(destination)}`, exact: true }).click();
     await expect(scene).toHaveAttribute('data-view-floor', String(destination));
     await expect(page.locator('main.game')).toHaveAttribute('data-floor', String(2 - destination));
     expect((await savedPlayer(page)).route).toBeNull();

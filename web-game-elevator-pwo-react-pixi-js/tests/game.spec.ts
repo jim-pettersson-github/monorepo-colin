@@ -44,7 +44,7 @@ test('help a passenger, block the doorway, take the stairs, and resume the saved
   await page.getByRole('button', { name: 'Gå in', exact: true }).click();
   await gamePoll(page, () => game.getAttribute('data-riding')).toBe('true');
   await page.getByRole('button', { name: 'Välj våning', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Våning 0', exact: true })).toBeFocused();
+  await expect(page.getByRole('button', { name: 'Våning E', exact: true })).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('button', { name: 'Välj våning', exact: true })).toBeFocused();
   await page.getByRole('button', { name: 'Välj våning', exact: true }).click();
@@ -96,8 +96,6 @@ test('explore lights and signs, stop the alarm sample, and visit the old gate li
   await page.getByRole('button', { name: 'Gamla huset' }).click();
   await gamePoll(page, () => page.locator('main.game').getAttribute('data-place')).toBe('house');
   await page.getByRole('button', { name: 'Hissen', exact: true }).click();
-  await page.getByRole('button', { name: 'Stäng dörren', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Öppna dörren', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Stäng grinden', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Öppna grinden', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Inställningar' }).click();

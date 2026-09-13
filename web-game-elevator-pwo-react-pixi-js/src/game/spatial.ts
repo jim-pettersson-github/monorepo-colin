@@ -2,7 +2,13 @@ import { type FloorPoint, type GameState, isOpen, layout, type Player } from './
 
 export const roomSpace = { width: 1448, height: 1086, sill: 640, front: 1040 };
 export const portal = { left: 720, right: 1063, top: 158, bottom: 636 };
-export const cabinPanel = { x: 950, top: 290, spacing: 50, radius: 19 };
+export const cabinPanel = { x: 921, top: 284, spacing: 53, radius: 20 };
+export const gateLever = { x: 1104, y: 433, width: 58, height: 108 };
+export const cabinDoorButton = (target: 0 | 1) => ({ x: cabinPanel.x + 2 * cabinPanel.spacing, y: cabinPanel.top + (1 - target) * cabinPanel.spacing });
+export const cabinButton = (floor: number) => ({
+  x: cabinPanel.x + (floor % 2) * cabinPanel.spacing,
+  y: cabinPanel.top + Math.floor(floor / 2) * cabinPanel.spacing,
+});
 export const depthScale = (depth: number) => 0.7 + depth * 0.6;
 export const projectPoint = (point: FloorPoint) => ({ x: 724 + (point.x - 629) * 1.21 * depthScale(point.depth), y: roomSpace.sill + point.depth * 400 });
 export function floorPoint(x: number, y: number): FloorPoint {

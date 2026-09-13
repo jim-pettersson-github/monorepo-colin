@@ -1,4 +1,5 @@
 import { expect, type Page } from '@playwright/test';
+import { floorLabel } from '../src/game/model';
 import { projectPoint, roomSpace } from '../src/game/spatial';
 
 export async function showControls(page: Page) {
@@ -29,7 +30,7 @@ export async function roomTap(page: Page, point: { x: number; y: number }, touch
 
 export async function floorTap(page: Page, floor: number, x: number, depth: number, touch = false) {
   await showControls(page);
-  await page.getByRole('button', { name: `Titta på våning ${floor}`, exact: true }).click();
+  await page.getByRole('button', { name: `Titta på våning ${floorLabel(floor)}`, exact: true }).click();
   await roomTap(page, projectPoint({ x, depth }), touch);
 }
 

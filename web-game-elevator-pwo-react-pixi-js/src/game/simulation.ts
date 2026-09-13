@@ -4,6 +4,8 @@ import {
   currentBuilding,
   type Door,
   definition,
+  floorCount,
+  floorLabel,
   type GameState,
   type Intent,
   isOpen,
@@ -11,7 +13,10 @@ import {
   playerLevel,
   random,
   type SoundEvent,
+  stairDuration,
+  stairProgress,
   timing,
+  validFloor,
   worldWidth,
 } from './model';
 import { atThreshold, defaultDepth, doorClearance, movePlayer, movePoint, setWalkTarget } from './spatial';
@@ -35,14 +40,12 @@ const move = (value: number, target: number, amount: number) => value + Math.sig
 const near = (a: number, b: number, distance = 20) => Math.abs(a - b) < distance;
 
 export function requestFloor(building: Building, floor: number) {
-  if (!Number.isInteger(floor) || floor < 0 || floor > 2) return false;
+  if (!validFloor(building.id, floor)) return false;
   const lift = building.lift;
   if (lift.destination === floor || lift.queue.includes(floor)) return false;
   if (lift.destination === null && lift.position === floor) {
-    if (!definition(building.id).manual) {
-      lift.landing.target = 1;
-      lift.gate.target = 1;
-    }
+    lift.landing.target = 1;
+    if (!definition(building.id).manual) lift.gate.target = 1;
     lift.dwell = timing.dwell;
     return false;
   }
@@ -73,7 +76,11 @@ function perform(state: GameState, ui: SimulationUI, intent: Intent) {
   switch (intent.type) {
     case 'call':
       requestFloor(building, player.floor);
-      ui.notice = atFloor ? (manual ? 'Öppna dörren och grinden.' : 'Hissen är här. Tryck på Gå in.') : `Hissen kommer till våning ${player.floor}.`;
+      ui.notice = atFloor
+        ? manual
+          ? 'Hissen är här. Öppna grinden med spaken bredvid hissen.'
+          : 'Hissen är här. Tryck på Gå in.'
+        : `Hissen kommer till våning ${floorLabel(player.floor)}.`;
       break;
     case 'panel':
       if (player.riding) ui.panel = 'floors';
@@ -82,23 +89,25 @@ function perform(state: GameState, ui: SimulationUI, intent: Intent) {
       ui.notice = 'Här kan du stå kvar. Dörrarna väntar på dig.';
       break;
     case 'board':
-      ui.notice = manual ? 'Välj våning. Du öppnar och stänger dörren och grinden själv.' : 'Välj en våning. Du kan åka med eller kliva ut.';
+      ui.notice = manual ? 'Välj våning och stäng grinden. Ytterdörren stängs själv.' : 'Välj en våning. Du kan åka med eller kliva ut.';
       break;
     case 'leave':
       ui.notice = 'Du kan ta trapporna och möta hissen.';
       break;
     case 'stairs': {
       const to = player.floor + intent.direction;
-      if (to >= 0 && to <= 2 && !player.riding) player.stairs = { from: player.floor, to, elapsed: 0 };
+      if (validFloor(building.id, to) && !player.riding)
+        player.stairs = {
+          from: player.floor,
+          to,
+          elapsed: 0,
+          duration: stairDuration(Math.abs((player.route?.floor ?? to) - player.floor)),
+        };
       break;
     }
     case 'light':
       building.lights[player.floor] = !building.lights[player.floor];
       ui.notice = building.lights[player.floor] ? 'Nu är lamporna tända.' : 'Lamporna är släckta. Utgångsskylten lyser fortfarande.';
-      break;
-    case 'roomDoor':
-      building.roomDoors[player.floor] = !building.roomDoors[player.floor];
-      ui.notice = building.roomDoors[player.floor] ? 'Dörren är öppen. Titta in!' : 'Dörren är stängd.';
       break;
     case 'exit':
       if (player.floor === 0) {
@@ -120,7 +129,7 @@ function perform(state: GameState, ui: SimulationUI, intent: Intent) {
     case 'landing':
       if (atFloor && (manual || intent.type === 'landing')) {
         const door = lift[intent.type];
-        door.target = door.target === 1 ? 0 : 1;
+        door.target = intent.target ?? (door.target === 1 ? 0 : 1);
         if (!manual) lift.gate.target = door.target;
         if (door.target === 1) lift.dwell = timing.dwell;
         ui.sounds.push({ type: 'door', building: building.id });
@@ -131,7 +140,7 @@ function perform(state: GameState, ui: SimulationUI, intent: Intent) {
       const person = building.people.find((passenger) => passenger.id === intent.id);
       if (person?.phase === 'idle' && person.floor === player.floor) {
         person.phase = 'waiting';
-        ui.notice = `${definition(building.id).people[person.id]} vill till våning ${person.wanted}. Du får trycka på knapparna.`;
+        ui.notice = `${definition(building.id).people[person.id]} vill till våning ${floorLabel(person.wanted)}. Du får trycka på knapparna.`;
       }
       break;
     }
@@ -147,16 +156,19 @@ export function command(state: GameState, ui: SimulationUI, action: Command) {
     ui.alarmRemaining = 0;
     return;
   }
-  if (action.type === 'panel' && player.riding && player.intent?.type === 'board') {
+  // Cabin controls must not cancel Colin's last steps through the doorway.
+  if ((action.type === 'panel' || action.type === 'gate' || action.type === 'landing') && player.riding && player.intent?.type === 'board') {
     perform(state, ui, action);
     return;
   }
   if (action.type === 'floor') {
     if (!building || !player.riding) return;
     requestFloor(building, action.floor);
-    ui.panel = null;
+    if (!definition(building.id).manual) ui.panel = null;
     ui.sounds.push({ type: 'click', building: building.id });
-    ui.notice = definition(building.id).manual ? 'Stäng dörren och grinden när du är redo.' : 'Du kan åka med eller kliva ut innan dörrarna stängs.';
+    ui.notice = definition(building.id).manual
+      ? 'Stäng grinden när du är redo. Ytterdörren stängs själv.'
+      : 'Du kan åka med eller kliva ut innan dörrarna stängs.';
     return;
   }
   if (action.type === 'walk') {
@@ -166,7 +178,7 @@ export function command(state: GameState, ui: SimulationUI, action: Command) {
       (action.depth !== undefined && (!Number.isFinite(action.depth) || action.depth < -0.25 || action.depth > 1)) ||
       !Number.isInteger(floor) ||
       floor < 0 ||
-      floor > 2 ||
+      (building && !validFloor(building.id, floor)) ||
       (!building && floor !== 0)
     )
       return;
@@ -181,7 +193,7 @@ export function command(state: GameState, ui: SimulationUI, action: Command) {
       x: Math.max(25, Math.min(worldWidth(player.place) - 30, action.x)),
       depth: action.depth ?? (building ? defaultDepth(action.x) : 0.3),
     };
-    if (floor !== player.floor || player.stairs) ui.notice = `Colin tar trappan till våning ${floor}.`;
+    if (floor !== player.floor || player.stairs) ui.notice = `Colin tar trappan till våning ${floorLabel(floor)}.`;
     return;
   }
   if (player.stairs) {
@@ -223,7 +235,7 @@ export function command(state: GameState, ui: SimulationUI, action: Command) {
     ui.notice = 'Vänta tills dörröppningen är fri.';
     return;
   }
-  if (action.type === 'stairs' && (player.floor + action.direction < 0 || player.floor + action.direction > 2)) return;
+  if (action.type === 'stairs' && (player.floor + action.direction < 0 || !validFloor(building.id, player.floor + action.direction))) return;
   const positions: Partial<Record<Intent['type'], number>> = {
     call: 424,
     board: layout.cabin,
@@ -231,7 +243,6 @@ export function command(state: GameState, ui: SimulationUI, action: Command) {
     threshold: layout.threshold,
     stairs: layout.stairs,
     light: 350,
-    roomDoor: 1015,
     exit: layout.exit,
     sign: 765,
     alarm: 285,
@@ -255,14 +266,14 @@ function stepPlayer(state: GameState, ui: SimulationUI, dt: number) {
   const player = state.player;
   const building = currentBuilding(state);
   if (player.stairs) {
-    player.stairs.elapsed = Math.min(timing.stairs, player.stairs.elapsed + dt);
-    player.x = layout.stairs + Math.sin((player.stairs.elapsed / timing.stairs) * Math.PI) * 45;
+    player.stairs.elapsed = Math.min(player.stairs.duration, player.stairs.elapsed + dt);
+    player.x = layout.stairs + Math.sin(stairProgress(player.stairs) * Math.PI) * 45;
     player.depth = 0.025;
-    if (player.stairs.elapsed >= timing.stairs) {
+    if (player.stairs.elapsed >= player.stairs.duration) {
       player.floor = player.stairs.to;
       player.x = layout.stairs;
       player.stairs = null;
-      ui.notice = `Våning ${player.floor}.`;
+      ui.notice = `Våning ${floorLabel(player.floor)}.`;
     }
     return;
   }
@@ -290,6 +301,7 @@ function stepPlayer(state: GameState, ui: SimulationUI, dt: number) {
 function stepPeople(state: GameState, building: Building, dt: number) {
   const lift = building.lift;
   const colinAtDoor = state.player.place === building.id && !state.player.stairs && near(playerLevel(state), lift.position, 0.01) && atThreshold(state.player);
+  const count = floorCount(building.id);
   let crossing = building.people.some((person) => person.phase === 'boarding' || person.phase === 'leaving');
   // Unload before admitting another passenger. Only one passenger uses the doorway at a time.
   for (const person of [...building.people].sort((a, b) => Number(b.phase === 'riding') - Number(a.phase === 'riding'))) {
@@ -297,10 +309,10 @@ function stepPeople(state: GameState, building: Building, dt: number) {
     if (person.phase === 'away') {
       person.timer -= dt;
       if (person.timer <= 0) {
-        person.floor = Math.floor(random(state) * 3);
-        person.wanted = (person.floor + 1 + Math.floor(random(state) * 2)) % 3;
-        person.x = 245;
-        person.depth = 0.3;
+        person.floor = Math.floor(random(state) * count);
+        person.wanted = (person.floor + 1 + Math.floor(random(state) * (count - 1))) % count;
+        person.x = layout.stairs;
+        person.depth = 0.025;
         person.phase = 'returning';
         person.timer = 12;
       }
@@ -333,16 +345,21 @@ function stepPeople(state: GameState, building: Building, dt: number) {
         person.phase = 'returning';
         person.timer = 15;
       }
+    } else if (person.phase === 'departing') {
+      Object.assign(person, movePoint(person, { x: layout.stairs, depth: 0.025 }, timing.passengerWalk * dt));
+      if (near(person.x, layout.stairs, 1) && person.depth < 0.03) {
+        person.phase = 'away';
+        person.timer = 25 + random(state) * 35;
+      }
     } else if (person.phase === 'returning') {
       Object.assign(person, movePoint(person, { x: homeX, depth: 0.24 + person.id * 0.12 }, timing.passengerWalk * dt));
       person.timer -= dt;
       if (person.timer <= 0 && near(person.x, homeX, 1)) {
         if (building.id === 'house' && random(state) < 0.6) {
-          person.phase = 'away';
-          person.timer = 25 + random(state) * 35;
+          person.phase = 'departing';
         } else {
           person.phase = 'idle';
-          person.wanted = (person.floor + 1 + Math.floor(random(state) * 2)) % 3;
+          person.wanted = (person.floor + 1 + Math.floor(random(state) * (count - 1))) % count;
         }
       }
     }
@@ -360,10 +377,8 @@ function stepLift(state: GameState, building: Building, ui: SimulationUI, dt: nu
     if (lift.position === lift.destination) {
       lift.destination = null;
       lift.dwell = timing.dwell;
-      if (!definition(building.id).manual) {
-        lift.landing.target = 1;
-        lift.gate.target = 1;
-      }
+      lift.landing.target = 1;
+      if (!definition(building.id).manual) lift.gate.target = 1;
       ui.sounds.push({ type: 'arrival', building: building.id });
     }
     return;
@@ -393,10 +408,10 @@ function stepLift(state: GameState, building: Building, ui: SimulationUI, dt: nu
   } else {
     const reopening = playerBlocks && (lift.landing.open < lift.landing.target || lift.gate.open < lift.gate.target);
     lift.dwell = reopening ? timing.dwell : Math.max(0, lift.dwell - dt);
-    if (!definition(building.id).manual && lift.queue.length && lift.dwell === 0) {
+    if (lift.queue.length && lift.dwell === 0 && (!definition(building.id).manual || lift.gate.open === 0)) {
       if (lift.landing.target === 1) ui.sounds.push({ type: 'door', building: building.id });
       lift.landing.target = 0;
-      lift.gate.target = 0;
+      if (!definition(building.id).manual) lift.gate.target = 0;
     }
   }
   stepDoor(lift.landing, dt);

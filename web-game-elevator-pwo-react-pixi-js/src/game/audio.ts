@@ -4,7 +4,7 @@ export class GameAudio {
   context: AudioContext | null = null;
   liftGain: GainNode | null = null;
   alarmGain: GainNode | null = null;
-  motor: OscillatorNode | null = null;
+  motor: { oscillators: OscillatorNode[]; envelope: GainNode; building: string } | null = null;
   samples = new Set<OscillatorNode>();
   alarms = new Set<OscillatorNode>();
 
@@ -68,21 +68,45 @@ export class GameAudio {
     if (!alarmRemaining || paused || settings.muted) this.stopAlarm();
     const building = currentBuilding(state);
     const moving = !paused && !settings.muted && building?.lift.destination !== null && building !== undefined;
+    if (this.motor && (!moving || this.motor.building !== building?.id)) this.stopMotor();
     if (moving && !this.motor) {
-      this.motor = this.context.createOscillator();
-      const quiet = this.context.createGain();
-      quiet.gain.value = 0.04;
-      this.motor.type = 'triangle';
-      this.motor.frequency.value = definition(building.id).tone / 8;
-      this.motor.connect(quiet).connect(this.liftGain);
-      this.motor.onended = () => quiet.disconnect();
-      this.motor.start();
-    } else if (!moving && this.motor) {
-      this.motor.stop();
-      this.motor.disconnect();
-      this.motor = null;
+      const context = this.context;
+      const envelope = context.createGain();
+      envelope.gain.setValueAtTime(0, context.currentTime);
+      envelope.gain.linearRampToValueAtTime(0.08, context.currentTime + 0.25);
+      envelope.connect(this.liftGain);
+      const oscillators = [1, 4].map((harmonic) => {
+        const oscillator = context.createOscillator();
+        const voice = context.createGain();
+        voice.gain.value = harmonic === 1 ? 1 : 0.3;
+        oscillator.type = harmonic === 1 ? 'triangle' : 'sine';
+        oscillator.frequency.value = (definition(building.id).tone / 8) * harmonic;
+        oscillator.connect(voice).connect(envelope);
+        oscillator.onended = () => {
+          oscillator.disconnect();
+          voice.disconnect();
+        };
+        oscillator.start();
+        return oscillator;
+      });
+      this.motor = { oscillators, envelope, building: building.id };
     }
-    if (moving && this.motor) this.motor.frequency.value = definition(building.id).tone / 8;
+  }
+
+  stopMotor(immediate = false) {
+    if (!this.motor || !this.context) return;
+    const { oscillators, envelope } = this.motor;
+    const now = this.context.currentTime;
+    envelope.gain.cancelAndHoldAtTime(now);
+    envelope.gain.linearRampToValueAtTime(0, now + (immediate ? 0 : 0.18));
+    const last = oscillators[oscillators.length - 1];
+    const cleanup = last.onended;
+    last.onended = (event) => {
+      cleanup?.call(last, event);
+      envelope.disconnect();
+    };
+    for (const oscillator of oscillators) oscillator.stop(now + (immediate ? 0 : 0.2));
+    this.motor = null;
   }
 
   stopAlarm() {
@@ -94,11 +118,7 @@ export class GameAudio {
     this.stopAlarm();
     for (const oscillator of this.samples) oscillator.stop();
     this.samples.clear();
-    if (this.motor) {
-      this.motor.stop();
-      this.motor.disconnect();
-      this.motor = null;
-    }
+    this.stopMotor(true);
     if (this.context?.state === 'running') void this.context.suspend().catch(() => undefined);
   }
 }

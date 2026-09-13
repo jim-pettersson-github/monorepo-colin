@@ -70,7 +70,6 @@ export class GameSession {
         building.lift.landing.target,
         building.lift.gate.target,
         building.lights,
-        building.roomDoors,
         building.people.map((person) => [person.phase, person.floor, person.wanted]),
       ],
     ]);

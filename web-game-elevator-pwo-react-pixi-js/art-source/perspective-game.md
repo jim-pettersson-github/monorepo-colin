@@ -1,6 +1,6 @@
 # Perspective game assets
 
-Generated with the built-in image tool from the approved depth-room reference; local originals are room-hotel.png, room-mall.png, room-house.png and colin-back.png. Runtime exports use scripts/prepare-painted-art.mjs. The existing depth-reach.png provides the reaching pose. All assets are bundled for offline use.
+Generated with the built-in image tool from the approved depth-room reference; local originals are room-hotel.png, room-mall.png, room-house.png and colin-back.png. These original room plates are retained as references. The current entry/upper plates and floor landmarks are documented in [floor-refresh.md](floor-refresh.md); runtime exports use scripts/prepare-painted-art.mjs. The existing depth-reach.png provides the reaching pose. All assets are bundled for offline use.
 
 ## hotel
 
