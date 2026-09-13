@@ -6,7 +6,7 @@ See [PLAN.md](PLAN.md) for Colin's preferences, game rules, and acceptance scena
 
 ## Playing
 
-Choose a floor in the building overview to preview its room without moving Colin. Tap a point in that room and he takes the stairs there. **Följ Colin** returns to his current floor. Zoom with the mouse wheel or +/− buttons; drag with the left mouse button or one finger to look around the enlarged room.
+Choose a floor in the building overview to preview its room without moving Colin. Tap a point in that room and he takes the stairs there. **Följ Colin** returns to his current floor. Pinch with two fingers or zoom with the mouse wheel or +/− buttons; the corner zoom buttons stay visible when landscape controls are hidden. Drag with the left mouse button or one finger to look around the enlarged room.
 
 Tap the perspective floor to walk sideways, closer, or farther away, or use the large buttons. The green-signed door is the stairwell; each entry floor has a separate door marked UT for going outdoors. Colin stands beside the call button and reaches toward it. Enter the recessed cabin, choose a floor, then ride or step out and take the stairs. Stand in the doorway to keep it open. In the old house, operate both the landing door and lattice gate yourself.
 

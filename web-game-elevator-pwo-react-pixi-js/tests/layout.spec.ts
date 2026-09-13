@@ -28,6 +28,8 @@ test('phone rotation keeps the room, touch controls, and settings usable', async
       .toBe(true);
     if (landscape) {
       await expect(page.getByRole('region', { name: 'Spelkontroller' })).not.toBeVisible();
+      await expect(page.getByRole('button', { name: 'Zooma in', exact: true })).toBeInViewport();
+      await expect(page.getByRole('button', { name: 'Zooma ut', exact: true })).toBeInViewport();
       const before = await page.locator('.game-scene canvas').boundingBox();
       const scale = Math.min(viewport.width / roomSpace.width, viewport.height / roomSpace.height);
       await expect
@@ -42,6 +44,8 @@ test('phone rotation keeps the room, touch controls, and settings usable', async
       await expect(page.getByRole('region', { name: 'Spelkontroller' })).not.toBeVisible();
       expect(await page.locator('.game-scene canvas').boundingBox()).toEqual(before);
     }
+    await expect(page.getByRole('button', { name: 'Zooma in', exact: true })).toBeInViewport();
+    await expect(page.getByRole('button', { name: 'Zooma ut', exact: true })).toBeInViewport();
     await showControls(page);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth && document.documentElement.scrollHeight <= innerHeight)).toBe(true);
     const button = page.getByRole('button', { name: 'Hämta hiss', exact: true });

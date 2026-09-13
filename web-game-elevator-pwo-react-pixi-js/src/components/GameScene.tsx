@@ -47,7 +47,12 @@ function World({
   const viewedFloor = useRef(floor);
   viewedFloor.current = floor;
   const camera = useRef({ zoom: 1, manual: false, x: 0, y: 0 });
-  const gesture = useRef<{ id: number; startX: number; startY: number; x: number; y: number; dragged: boolean } | null>(null);
+  const pointers = useRef(new Map<number, { x: number; y: number }>());
+  const gesture = useRef<
+    | { kind: 'drag'; id: number; startX: number; startY: number; x: number; y: number; dragged: boolean }
+    | { kind: 'pinch'; distance: number; zoom: number; centerX: number; centerY: number; x: number; y: number }
+    | null
+  >(null);
   const place = session.state.player.place;
   const frame = useCallback(
     (delta: number) => {
@@ -93,8 +98,11 @@ function World({
   );
   useTick(useCallback((ticker: Ticker) => frame(ticker.deltaMS / 1000), [frame]));
   useEffect(() => {
-    camera.current.zoom = zoom;
-    camera.current.manual = false;
+    // Pinches already set their own zoom and focal point; buttons still follow Colin.
+    if (camera.current.zoom !== zoom) {
+      camera.current.zoom = zoom;
+      camera.current.manual = false;
+    }
     frame(0);
   }, [zoom, frame]);
   useEffect(() => {
@@ -120,6 +128,7 @@ function World({
   useEffect(() => {
     camera.current = { zoom: defaultZoom, manual: false, x: 0, y: 0 };
     gesture.current = null;
+    pointers.current.clear();
     onManualChange(false);
     onZoom(defaultZoom);
     frame(0);
@@ -127,38 +136,77 @@ function World({
   useEffect(() => {
     const element = host.current;
     if (!element || paused) return;
-    const down = (event: PointerEvent) => {
-      if (event.button !== 0 || session.paused || session.hidden) return;
-      if (gesture.current) {
-        gesture.current.dragged = true;
-        return;
-      }
+    const point = (event: PointerEvent) => {
+      const bounds = app.canvas.getBoundingClientRect();
+      return {
+        x: ((event.clientX - bounds.left) * app.screen.width) / bounds.width,
+        y: ((event.clientY - bounds.top) * app.screen.height) / bounds.height,
+      };
+    };
+    const begin = (dragged: boolean) => {
       const root = world.current;
       if (!root) return;
+      const entries = [...pointers.current];
+      const first = entries[0];
+      if (!first) return;
+      const second = entries[1];
+      gesture.current = second
+        ? {
+            kind: 'pinch',
+            distance: Math.max(1, Math.hypot(second[1].x - first[1].x, second[1].y - first[1].y)),
+            zoom: camera.current.zoom,
+            centerX: (first[1].x + second[1].x) / 2,
+            centerY: (first[1].y + second[1].y) / 2,
+            x: root.x,
+            y: root.y,
+          }
+        : { kind: 'drag', id: first[0], startX: first[1].x, startY: first[1].y, x: root.x, y: root.y, dragged };
+    };
+    const down = (event: PointerEvent) => {
+      if (event.button !== 0 || session.paused || session.hidden || !app.renderer) return;
+      pointers.current.set(event.pointerId, point(event));
       element.setPointerCapture(event.pointerId);
-      gesture.current = { id: event.pointerId, startX: event.clientX, startY: event.clientY, x: root.x, y: root.y, dragged: false };
+      begin(pointers.current.size > 1);
     };
     const move = (event: PointerEvent) => {
       const drag = gesture.current;
-      if (!drag || drag.id !== event.pointerId) return;
-      const dx = event.clientX - drag.startX,
-        dy = event.clientY - drag.startY;
+      if (!drag || !pointers.current.has(event.pointerId)) return;
+      const current = point(event);
+      pointers.current.set(event.pointerId, current);
+      if (drag.kind === 'pinch') {
+        const [first, second] = [...pointers.current.values()];
+        if (!first || !second) return;
+        const nextZoom = Math.max(1, Math.min(2.5, (drag.zoom * Math.hypot(second.x - first.x, second.y - first.y)) / drag.distance));
+        const ratio = nextZoom / drag.zoom;
+        camera.current = {
+          zoom: nextZoom,
+          manual: true,
+          x: (first.x + second.x) / 2 - (drag.centerX - drag.x) * ratio,
+          y: (first.y + second.y) / 2 - (drag.centerY - drag.y) * ratio,
+        };
+        onZoom(nextZoom);
+        onManualChange(true);
+        return;
+      }
+      const dx = current.x - drag.startX,
+        dy = current.y - drag.startY;
       if (!drag.dragged && Math.hypot(dx, dy) < 8) return;
       drag.dragged = true;
       camera.current = { ...camera.current, manual: true, x: drag.x + dx, y: drag.y + dy };
       onManualChange(true);
     };
-    const up = (event: PointerEvent) => {
+    const finish = (event: PointerEvent, cancelled: boolean) => {
       const drag = gesture.current;
-      if (!drag || drag.id !== event.pointerId) return;
+      if (!pointers.current.delete(event.pointerId)) return;
+      if (pointers.current.size) {
+        frame(0);
+        begin(true);
+        return;
+      }
       gesture.current = null;
-      if (drag.dragged || session.paused || session.hidden || !app.renderer) return;
-      const bounds = app.canvas.getBoundingClientRect();
-      const point = world.current?.toLocal({
-        x: ((event.clientX - bounds.left) * app.screen.width) / bounds.width,
-        y: ((event.clientY - bounds.top) * app.screen.height) / bounds.height,
-      });
-      const action = point && roomAction(session.state, point, viewedFloor.current);
+      if (cancelled || !drag || drag.kind !== 'drag' || drag.dragged || session.paused || session.hidden || !app.renderer) return;
+      const local = world.current?.toLocal(point(event));
+      const action = local && roomAction(session.state, local, viewedFloor.current);
       if (action) {
         session.send(action);
         camera.current.manual = false;
@@ -166,9 +214,8 @@ function World({
         onFollow();
       }
     };
-    const cancel = () => {
-      gesture.current = null;
-    };
+    const up = (event: PointerEvent) => finish(event, false);
+    const cancel = (event: PointerEvent) => finish(event, true);
     const wheel = (event: WheelEvent) => {
       if (event.ctrlKey || session.paused || session.hidden) return;
       event.preventDefault();
@@ -183,7 +230,8 @@ function World({
     element.addEventListener('lostpointercapture', cancel);
     element.addEventListener('wheel', wheel, { passive: false });
     return () => {
-      cancel();
+      gesture.current = null;
+      pointers.current.clear();
       element.removeEventListener('pointerdown', down);
       element.removeEventListener('pointermove', move);
       element.removeEventListener('pointerup', up);
@@ -191,7 +239,7 @@ function World({
       element.removeEventListener('lostpointercapture', cancel);
       element.removeEventListener('wheel', wheel);
     };
-  }, [app, host, session, paused, onFollow, onManualChange, onZoom]);
+  }, [app, host, session, paused, onFollow, onManualChange, onZoom, frame]);
   return (
     <pixiContainer ref={world} eventMode='none'>
       <pixiGraphics ref={art} draw={clear} />
@@ -296,7 +344,7 @@ export function GameScene({ session, paused }: { session: GameSession; paused: b
         data-default-zoom={defaultZoom}
         ref={host}
         role='img'
-        aria-label='Colins hus i perspektiv. Välj en våning i husöversikten för att titta, tryck sedan i rummet för att gå dit. Dra för att flytta kameran.'
+        aria-label='Colins hus i perspektiv. Välj en våning i husöversikten för att titta, tryck sedan i rummet för att gå dit. Dra för att flytta kameran. Nyp med två fingrar för att zooma.'
       >
         {assets && (
           <Application resizeTo={host} resolution={Math.min(window.devicePixelRatio || 1, 2)} autoDensity antialias background={p.paper} preference='webgl'>

@@ -12,7 +12,7 @@ Read each folder's CLAUDE.md and AGENTS.md before working there. This is standal
 
 ## Writing UI
 
-Painted 2.5D rooms with Swedish labels in portrait and landscape. Colin walks across a perspective floor and scales with depth. Use compact HTML menus with at least 48-pixel touch targets and PixiJS for the world. Landscape fills the viewport with the game; controls float above it and start hidden behind a toggle. Allow the installed PWA to rotate. Prefer right-side panels for settings and information; avoid browser confirmation popups.
+Painted 2.5D rooms with Swedish labels in portrait and landscape. Colin walks across a perspective floor and scales with depth. Use compact HTML menus with at least 48-pixel touch targets and PixiJS for the world. Landscape fills the viewport with the game; controls float above it and start hidden behind a toggle. Keep corner zoom buttons visible and support two-finger pinch zoom without moving Colin. Allow the installed PWA to rotate. Prefer right-side panels for settings and information; avoid browser confirmation popups.
 
 Keep colors in local semantic palette roles and check existing components before adding primitives. Colin has blond-brown hair, brown eyes, and bare feet: no shoes or socks. Elevators are the focus; green emergency-exit signs are a small secondary theme.
 

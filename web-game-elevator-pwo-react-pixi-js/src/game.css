@@ -149,8 +149,9 @@
   padding: 0;
   border: 0;
   position: absolute;
-  left: 12px;
-  bottom: 12px;
+  left: max(12px, env(safe-area-inset-left));
+  bottom: max(12px, env(safe-area-inset-bottom));
+  z-index: 3;
   display: flex;
   gap: 4px;
 }
@@ -538,7 +539,7 @@
     border-radius: 8px;
     box-shadow: 0 4px 20px var(--menu-shadow);
   }
-  .game:not(.controls-open) :is(.game-header, .game-controls, .floor-overview, .camera-zoom, .camera-follow, .room-preview-caption) {
+  .game:not(.controls-open) :is(.game-header, .game-controls, .floor-overview, .camera-follow, .room-preview-caption) {
     display: none;
   }
   .camera-zoom {
