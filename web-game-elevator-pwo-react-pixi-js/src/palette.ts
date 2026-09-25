@@ -33,6 +33,8 @@ export const menuPalette = {
 
 // Painted world colors stay separate from the high-contrast HTML controls.
 export const worldPalette = {
+  cafeGlass: '#b5d7d4',
+  cafeBronze: '#ba8b48',
   ...palette,
   ink: '#261c17',
   paper: '#302820',

@@ -1,4 +1,4 @@
-import { type BuildingId, buildings, floorCount, type GameState, layout, timing } from './model';
+import { type BuildingId, buildings, createGame, floorCount, type GameState, layout, timing } from './model';
 
 export const saveKey = 'colin-game-v1';
 export const backupKey = 'colin-game-backup-v1';
@@ -28,11 +28,12 @@ export function parseSave(raw: string | null): GameState | null {
       return null;
     const width = layout.width;
     const p = value.player;
-    if (!record(p) || !['hotel', 'mall', 'house', 'outside'].includes(String(p.place))) return null;
+    const places = [...buildings.map((building) => building.id), 'outside'];
+    if (!record(p) || !places.includes(String(p.place))) return null;
     const count = p.place === 'outside' ? 1 : floorCount(p.place as BuildingId);
     if (
       !record(p) ||
-      !['hotel', 'mall', 'house', 'outside'].includes(String(p.place)) ||
+      !places.includes(String(p.place)) ||
       !floor(p.floor, count) ||
       !number(p.x, 0, p.place === 'outside' ? layout.outsideWidth : width) ||
       typeof p.riding !== 'boolean'
@@ -73,7 +74,11 @@ export function parseSave(raw: string | null): GameState | null {
     )
       return null;
     if (!number(settings.cameraZoom, 1, 2.5)) return null;
-    if (!Array.isArray(value.buildings) || value.buildings.length !== 3) return null;
+    if (!Array.isArray(value.buildings)) return null;
+    // An existing version-4 save gains only the new building; preserve every old lift and route.
+    if (value.buildings.length === 3 && p.place !== 'cafe' && value.buildings.every((b, index) => record(b) && b.id === buildings[index].id))
+      value.buildings.push(createGame(0).buildings[3]);
+    if (value.buildings.length !== buildings.length) return null;
     for (const [index, b] of value.buildings.entries()) {
       const count = buildings[index].rooms.length;
       if (!record(b) || b.id !== buildings[index].id || !flags(b.lights, count)) return null;

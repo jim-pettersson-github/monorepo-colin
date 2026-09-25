@@ -16,10 +16,15 @@ export const buildings = [
     people: ['Elsa', 'Nils', 'Kim'],
     tone: 440,
   },
+  { id: 'cafe', name: 'Kaféet', rooms: ['Entrén', 'Övervåningen'], manual: false, people: ['Ada'], tone: 740 },
 ] as const;
 
 export type BuildingId = (typeof buildings)[number]['id'];
 export type Place = BuildingId | 'outside';
+// Save order remains stable; street order places the café to the left of the hotel.
+export const streetBuildings = [buildings[3], buildings[0], buildings[1], buildings[2]];
+export const streetPosition = (id: BuildingId) => 85 + streetBuildings.findIndex((building) => building.id === id) * 205;
+export const exitPosition = (place: Place) => (place === 'cafe' ? 30 : layout.exit);
 export const layout = { width: 1055, corridor: 825, outsideWidth: 780, threshold: 825, cabin: 1001, stairs: 105, exit: 1015 };
 export const worldWidth = (place: Place) => (place === 'outside' ? layout.outsideWidth : layout.width);
 export const timing = { walk: 240, passengerWalk: 115, stairs: 3, travel: 5, door: 1, dwell: 5 };
@@ -127,8 +132,8 @@ export function createGame(seed = Date.now() >>> 0): GameState {
       people: building.people.map((_name, id) => ({
         id,
         floor: id === 2 ? 1 : 0,
-        wanted: id === 0 ? 2 : id === 1 ? 1 : 0,
-        x: 420 + id * 90,
+        wanted: Math.min(building.rooms.length - 1, id === 0 ? 2 : id === 1 ? 1 : 0),
+        x: building.id === 'cafe' ? 550 : 420 + id * 90,
         depth: 0.24 + id * 0.12,
         phase: building.id === 'house' && id > 0 ? 'away' : 'idle',
         timer: 25 + id * 20,

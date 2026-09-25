@@ -1,17 +1,20 @@
-import { buildings, type Command, currentBuilding, floorCount, floors, type GameState, isOpen, layout, validFloor } from './model';
+import { cafeAction } from './cafe-interaction';
+import { type Command, currentBuilding, floorCount, floors, type GameState, isOpen, layout, streetBuildings, validFloor } from './model';
 import { actorBounds } from './room-art';
 import { cabinButton, cabinDoorButton, cabinPanel, floorPoint, gateLever, portal, roomSpace } from './spatial';
 
 export function roomAction(state: GameState, point: { x: number; y: number }, floor: number): Command | null {
+  if (state.player.place === 'cafe') return cafeAction(state, point);
   const { x, y } = point;
   if (x < 0 || x > roomSpace.width || y < 0 || y > roomSpace.height) return null;
   const player = state.player;
   if (player.place === 'outside') {
-    const index = Math.floor((x - 120) / 430);
-    if (y > 245 && y < 655 && index >= 0 && index < 3) return { type: 'enter', building: buildings[index].id };
+    const index = Math.floor((x - 55) / 350);
+    if (y > 245 && y < 655 && index >= 0 && index < streetBuildings.length && (x - 55) % 350 < 288)
+      return { type: 'enter', building: streetBuildings[index].id };
     if (y < 655) return null;
     const target = floorPoint(x, y);
-    return { type: 'walk', x: Math.max(20, Math.min(layout.outsideWidth - 20, (target.x - 180) / 1.36)), depth: target.depth };
+    return { type: 'walk', x: Math.max(20, Math.min(layout.outsideWidth - 20, ((x - 55) * 205) / 350)), depth: target.depth };
   }
   const building = currentBuilding(state);
   if (!building || !validFloor(building.id, floor)) return null;

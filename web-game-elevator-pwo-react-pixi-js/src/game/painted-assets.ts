@@ -2,6 +2,7 @@ import { Assets, type Texture } from 'pixi.js';
 import { useEffect, useState } from 'react';
 
 const names = [
+  'room-cafe',
   'hotel-wall',
   'mall-wall',
   'house-wall',
@@ -14,6 +15,11 @@ const names = [
   'colin-1',
   'colin-2',
   'colin-3',
+  'colin-crouch',
+  'colin-squat',
+  'colin-sit',
+  'colin-scratch',
+  'colin-jump',
   'passenger-0',
   'passenger-1',
   'passenger-2',

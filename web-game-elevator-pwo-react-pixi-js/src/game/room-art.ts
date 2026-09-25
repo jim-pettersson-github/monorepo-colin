@@ -1,6 +1,19 @@
 import { type Graphics, Rectangle, Texture } from 'pixi.js';
 import { worldPalette as p } from '../palette';
-import { currentBuilding, type FloorPoint, floorLabel, floors, type GameState, layout, type Passenger, playerLevel, stairProgress } from './model';
+import { drawCafe } from './cafe-art';
+import { type ColinIdle, colinIdleFrame } from './colin-idle';
+import {
+  currentBuilding,
+  type FloorPoint,
+  floorLabel,
+  floors,
+  type GameState,
+  layout,
+  type Passenger,
+  playerLevel,
+  stairProgress,
+  streetBuildings,
+} from './model';
 import type { PaintedAssets } from './painted-assets';
 import { drawDigit, drawFloorPlaque, drawIndicator } from './room-details';
 import { drawFloorProps } from './room-props';
@@ -33,18 +46,29 @@ function actor(
   facing: number,
   reach: boolean,
   away: boolean,
+  idle?: ColinIdle,
 ) {
   const { x, y, height } = actorBounds(point, colin);
+  const rest = colinIdleFrame(colin && !walking && !reach ? idle : undefined);
   const frame = walking ? [1, 2, 3, 2][Math.floor(time * 7) % 4] : 0;
-  const key: keyof PaintedAssets = colin ? (reach ? 'reach' : away ? 'colin-back' : `colin-${frame as 0 | 1 | 2 | 3}`) : `passenger-${(id % 3) as 0 | 1 | 2}`;
+  const key: keyof PaintedAssets = colin
+    ? reach
+      ? 'reach'
+      : rest.pose !== 'standing'
+        ? `colin-${rest.pose}`
+        : away
+          ? 'colin-back'
+          : `colin-${frame as 0 | 1 | 2 | 3}`
+    : `passenger-${(id % 3) as 0 | 1 | 2}`;
   const texture = assets[key];
-  const width = (height * texture.width) / texture.height;
+  const poseHeight = height * rest.height;
+  const width = (poseHeight * texture.width) / texture.height;
   const bob = walking ? Math.sin(time * 12) * 1.4 : 0;
-  g.ellipse(x, y + 3, height * 0.08, height * 0.023).fill({ color: p.ink, alpha: 0.25 });
+  g.ellipse(x, y + 3, height * (rest.pose === 'sit' ? 0.14 : 0.08) * (1 - rest.lift * 2), height * 0.023).fill({ color: p.ink, alpha: 0.25 - rest.lift });
   g.save()
     .setFillStyle({ color: 'white', alpha: 1 })
-    .setTransform(facing, 0, 0, 1, x, y + bob)
-    .texture(texture, 'white', -width * (reach ? 0.35 : 0.5), -height, width, height)
+    .setTransform(facing, 0, rest.tilt, 1, x, y + bob - height * rest.lift)
+    .texture(texture, 'white', -width * (reach ? 0.35 : 0.5), -poseHeight, width, poseHeight)
     .restore();
 }
 
@@ -53,6 +77,7 @@ export function drawRoom(g: Graphics, state: GameState, ui: SimulationUI, assets
   g.setFillStyle({ color: 'white', alpha: 1 });
   const building = currentBuilding(state);
   if (!building) return;
+  if (building.id === 'cafe') return drawCafe(g, state, ui, assets);
   const texture = assets[`room-${building.id}-${floor === 0 ? 'entry' : 'upper'}`];
   g.texture(texture, 'white', 0, 0, roomSpace.width, roomSpace.height);
   const lift = building.lift;
@@ -146,6 +171,7 @@ export function drawRoom(g: Graphics, state: GameState, ui: SimulationUI, assets
       reach ? 1 : next.x < player.x ? -1 : 1,
       reach?.type === 'call',
       next.depth < player.depth,
+      ui.idle,
     );
   };
   for (const person of visible.filter((p) => carHere && p.depth < -0.035).sort((a, b) => a.depth - b.depth)) drawPerson(person);
@@ -225,24 +251,41 @@ export function drawRoom(g: Graphics, state: GameState, ui: SimulationUI, assets
   }
 }
 
-export function drawStreet(g: Graphics, state: GameState, assets: PaintedAssets) {
+export function drawStreet(g: Graphics, state: GameState, assets: PaintedAssets, idle?: ColinIdle) {
   g.clear();
   g.setFillStyle({ color: 'white', alpha: 1 });
   g.texture(assets['outside-sky'], 'white', 0, 0, 1448, 700);
   g.rect(0, 650, 1448, 436).fill({ texture: assets.marble, textureSpace: 'local' });
-  for (let i = 0; i < 3; i++) {
-    const x = 120 + i * 430;
-    g.rect(x, 245, 340, 410).fill({ texture: assets[`${(['hotel', 'mall', 'house'] as const)[i]}-wall`], textureSpace: 'local' });
-    g.poly([x - 15, 245, x + 170, 155, x + 355, 245]).fill(p.frame);
+  for (const [i, building] of streetBuildings.entries()) {
+    const x = 55 + i * 350;
+    const cafe = building.id === 'cafe';
+    const wall: keyof PaintedAssets = building.id === 'cafe' ? 'mall-wall' : `${building.id}-wall`;
+    g.rect(x, 245, 288, 410).fill({ texture: assets[wall], textureSpace: 'local' });
+    if (cafe) {
+      g.rect(x - 8, 226, 304, 24).fill(p.cafeBronze);
+      g.rect(x + 12, 405, 264, 18).fill({ texture: assets.wood, textureSpace: 'local' });
+    } else g.poly([x - 12, 245, x + 144, 155, x + 300, 245]).fill(p.frame);
     for (let j = 0; j < 3; j++)
-      g.roundRect(x + 28 + j * 104, 305, 76, 100, 4)
+      g.roundRect(x + 20 + j * 88, 305, 70, 100, 4)
         .fill({ texture: assets.glass, textureSpace: 'local' })
         .stroke({ color: p.light, width: 5 });
-    g.roundRect(x + 119, 472, 102, 182, 5)
-      .fill({ texture: assets.wood, textureSpace: 'local' })
+    g.roundRect(x + 93, 472, 102, 182, 5)
+      .fill({ texture: cafe ? assets.glass : assets.wood, textureSpace: 'local' })
       .stroke({ color: p.ink, width: 5 });
-    g.circle(x + 203, 560, 5).fill(p.light);
+    g.circle(x + 177, 560, 5).fill(p.light);
   }
-  const point = { x: 180 + state.player.x * 1.36, depth: state.player.depth };
-  actor(g, assets, point, state.time, state.player.targetX !== null, true, 0, (state.player.targetX ?? state.player.x) < state.player.x ? -1 : 1, false, false);
+  const point = { x: 629 + (55 + (state.player.x * 350) / 205 - 724) / (1.21 * depthScale(state.player.depth)), depth: state.player.depth };
+  actor(
+    g,
+    assets,
+    point,
+    state.time,
+    state.player.targetX !== null,
+    true,
+    0,
+    (state.player.targetX ?? state.player.x) < state.player.x ? -1 : 1,
+    false,
+    false,
+    idle,
+  );
 }

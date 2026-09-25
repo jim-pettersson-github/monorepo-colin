@@ -19,11 +19,14 @@ const root = document.getElementById('root');
 if (!root) throw new Error('Missing application root');
 const ArtStudy = lazy(() => import('./components/ArtStudy').then((module) => ({ default: module.ArtStudy })));
 const DepthStudy = lazy(() => import('./components/DepthStudy').then((module) => ({ default: module.DepthStudy })));
+const CafeStudy = lazy(() => import('./components/CafeStudy').then((module) => ({ default: module.CafeStudy })));
 const view = new URLSearchParams(window.location.search).get('view');
 
 createRoot(root).render(
   <StrictMode>
-    <Suspense fallback={<p role='status'>Laddar…</p>}>{view === 'art' ? <ArtStudy /> : view === 'depth' ? <DepthStudy /> : <App />}</Suspense>
+    <Suspense fallback={<p role='status'>Laddar…</p>}>
+      {view === 'art' ? <ArtStudy /> : view === 'depth' ? <DepthStudy /> : view === 'cafe' ? <CafeStudy /> : <App />}
+    </Suspense>
   </StrictMode>,
 );
 

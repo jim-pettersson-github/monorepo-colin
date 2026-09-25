@@ -1,9 +1,12 @@
+import { cafeDoorClearance } from './cafe-spatial';
+import { type ColinIdle, createColinIdle, resetColinIdle, stepColinIdle } from './colin-idle';
 import {
   type Building,
   type Command,
   currentBuilding,
   type Door,
   definition,
+  exitPosition,
   floorCount,
   floorLabel,
   type GameState,
@@ -15,6 +18,7 @@ import {
   type SoundEvent,
   stairDuration,
   stairProgress,
+  streetPosition,
   timing,
   validFloor,
   worldWidth,
@@ -22,6 +26,8 @@ import {
 import { atThreshold, defaultDepth, doorClearance, movePlayer, movePoint, setWalkTarget } from './spatial';
 
 export interface SimulationUI {
+  idle: ColinIdle;
+  reducedMotion: boolean;
   panel: 'floors' | 'sign' | null;
   notice: string;
   sounds: SoundEvent[];
@@ -30,6 +36,8 @@ export interface SimulationUI {
 }
 
 export const createUI = (): SimulationUI => ({
+  idle: createColinIdle(),
+  reducedMotion: false,
   panel: null,
   notice: 'Tryck på golvet för att gå. Hissen väntar på dig.',
   sounds: [],
@@ -60,7 +68,7 @@ function perform(state: GameState, ui: SimulationUI, intent: Intent) {
   if (intent.type === 'enter' && player.place === 'outside') {
     player.place = intent.building;
     player.floor = 0;
-    player.x = layout.exit;
+    player.x = exitPosition(intent.building);
     player.depth = 0.3;
     ui.notice = `Välkommen till ${definition(intent.building).name.toLowerCase()}!`;
     return;
@@ -112,7 +120,7 @@ function perform(state: GameState, ui: SimulationUI, intent: Intent) {
     case 'exit':
       if (player.floor === 0) {
         player.place = 'outside';
-        player.x = 130 + state.buildings.indexOf(building) * 250;
+        player.x = streetPosition(building.id);
         player.riding = false;
         player.depth = 0.3;
         ui.notice = 'Vilket hus vill du besöka?';
@@ -150,6 +158,7 @@ function perform(state: GameState, ui: SimulationUI, intent: Intent) {
 }
 
 export function command(state: GameState, ui: SimulationUI, action: Command) {
+  resetColinIdle(ui.idle);
   const player = state.player;
   const building = currentBuilding(state);
   if (action.type === 'alarm' && ui.alarmRemaining > 0) {
@@ -209,7 +218,7 @@ export function command(state: GameState, ui: SimulationUI, action: Command) {
   player.route = null;
   if (player.place === 'outside') {
     if (action.type === 'enter') {
-      setWalkTarget(player, { x: 130 + state.buildings.findIndex((b) => b.id === action.building) * 250, depth: 0.3 });
+      setWalkTarget(player, { x: streetPosition(action.building), depth: 0.3 });
       player.intent = action;
     }
     return;
@@ -237,15 +246,15 @@ export function command(state: GameState, ui: SimulationUI, action: Command) {
   }
   if (action.type === 'stairs' && (player.floor + action.direction < 0 || !validFloor(building.id, player.floor + action.direction))) return;
   const positions: Partial<Record<Intent['type'], number>> = {
-    call: 424,
+    call: building.id === 'cafe' ? 710 : 424,
     board: layout.cabin,
     leave: 750,
     threshold: layout.threshold,
     stairs: layout.stairs,
-    light: 350,
-    exit: layout.exit,
-    sign: 765,
-    alarm: 285,
+    light: building.id === 'cafe' ? 675 : 350,
+    exit: exitPosition(building.id),
+    sign: building.id === 'cafe' ? 710 : 765,
+    alarm: building.id === 'cafe' ? 675 : 285,
     gate: 785,
     landing: 785,
   };
@@ -305,7 +314,7 @@ function stepPeople(state: GameState, building: Building, dt: number) {
   let crossing = building.people.some((person) => person.phase === 'boarding' || person.phase === 'leaving');
   // Unload before admitting another passenger. Only one passenger uses the doorway at a time.
   for (const person of [...building.people].sort((a, b) => Number(b.phase === 'riding') - Number(a.phase === 'riding'))) {
-    const homeX = 420 + person.id * 90;
+    const homeX = building.id === 'cafe' ? 550 : 420 + person.id * 90;
     if (person.phase === 'away') {
       person.timer -= dt;
       if (person.timer <= 0) {
@@ -389,8 +398,8 @@ function stepLift(state: GameState, building: Building, ui: SimulationUI, dt: nu
   const wasBlocked = lift.blocked;
   lift.blocked = playerBlocks || personBlocks;
   if (wasBlocked && !lift.blocked) lift.dwell = timing.dwell;
-  const landingLimit = doorClearance(player);
-  const gateLimit = doorClearance(player, definition(building.id).manual);
+  const landingLimit = building.id === 'cafe' ? cafeDoorClearance(player) : doorClearance(player);
+  const gateLimit = building.id === 'cafe' ? landingLimit : doorClearance(player, definition(building.id).manual);
   const contact =
     playerBlocks &&
     ((lift.landing.target === 0 && lift.landing.open <= landingLimit + dt / timing.door) ||
@@ -434,4 +443,5 @@ export function step(state: GameState, ui: SimulationUI, dt: number) {
     stepPeople(state, building, dt);
     stepLift(state, building, ui, dt);
   }
+  stepColinIdle(ui.idle, state, ui.reducedMotion || !!ui.reach || !!ui.panel || ui.alarmRemaining > 0, dt);
 }

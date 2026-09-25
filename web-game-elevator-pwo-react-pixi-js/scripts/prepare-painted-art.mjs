@@ -4,6 +4,7 @@ import sharp from 'sharp';
 // Export generated source plates and sprite-sheet cells without changing their artwork.
 await mkdir('public/painted', { recursive: true });
 const output = (name) => `public/painted/${name}.webp`;
+await sharp('art-source/room-cafe.png').webp({ quality: 92 }).toFile(output('room-cafe'));
 for (const name of ['hotel-wall', 'mall-wall', 'house-wall', 'outside-sky']) {
   await sharp(`art-source/${name}.png`).resize({ width: 1650, withoutEnlargement: true }).webp({ quality: 88 }).toFile(output(name));
 }

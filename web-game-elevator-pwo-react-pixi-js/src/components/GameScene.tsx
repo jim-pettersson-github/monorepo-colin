@@ -1,7 +1,9 @@
 import { Application, extend, useApplication, useTick } from '@pixi/react';
 import { Container, Graphics, Text, type Ticker } from 'pixi.js';
 import { type RefObject, useCallback, useEffect, useRef, useState } from 'react';
-import { buildings, currentBuilding, definition, floorLabel, floors, playerLevel } from '../game/model';
+import { cafePlayerFeet, cafeSpace } from '../game/cafe-spatial';
+import { colinIdleFrame } from '../game/colin-idle';
+import { currentBuilding, definition, floorLabel, floors, playerLevel, streetBuildings } from '../game/model';
 import { type PaintedAssets, usePaintedAssets } from '../game/painted-assets';
 import { actorBounds, drawRoom, drawStreet } from '../game/room-art';
 import { roomAction } from '../game/room-interaction';
@@ -59,25 +61,33 @@ function World({
       const state = session.state;
       const floor = viewedFloor.current;
       const { width, height } = app.screen;
-      const scale = Math.min(width / roomSpace.width, height / roomSpace.height) * camera.current.zoom;
+      const space = state.player.place === 'cafe' ? cafeSpace : roomSpace;
+      const scale = Math.min(width / space.width, height / space.height) * camera.current.zoom;
       root.scale.set(scale);
-      const center = { x: (width - roomSpace.width * scale) / 2, y: (height - roomSpace.height * scale) / 2 };
-      const feet = projectPoint(state.player.place === 'outside' ? { x: 180 + state.player.x * 1.36, depth: state.player.depth } : state.player);
+      const center = { x: (width - space.width * scale) / 2, y: (height - space.height * scale) / 2 };
+      const feet =
+        state.player.place === 'cafe'
+          ? cafePlayerFeet(state)
+          : state.player.place === 'outside'
+            ? { x: 55 + (state.player.x * 350) / 205, y: roomSpace.sill + state.player.depth * 400 }
+            : projectPoint(state.player);
       const limit = (value: number, viewport: number, scene: number) =>
         scene <= viewport ? (viewport - scene) / 2 : Math.max(viewport - scene, Math.min(0, value));
-      const targetX = limit(camera.current.manual ? camera.current.x : width / 2 - feet.x * scale, width, roomSpace.width * scale);
-      const targetY = limit(camera.current.manual ? camera.current.y : height * 0.75 - feet.y * scale, height, roomSpace.height * scale);
+      const targetX = limit(camera.current.manual ? camera.current.x : width / 2 - feet.x * scale, width, space.width * scale);
+      const targetY = limit(camera.current.manual ? camera.current.y : height * 0.75 - feet.y * scale, height, space.height * scale);
       const ease = !state.settings.smoothCamera || camera.current.manual || delta === 0 ? 1 : 1 - Math.exp(-12 * delta);
       root.x += ((camera.current.zoom === 1 ? center.x : targetX) - root.x) * ease;
       root.y += ((camera.current.zoom === 1 ? center.y : targetY) - root.y) * ease;
-      if (state.player.place === 'outside') drawStreet(art.current, state, assets);
+      if (state.player.place === 'outside') drawStreet(art.current, state, assets, session.ui.idle);
       else drawRoom(art.current, state, session.ui, assets, floor);
+      if (host.current) host.current.dataset.colinPose = colinIdleFrame(session.ui.idle).pose;
       const building = currentBuilding(state);
       for (let i = 0; i < 3; i++) {
         const text = numbers.current[i];
         const person = building?.people[i];
         if (!text) continue;
         text.visible =
+          building?.id !== 'cafe' &&
           !!person &&
           ['idle', 'waiting', 'riding'].includes(person.phase) &&
           (person.phase === 'riding' ? Math.round(building?.lift.position ?? 0) : person.floor) === floor &&
@@ -89,9 +99,16 @@ function World({
         }
       }
     },
-    [app, session, assets],
+    [app, session, assets, host],
   );
   useTick(useCallback((ticker: Ticker) => frame(ticker.deltaMS / 1000), [frame]));
+  useEffect(() => {
+    const preference = matchMedia('(prefers-reduced-motion: reduce)');
+    const update = () => session.reducedMotion(preference.matches);
+    update();
+    preference.addEventListener('change', update);
+    return () => preference.removeEventListener('change', update);
+  }, [session]);
   useEffect(() => {
     // Pinches already set their own zoom and focal point; buttons still follow Colin.
     if (camera.current.zoom !== zoom) {
@@ -238,11 +255,11 @@ function World({
     <pixiContainer ref={world} eventMode='none'>
       <pixiGraphics ref={art} draw={clear} />
       {place === 'outside' ? (
-        buildings.map((building, index) => (
+        streetBuildings.map((building, index) => (
           <pixiText
             key={building.id}
             text={building.name}
-            x={290 + index * 430}
+            x={199 + index * 350}
             y={220}
             anchor={0.5}
             style={{ fontFamily: 'Georgia', fontSize: 25, fill: p.surface, fontWeight: 'bold' }}
@@ -250,7 +267,7 @@ function World({
         ))
       ) : (
         <pixiText
-          text={floor === 0 ? 'UT' : ''}
+          text={floor === 0 && place !== 'cafe' ? 'UT' : ''}
           x={1210}
           y={283}
           anchor={0.5}
@@ -337,13 +354,18 @@ export function GameScene({ session, paused }: { session: GameSession; paused: b
         data-view-floor={floor}
         data-lift-floor={building ? floorLabel(Math.round(building.lift.position)) : undefined}
         data-indicator={building?.id}
+        data-floor-view={building?.id === 'cafe' ? 'both' : 'single'}
         data-exit={building ? floor === 0 : undefined}
         aria-busy={!assets}
         data-camera={cameraMoved ? 'free' : 'follow'}
         data-zoom={zoom}
         ref={host}
         role='img'
-        aria-label='Colins hus i perspektiv. Välj en våning i husöversikten för att titta, tryck sedan i rummet för att gå dit. Dra för att flytta kameran. Nyp med två fingrar för att zooma.'
+        aria-label={
+          building?.id === 'cafe'
+            ? 'Kaféet med båda våningarna synliga. Tryck på golvet på valfri våning så går Colin dit via trappan. Dra för att flytta kameran. Nyp med två fingrar för att zooma.'
+            : 'Colins hus i perspektiv. Välj en våning i husöversikten för att titta, tryck sedan i rummet för att gå dit. Dra för att flytta kameran. Nyp med två fingrar för att zooma.'
+        }
       >
         {assets && (
           <Application resizeTo={host} resolution={Math.min(window.devicePixelRatio || 1, 2)} autoDensity antialias background={p.paper} preference='webgl'>

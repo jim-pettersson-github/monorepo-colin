@@ -12,7 +12,7 @@ export const copy = {
   panelTitle: 'En värld att upptäcka',
   panelIntro: 'Följ med Colin på hissäventyr, i hans egen takt.',
   panelBody:
-    'Åk hiss, tryck på knappar och utforska tre hus. Hjälp andra att åka med, prova den gamla grinden och tänd och släck lamporna. De gröna skyltarna visar vägen ut.',
+    'Åk hiss, tryck på knappar och utforska fyra hus. Se båda våningarna i kaféet, hjälp andra att åka med, prova den gamla grinden och tänd och släck lamporna.',
   panelNote: 'Du bestämmer takten. Inga poäng, inga måsten. Spelet sparar var du är när du tar en paus.',
   footer: 'BARA DU, COLIN OCH NÄSTA VÅNING.',
   sceneLabel: 'Colin står barfota i en lugn lobby, bredvid en hiss och en dörr med grön utgångsskylt.',

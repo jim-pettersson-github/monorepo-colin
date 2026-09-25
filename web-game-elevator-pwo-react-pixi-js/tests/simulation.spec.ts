@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { GameAudio } from '../src/game/audio';
+import { cafeButton, cafeCall, cafeDoorClearance, cafePlayerFeet, cafeProject } from '../src/game/cafe-spatial';
+import { colinIdleFrame } from '../src/game/colin-idle';
 import { buildings, type Command, createGame, currentBuilding, floorCount, floors, layout, playerLevel, stairDuration } from '../src/game/model';
 import { actorBounds } from '../src/game/room-art';
 import { roomAction } from '../src/game/room-interaction';
@@ -20,6 +22,171 @@ function setup() {
   };
   return { state, ui, tick, act };
 }
+
+test('existing version-4 saves gain the cafe without losing progress or their backup', () => {
+  const original = createGame(42);
+  original.started = true;
+  original.player.floor = 3;
+  original.buildings[0].lights[3] = false;
+  original.buildings.pop();
+  const raw = JSON.stringify(original);
+  const loaded = parseSave(raw);
+  expect(loaded?.player).toEqual(original.player);
+  expect(loaded?.buildings.slice(0, 3)).toEqual(original.buildings);
+  expect(loaded?.buildings[3]).toEqual(createGame(0).buildings[3]);
+  expect(loadGame({ getItem: (key) => (key === saveKey ? '{broken' : raw), setItem: () => {} }).state).toEqual(loaded);
+  expect(parseSave(JSON.stringify({ ...original, player: { ...original.player, place: 'cafe', floor: 0 } }))).toBeNull();
+});
+
+test('cafe floor taps route through visible stairs while its single lift travels independently', () => {
+  const { state, ui, tick, act } = setup();
+  state.player.place = 'cafe';
+  state.player.x = layout.cabin;
+  state.player.depth = -0.18;
+  state.player.riding = true;
+  const lift = state.buildings[3].lift;
+  expect(floorCount('cafe')).toBe(2);
+  expect(roomAction(state, cafeButton(1, 0), 0)).toEqual({ type: 'floor', floor: 1 });
+  act({ type: 'floor', floor: 1 }, 0);
+  const action = roomAction(state, cafeProject({ x: 730, depth: 0.15 }, 1), 0);
+  expect(action).toMatchObject({ type: 'walk', floor: 1 });
+  if (!action) throw new Error('Missing upstairs target');
+  command(state, ui, action);
+  tick(5);
+  expect(state.player.stairs).not.toBeNull();
+  const feet = cafePlayerFeet(state);
+  expect(feet.y).toBeGreaterThan(330);
+  expect(feet.y).toBeLessThan(781);
+  expect(parseSave(JSON.stringify(state))).toEqual(state);
+  tick(2.5);
+  expect(state.player.floor).toBe(1);
+  expect(lift.position).toBeLessThan(1);
+  tick(6);
+  expect(lift.position).toBe(1);
+  expect(state.player).toMatchObject({ floor: 1, riding: false, route: null, stairs: null, targetX: null });
+  expect(roomAction(state, cafeCall(0), 1)).toMatchObject({ type: 'walk', floor: 0 });
+  expect(roomAction(state, cafeCall(1), 0)).toEqual({ type: 'call' });
+  expect(roomAction(state, { x: 395, y: 374 }, 0)).toMatchObject({ type: 'walk', floor: 1 });
+  expect(requestFloor(state.buildings[3], 2)).toBe(false);
+  expect(parseSave(JSON.stringify(state))).toEqual(state);
+});
+
+test('cafe cabin panel follows the cabin between floors and empty landing doors stay impassable', () => {
+  const { state, ui, tick } = setup();
+  state.player.place = 'cafe';
+  state.player.riding = true;
+  state.player.x = layout.cabin;
+  state.player.depth = -0.18;
+  const lift = state.buildings[3].lift;
+  lift.position = 0.5;
+  lift.destination = 1;
+  lift.landing = { open: 0, target: 0 };
+  lift.gate = { open: 0, target: 0 };
+  expect(roomAction(state, cafeButton(1, 0.5), 0)).toEqual({ type: 'panel' });
+  state.player.riding = false;
+  state.player.depth = 0.2;
+  state.player.x = 750;
+  command(state, ui, { type: 'board' });
+  tick(0.5);
+  expect(state.player.riding).toBe(false);
+  expect(state.player.targetX).toBeNull();
+  expect(ui.notice).toContain('Vänta');
+});
+
+test('cafe glass doors repeatedly reverse before touching Colin and lights save independently', () => {
+  const { state, tick, act } = setup();
+  state.player.place = 'cafe';
+  state.player.x = layout.threshold;
+  state.player.depth = 0;
+  const lift = state.buildings[3].lift;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    act({ type: 'landing', target: 0 }, 0);
+    let approached = false;
+    for (let frame = 0; frame < 120; frame++) {
+      tick(1 / 60);
+      approached ||= lift.landing.open < 0.95;
+      expect(lift.landing.open).toBeGreaterThanOrEqual(cafeDoorClearance(state.player));
+      expect(lift.position).toBe(0);
+    }
+    expect(approached).toBe(true);
+    expect(lift.landing.open).toBe(1);
+  }
+  act({ type: 'light' });
+  expect(state.buildings[3].lights).toEqual([false, true]);
+  expect(parseSave(JSON.stringify(state))?.buildings[3].lights).toEqual([false, true]);
+});
+
+test('Colin cycles through calm idle actions without moving or changing simulation randomness', () => {
+  const { state, ui, tick } = setup();
+  const standing = structuredClone(state.player);
+  const control = structuredClone(state);
+  const controlUI = createUI();
+  controlUI.reducedMotion = true;
+  const seen = new Set<string>();
+  let airborne = false;
+  for (let second = 0; second < 60; second++) {
+    tick(1);
+    for (let frame = 0; frame < 60; frame++) step(control, controlUI, 1 / 60);
+    if (ui.idle.action) seen.add(ui.idle.action);
+    airborne ||= colinIdleFrame(ui.idle).lift > 0;
+  }
+  expect([...seen]).toEqual(['sit', 'scratch', 'squat', 'jump']);
+  expect(airborne).toBe(true);
+  expect(state.player).toEqual(standing);
+  expect(state).toEqual(control);
+});
+
+test('idle actions yield immediately to commands and wait through routes, reaching and doorway blocking', () => {
+  const { state, ui, tick } = setup();
+  tick(9);
+  expect(colinIdleFrame(ui.idle).pose).toBe('sit');
+  command(state, ui, { type: 'walk', x: 450, depth: 0.5 });
+  expect(ui.idle.action).toBeNull();
+  tick(0.1);
+  expect(ui.idle.elapsed).toBe(0);
+  command(state, ui, { type: 'call' });
+  tick(2);
+  expect(ui.idle.action).toBeNull();
+  expect(ui.idle.elapsed).toBe(0);
+  command(state, ui, { type: 'threshold' });
+  tick(20);
+  expect(state.player.depth).toBe(0);
+  expect(ui.idle.action).toBeNull();
+  expect(ui.idle.elapsed).toBe(0);
+});
+
+test('idle motion pauses with the session, respects reduced motion and is never saved', () => {
+  const data = new Map<string, string>();
+  const session = new GameSession({
+    getItem: (key) => data.get(key) ?? null,
+    setItem: (key, value) => {
+      data.set(key, value);
+    },
+  });
+  session.state.started = true;
+  const advance = (seconds: number) => {
+    for (let i = 0; i < seconds * 60; i++) session.advance(1 / 60);
+  };
+  advance(9);
+  expect(session.ui.idle.action).toBe('sit');
+  const paused = structuredClone(session.ui.idle);
+  session.pause(true, true);
+  advance(30);
+  expect(session.ui.idle).toEqual(paused);
+  session.pause(false, false);
+  session.reducedMotion(true);
+  advance(60);
+  expect(session.ui.idle.action).toBeNull();
+  session.restart();
+  expect(session.ui.reducedMotion).toBe(true);
+  session.reducedMotion(false);
+  advance(9);
+  expect(session.ui.idle.action).toBe('sit');
+  session.save();
+  const restored = new GameSession(session.storage);
+  expect(restored.ui.idle.action).toBeNull();
+  expect(restored.state.player).toEqual(session.state.player);
+});
 
 test('older save versions reset the whole game instead of migrating or restoring a backup', () => {
   for (const version of [1, 2, 3]) {
@@ -109,8 +276,8 @@ test('motor audio fades, changes timbre with buildings and stops on arrival, mut
 });
 
 test('building-specific bounds apply to buttons, routes, queues, passengers and saves', () => {
-  expect(buildings.map((building) => floorCount(building.id))).toEqual([10, 5, 7]);
-  for (const definition of buildings) {
+  expect(buildings.map((building) => floorCount(building.id))).toEqual([10, 5, 7, 2]);
+  for (const definition of buildings.filter((building) => building.id !== 'cafe')) {
     const { state, ui } = setup();
     state.player.place = definition.id;
     state.player.riding = true;

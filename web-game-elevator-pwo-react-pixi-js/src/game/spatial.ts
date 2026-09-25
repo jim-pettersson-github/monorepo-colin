@@ -28,6 +28,15 @@ export function setWalkTarget(player: Player, target: FloorPoint) {
   player.targetDepth = target.depth;
   player.waypoints = [];
   if (player.place === 'outside') return;
+  if (player.place === 'cafe') {
+    // The open aisle bends around the painted café tables. Cross the sill before turning.
+    if (player.depth < 0 && target.depth >= 0)
+      player.waypoints.push({ x: layout.threshold, depth: player.depth }, { x: layout.threshold, depth: 0.09 }, { x: target.x, depth: 0.025 });
+    else if (player.depth >= 0 && target.depth < 0)
+      player.waypoints.push({ x: player.x, depth: 0.025 }, { x: layout.threshold, depth: 0.025 }, { x: layout.threshold, depth: 0 });
+    else if (player.depth >= 0 && Math.abs(target.x - player.x) > 160) player.waypoints.push({ x: player.x, depth: 0.025 }, { x: target.x, depth: 0.025 });
+    return;
+  }
   if (player.depth < 0 && target.depth >= 0) player.waypoints.push({ x: layout.threshold, depth: player.depth }, { x: layout.threshold, depth: 0.14 });
   if (player.depth >= 0 && target.depth < 0) player.waypoints.push({ x: layout.threshold, depth: 0.14 }, { x: layout.threshold, depth: 0 });
 }

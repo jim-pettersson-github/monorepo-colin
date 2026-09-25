@@ -54,7 +54,7 @@ Use accessible HTML controls and right-side panels for simple menu information/s
 
 ## Game behavior
 
-Follow [PLAN.md](PLAN.md). Portrait and landscape 2.5D free exploration: hotel (E–9), shopping centre (E–4), and old apartment house (E–6), connected outdoors. E is internal floor zero. Every floor has open stairs beneath a green exit sign; only E has a separate door marked UT leading outside. Upper floors have no doors besides the elevator. Keep warning signs and repeatable light switches.
+Follow [PLAN.md](PLAN.md). Portrait and landscape 2.5D free exploration: café (E–1), hotel (E–9), shopping centre (E–4), and old apartment house (E–6), connected outdoors. The café is left of the hotel; `cafe-art.ts`, `cafe-spatial.ts` and `cafe-interaction.ts` implement its simultaneous two-floor view with a moving glass cabin and transparent doors. E is internal floor zero. Only E has a separate door marked UT leading outside. Keep stairs, warning signs and repeatable light switches.
 
 Tap to walk or approach an object. Tapping another floor routes Colin via the nearest staircase (currently one per building) and then to the tapped position; a new tap replaces the destination after completing any active stair flight. Preserve routes in saves. Elevators run independently: select a floor, step out during a five-second delay, and take the stairs to meet the lift. Timing: stairs three seconds for one floor, with a gentle increase up to 1.6× speed based on remaining floor gap; elevator five seconds/floor, doors one second. Freeze each stair flight’s duration until it finishes. No scores, losing, or time limits.
 
@@ -70,7 +70,7 @@ Sound is optional and synthesized locally. Elevator motors have a gentle envelop
 
 ## Notes
 
-The three-building game is playable. Preserve the independently running lifts, doorway interlocks, patient passengers, per-floor lights/doors, settings, and local save recovery. Physical-phone installation and sound comfort still need a device review.
+The four-building game is playable. Existing three-building version-4 saves gain the café without changing saved progress. Preserve the independently running lifts, doorway interlocks, patient passengers, per-floor lights/doors, settings, and local save recovery. Physical-phone installation and sound comfort still need a device review.
 
 Simulation state outlives rendered scenes. Use one fixed-step ticker and refs for continuous motion, not React state every frame. Pause simulation/audio when hidden; resume without elapsed-time catch-up.
 

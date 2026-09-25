@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { buildings, currentBuilding, definition, floorCount, floorLabel, floors, isOpen, layout, liftPhase, playerLevel } from '../game/model';
+import { currentBuilding, definition, exitPosition, floorCount, floorLabel, floors, isOpen, liftPhase, playerLevel, streetBuildings } from '../game/model';
 import type { GameSession } from '../game/session';
 import { FullscreenButton } from './FullscreenButton';
 import { GameScene } from './GameScene';
@@ -144,7 +144,7 @@ export function GameView({ session, onMenu }: { session: GameSession; onMenu: ()
                     <span aria-hidden='true'>↔</span>Stå i dörren
                   </button>
                   <button type='button' disabled={!player.riding || !!player.stairs} onClick={() => session.send({ type: 'panel' })}>
-                    <span aria-hidden='true'>E 1 2</span>Välj våning
+                    <span aria-hidden='true'>{building.id === 'cafe' ? 'E 1' : 'E 1 2'}</span>Välj våning
                   </button>
                 </div>
                 {!manual && (
@@ -200,7 +200,7 @@ export function GameView({ session, onMenu }: { session: GameSession; onMenu: ()
                 type='button'
                 className='exit-control'
                 disabled={!!player.stairs || (player.riding && moving)}
-                onClick={() => session.send(player.floor === 0 ? { type: 'exit' } : { type: 'walk', floor: 0, x: layout.exit, depth: 0.3 })}
+                onClick={() => session.send(player.floor === 0 ? { type: 'exit' } : { type: 'walk', floor: 0, x: exitPosition(building.id), depth: 0.3 })}
               >
                 {player.floor === 0 ? '→ Utgång' : '↓ Till entrén'}
               </button>
@@ -223,7 +223,7 @@ export function GameView({ session, onMenu }: { session: GameSession; onMenu: ()
           </>
         ) : (
           <div className='building-choices'>
-            {buildings.map((building, index) => (
+            {streetBuildings.map((building, index) => (
               <button type='button' key={building.id} onClick={() => session.send({ type: 'enter', building: building.id })}>
                 <span aria-hidden='true'>0{index + 1}</span>
                 {building.name}

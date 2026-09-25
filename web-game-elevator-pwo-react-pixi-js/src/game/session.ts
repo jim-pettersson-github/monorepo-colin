@@ -1,4 +1,5 @@
 import { GameAudio } from './audio';
+import { resetColinIdle } from './colin-idle';
 import { type Command, createGame, currentBuilding, type GameState, liftPhase, type Settings } from './model';
 import { command, createUI, step } from './simulation';
 import { loadGame, type Storage, saveGame } from './storage';
@@ -20,7 +21,10 @@ export class GameSession {
     const saved = loadGame(storage);
     this.state = saved.state ?? createGame();
     this.storageMessage = saved.message;
-    if (!saved.state && typeof matchMedia !== 'undefined') this.state.settings.smoothCamera = !matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (typeof matchMedia !== 'undefined') {
+      this.ui.reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (!saved.state) this.state.settings.smoothCamera = !this.ui.reducedMotion;
+    }
   }
 
   subscribe = (listener: () => void) => {
@@ -120,12 +124,19 @@ export class GameSession {
     this.notify();
   }
 
+  reducedMotion(reduce: boolean) {
+    this.ui.reducedMotion = reduce;
+    if (reduce) resetColinIdle(this.ui.idle);
+  }
+
   restart() {
     const settings = this.state.settings;
+    const reducedMotion = this.ui.reducedMotion;
     this.state = createGame();
     this.state.started = true;
     this.state.settings = settings;
     this.ui = createUI();
+    this.ui.reducedMotion = reducedMotion;
     this.save();
     this.notify();
   }

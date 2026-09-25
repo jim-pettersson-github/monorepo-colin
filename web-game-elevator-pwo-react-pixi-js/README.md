@@ -1,10 +1,12 @@
 # Colins hissäventyr
 
-React + PixiJS, TypeScript, Vite, and an offline Android PWA. A playable Swedish exploration game for Colin: three buildings, independent elevators, manual gates, stairs, patient passengers, light switches, signs, and optional sound. Progress saves locally; there is no backend.
+React + PixiJS, TypeScript, Vite, and an offline Android PWA. A playable Swedish exploration game for Colin: four buildings, independent elevators, manual gates, stairs, patient passengers, light switches, signs, and optional sound. Progress saves locally; there is no backend.
 
 See [PLAN.md](PLAN.md) for Colin's preferences, game rules, and acceptance scenarios.
 
 ## Playing
+
+The café is to the left of the hotel outside. Both café floors stay visible together: E and 1. Its single glass cabin moves through a transparent shaft; clear sliding doors remain closed at an empty landing. Choose a floor inside, step out, and tap the upstairs floor to take the visible stairs and meet the lift. One patient guest, lights and repeated doorway blocking use the shared game rules. Existing version-4 saves retain progress and gain the café.
 
 Choose a floor in the building overview to preview its room without moving Colin. Tap a point in that room and he takes the stairs there. **Följ Colin** returns to his current floor. Pinch with two fingers or zoom with the mouse wheel or +/− buttons; the corner zoom buttons stay visible when landscape controls are hidden. Your zoom is remembered across houses, rotation, menu returns, and reloads. Drag with the left mouse button or one finger to look around the enlarged room.
 
@@ -15,6 +17,8 @@ Tap a person with a number to help them ride; they wait for Colin to choose thei
 The cabin's back-wall buttons show 0/1/2 and light up when selected. Modern lifts have **Stäng dörrarna / Öppna dörrarna** controls. Stand in the doorway and close the doors to watch them approach Colin and bounce open; queued automatic lifts pause and retry until he steps away.
 
 ## Development
+
+Cafe concept: `http://127.0.0.1:4010/?view=cafe` retains the approved static illustration without changing saves. The café is playable in the main game. Its background preparation and runtime layers are documented in [art-source/cafe-game.md](art-source/cafe-game.md).
 
 Art comparison: open `http://127.0.0.1:4010/?view=art` or use **Jämför tre konststilar** in the menu. Three original concepts can be enlarged without changing your save. Option 01 is now implemented in the playable world. Assets and their generation prompts are documented in [art-prompts.md](art-prompts.md).
 

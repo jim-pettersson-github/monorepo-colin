@@ -27,7 +27,7 @@ The small building overview previews a floor without moving Colin. Tapping a des
 - Old elevators with manually operated lattice gates, as well as modern lifts.
 - Pressing elevator buttons for other people and watching them ride, with or without joining them.
 
-The game has three buildings: hotel, shopping centre, and an old apartment house. Keep passengers sparse and unhurried: 1–2 hotel guests, 2–3 shoppers, and occasional apartment residents. Follow the behavior and acceptance checks in the [game plan](web-game-elevator-pwo-react-pixi-js/PLAN.md).
+The game has four buildings: café, hotel, shopping centre, and an old apartment house. The café is left of the hotel, with both floors visible together, transparent elevator doors and a connected staircase. Keep passengers sparse and unhurried: one café guest, 1–2 hotel guests, 2–3 shoppers, and occasional apartment residents. Follow the behavior and acceptance checks in the [game plan](web-game-elevator-pwo-react-pixi-js/PLAN.md).
 
 ## Not an npm workspace
 

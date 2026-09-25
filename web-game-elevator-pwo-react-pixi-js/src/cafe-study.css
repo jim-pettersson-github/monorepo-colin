@@ -1,0 +1,81 @@
+.cafe-study {
+  max-width: 1800px;
+  margin: auto;
+}
+.cafe-study-header {
+  flex-wrap: wrap;
+  gap: 8px 24px;
+}
+.cafe-study-intro {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 24px;
+  margin: 28px 0 24px;
+}
+.cafe-study-intro h1 {
+  margin: 12px 0 0;
+  font-size: clamp(34px, 4vw, 58px);
+  text-shadow: none;
+}
+.cafe-study-intro > p {
+  max-width: 42ch;
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.cafe-study-figure {
+  margin: 0;
+}
+.cafe-study-image {
+  background: var(--menu-wood);
+}
+.cafe-study-image img {
+  aspect-ratio: 3 / 2;
+  max-height: 78svh;
+  object-fit: contain;
+}
+.cafe-study-figure figcaption {
+  margin-top: 12px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.cafe-study-notes {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 32px;
+  margin-top: 28px;
+  border-top: 1px solid var(--trim);
+  padding-top: 12px;
+}
+.cafe-study-notes h2 {
+  font-family: Georgia, serif;
+  font-weight: 400;
+  font-size: 23px;
+}
+.cafe-study-notes p {
+  font-size: 14px;
+  line-height: 1.7;
+}
+.cafe-study-dialog {
+  max-width: 96vw;
+  width: 1600px;
+}
+@media (max-width: 760px) {
+  .cafe-study {
+    padding-inline: max(16px, env(safe-area-inset-left)) max(16px, env(safe-area-inset-right));
+  }
+  .cafe-study-header > span {
+    display: none;
+  }
+  .cafe-study-intro {
+    display: block;
+  }
+  .cafe-study-intro > p {
+    margin-top: 18px;
+  }
+  .cafe-study-notes {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+}

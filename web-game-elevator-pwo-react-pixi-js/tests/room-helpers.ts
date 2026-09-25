@@ -1,4 +1,5 @@
 import { expect, type Page } from '@playwright/test';
+import { cafeProject, cafeSpace } from '../src/game/cafe-spatial';
 import { floorLabel } from '../src/game/model';
 import { projectPoint, roomSpace } from '../src/game/spatial';
 
@@ -21,8 +22,9 @@ export async function roomTap(page: Page, point: { x: number; y: number }, touch
   await canvas.click({ trial: true });
   const bounds = await canvas.boundingBox();
   if (!bounds) throw new Error('Missing game canvas');
-  const scale = Math.min(bounds.width / roomSpace.width, bounds.height / roomSpace.height);
-  const target = { x: (bounds.width - roomSpace.width * scale) / 2 + point.x * scale, y: (bounds.height - roomSpace.height * scale) / 2 + point.y * scale };
+  const space = (await page.locator('main.game').getAttribute('data-place')) === 'cafe' ? cafeSpace : roomSpace;
+  const scale = Math.min(bounds.width / space.width, bounds.height / space.height);
+  const target = { x: (bounds.width - space.width * scale) / 2 + point.x * scale, y: (bounds.height - space.height * scale) / 2 + point.y * scale };
   if (touch) await page.touchscreen.tap(bounds.x + target.x, bounds.y + target.y);
   else await canvas.click({ position: target });
   if (floating) await toggle.click();
@@ -31,7 +33,8 @@ export async function roomTap(page: Page, point: { x: number; y: number }, touch
 export async function floorTap(page: Page, floor: number, x: number, depth: number, touch = false) {
   await showControls(page);
   await page.getByRole('button', { name: `Titta på våning ${floorLabel(floor)}`, exact: true }).click();
-  await roomTap(page, projectPoint({ x, depth }), touch);
+  const cafe = (await page.locator('main.game').getAttribute('data-place')) === 'cafe';
+  await roomTap(page, cafe ? cafeProject({ x, depth }, floor) : projectPoint({ x, depth }), touch);
 }
 
 export const savedPlayer = (page: Page) => page.evaluate(() => JSON.parse(localStorage.getItem('colin-game-v1') ?? '{}').player);
