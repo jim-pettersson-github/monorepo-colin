@@ -21,7 +21,8 @@ jobs:
     timeout-minutes: 10
     env:
       FTP_SERVER: ftp.cltr9p7bv.service.one
-      FTP_USERNAME: cltr9p7bv_ftp
+      # The games FTP user starts in the games.charliecare.se webroot; the main user sees all webroots.
+      FTP_USERS: cltr9p7bv_games cltr9p7bv_ftp
       FTP_DIR: webroots/0e182b4e
       SITE: https://games.charliecare.se
     steps:
@@ -36,7 +37,8 @@ jobs:
         env:
           LFTP_PASSWORD: ${{ secrets.GAMES_FTP_PASSWORD }}
         run: |
-          lftp <<LFTP
+          upload() {
+            lftp <<LFTP
           set cmd:fail-exit yes
           set net:timeout 30
           set net:max-retries 2
@@ -44,11 +46,18 @@ jobs:
           set ftp:ssl-protect-data true
           set ssl:use-sni true
           set ssl:verify-certificate true
-          open --user "$FTP_USERNAME" --env-password "ftp://$FTP_SERVER"
-          cd "$FTP_DIR"
+          open --user "$1" --env-password "ftp://$FTP_SERVER"
+          cls -1 > /dev/null
+          cd "$FTP_DIR" || echo "Already in the games webroot"
           mirror --reverse --transfer-all --no-perms --exclude-glob *.sqlite* game-server/public/ ./
           bye
           LFTP
+          }
+          for user in $FTP_USERS; do
+            if upload "$user"; then echo "Uploaded as $user"; exit 0; fi
+            echo "Upload as $user failed"
+          done
+          exit 1
       - name: Verify the live server
         run: |
           curl --fail --silent --show-error --max-time 30 "$SITE/api.php?a=health" | tee "$RUNNER_TEMP/health.json"

@@ -34,4 +34,4 @@ The Charlie for Speed Playwright tests start this server themselves.
 
 ## Deploy
 
-`.github/workflows/game-server.yml` uploads `public/` over FTPS to the `games.charliecare.se` webroot (`webroots/0e182b4e`) on pushes to `main` that change this folder. It then checks `?a=health` and that the database cannot be downloaded. The FTP host and user are set in the workflow; the password is the `GAMES_FTP_PASSWORD` repository secret. The upload never overwrites the live database.
+`.github/workflows/game-server.yml` uploads `public/` over FTPS to the `games.charliecare.se` webroot (`webroots/0e182b4e`) on pushes to `main` that change this folder. It then checks `?a=health` and that the database cannot be downloaded. The FTP host and users are set in the workflow (it tries the games user, then the main user); the password is the `GAMES_FTP_PASSWORD` repository secret. The upload never overwrites the live database.
