@@ -117,3 +117,171 @@ test('career: a full cup pays prizes, crowns a winner and rivals spend their win
   console.log(career.news.join(' | '));
   expect(rivalUpgrades).toBeGreaterThan(0);
 });
+
+import { NetworkPlay } from '../src/game/network-play';
+import type { PeerLink } from '../src/game/peer-link';
+
+test('network controls keep edge actions once, pause all peers and reject stale round input', () => {
+  type Command = { hold: boolean; action: boolean };
+  type State = { x: number };
+  class Link {
+    status = 'connected';
+    error = '';
+    other?: Link;
+    messages = new Set<(v: unknown) => void>();
+    statuses = new Set<() => void>();
+    send(v: unknown) {
+      for (const listener of this.other?.messages ?? []) listener(structuredClone(v));
+      return true;
+    }
+    onMessage(f: (v: unknown) => void) {
+      this.messages.add(f);
+      return () => {
+        this.messages.delete(f);
+      };
+    }
+    subscribe(f: () => void) {
+      this.statuses.add(f);
+      return () => {
+        this.statuses.delete(f);
+      };
+    }
+    close() {
+      this.status = 'closed';
+      for (const f of this.other?.statuses ?? []) f();
+    }
+  }
+  const a = new Link(),
+    b = new Link();
+  a.other = b;
+  b.other = a;
+  let received: State = { x: 0 };
+  const options = {
+    snapshot: () => ({ x: 12 }),
+    apply: (s: State) => {
+      received = s;
+    },
+    validState: (s: unknown): s is State => !!s && typeof s === 'object' && 'x' in s && typeof s.x === 'number' && Number.isFinite(s.x),
+    validCommand: (c: unknown): c is Command =>
+      !!c && typeof c === 'object' && 'hold' in c && typeof c.hold === 'boolean' && 'action' in c && typeof c.action === 'boolean',
+    neutral: () => ({ hold: false, action: false }),
+    merge: (p: Command, n: Command) => ({ hold: n.hold, action: p.action || n.action }),
+    afterConsume: (c: Command) => ({ ...c, action: false }),
+    clear: () => {},
+    changed: () => {},
+  };
+  const host = new NetworkPlay({ ...options, connections: [{ slot: 1, link: a as unknown as PeerLink }], localSlot: 0 });
+  const guest = new NetworkPlay({ ...options, connections: [{ slot: 1, link: b as unknown as PeerLink }], localSlot: 1 });
+  guest.tick(0.05, { hold: true, action: true }, true);
+  expect(host.consume(1)).toEqual({ hold: true, action: true });
+  expect(host.consume(1)).toEqual({ hold: true, action: false });
+  host.tick(0.05, { hold: false, action: false }, true);
+  expect(received.x).toBe(12);
+  guest.setForeground(false);
+  expect(host.paused).toBe(true);
+  expect(host.canResume).toBe(false);
+  expect(guest.paused).toBe(true);
+  guest.setForeground(true);
+  host.resume();
+  expect(host.paused).toBe(false);
+  expect(guest.paused).toBe(false);
+  expect(host.consume(1).hold).toBe(false);
+  host.nextRound();
+  b.send({ kind: 'input', epoch: 0, command: { hold: true, action: true }, ready: true });
+  expect(host.consume(1)).toEqual({ hold: false, action: false });
+  b.send({ kind: 'input', epoch: 1, command: { hold: true, action: true }, ready: true });
+  expect(host.consume(1).action).toBe(true);
+  b.send({ kind: 'input', epoch: 1, command: { hold: 'bad', action: true }, ready: true });
+  expect(host.consume(1).action).toBe(false);
+  host.close();
+  guest.close();
+});
+
+import { createNetworkRace, NetworkRace, validRaceConfig, validRaceFrame } from '../src/game/network-race';
+
+test('network racing advances the countdown, separates human controls and validates compact frames', () => {
+  const config = {
+    settings: { trackId: 'vaxjo', carId: 'sting', laps: 1, difficulty: 'easy' as const, transmission: 'auto' as const },
+    cars: ['sting', 'nxr'],
+    seed: 7,
+  };
+  expect(validRaceConfig(config)).toBe(true);
+  expect(validRaceConfig({ ...config, seed: NaN })).toBe(false);
+  const race = createNetworkRace(config);
+  expect(race.racers.filter((r) => r.isPlayer)).toHaveLength(2);
+  expect(validRaceConfig({ ...config, cars: ['sting'] })).toBe(false);
+  expect(validRaceConfig({ ...config, cars: ['nxr', 'sting'] })).toBe(false);
+  expect(validRaceConfig({ ...config, cars: Array(9).fill('sting') })).toBe(false);
+  const six = { ...config, cars: ['sting', 'nxr', 'arrow', 'xk', 'dbs', 'sting'] };
+  expect(validRaceConfig(six)).toBe(true);
+  const crowd = createNetworkRace(six, 4);
+  const humans = crowd.racers.filter((r) => r.isPlayer);
+  expect(humans.map((r) => r.driverName).sort()).toEqual(['Spelare 1', 'Spelare 2', 'Spelare 3', 'Spelare 4', 'Spelare 5', 'Spelare 6']);
+  expect(crowd.player.driverName).toBe('Spelare 5');
+  expect(crowd.player.spec.id).toBe('dbs');
+  expect(crowd.racers.filter((r) => !r.isPlayer)).toHaveLength(2);
+  const session = new NetworkRace(config, [], 0);
+  for (let i = 0; i < 100; i++) session.advance(0.05, { throttle: 0, brake: 0, steer: 0, handbrake: false }, true);
+  expect(session.race.phase).toBe('racing');
+  expect(session.race.player.state.vx).toBe(0);
+  for (let i = 0; i < 100; i++) session.advance(0.05, { throttle: 1, brake: 0, steer: 0, handbrake: false }, true);
+  expect(Math.hypot(session.race.player.state.vx, session.race.player.state.vz)).toBeGreaterThan(5);
+  const frame = {
+    phase: race.phase,
+    countdown: race.countdown,
+    time: race.time,
+    finishedAt: race.finishedAt,
+    racers: race.racers.map(({ state, lap, lapStart, lastLap, bestLap, finishTime, position }) => ({
+      state,
+      lap,
+      lapStart,
+      lastLap,
+      bestLap,
+      finishTime,
+      position,
+    })),
+  };
+  expect(validRaceFrame(frame, race)).toBe(true);
+  frame.racers[0].state.index = 999999;
+  expect(validRaceFrame(frame, race)).toBe(false);
+  session.dispose();
+});
+
+import { axles, buildBodyShape, WHEEL_RADIUS } from '../src/render/car-body';
+import { designs } from '../src/render/car-designs';
+
+test('all redesigned bodies have outward bumper caps, finite geometry and clearance above their tyres', () => {
+  for (const car of cars) {
+    const design = designs[car.id];
+    const shape = buildBodyShape(design, car.length, car.width);
+    for (const geometry of [shape.body, shape.glass]) {
+      const positions = geometry.getAttribute('position'),
+        normals = geometry.getAttribute('normal');
+      expect([...positions.array].every(Number.isFinite), car.id).toBe(true);
+      expect([...normals.array].every(Number.isFinite), car.id).toBe(true);
+      expect(
+        geometry.index?.array.every((i) => i < positions.count),
+        car.id,
+      ).toBe(true);
+      geometry.computeBoundingBox();
+      expect(geometry.boundingBox?.min.y, car.id).toBeGreaterThanOrEqual(0.2);
+    }
+    const positions = shape.body.getAttribute('position'),
+      normals = shape.body.getAttribute('normal');
+    let frontCap = 0,
+      rearCap = 0;
+    for (let i = 0; i < positions.count; i++) {
+      if (positions.getZ(i) > car.length * 0.499 && Math.abs(positions.getX(i)) < 0.00001)
+        expect(positions.getY(i), `${car.id}: cap must follow the sunken bonnet`).toBeLessThanOrEqual(shape.section(positions.getZ(i)).crown + 0.013);
+      if (positions.getZ(i) > car.length * 0.499 && normals.getZ(i) > 0.98) frontCap++;
+      if (positions.getZ(i) < -car.length * 0.499 && normals.getZ(i) < -0.98) rearCap++;
+    }
+    expect(frontCap, car.id).toBeGreaterThan(3);
+    expect(rearCap, car.id).toBeGreaterThan(3);
+    const radius = WHEEL_RADIUS * (design.wheelScale ?? 1),
+      wheelbase = axles(design, car.length);
+    for (const z of [wheelbase.front, wheelbase.rear]) expect(shape.section(z).bottom, car.id).toBeGreaterThan(radius * 2 + 0.03);
+    shape.body.dispose();
+    shape.glass.dispose();
+  }
+});

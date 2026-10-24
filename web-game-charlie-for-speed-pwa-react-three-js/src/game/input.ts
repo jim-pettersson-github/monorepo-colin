@@ -32,6 +32,8 @@ export class DriverInput {
   private padPressed = new Set<number>();
   private onAction: (action: InputAction) => void;
   private touch: TouchState;
+  private assignedPad?: { index: number; id: string };
+  private disconnected = false;
 
   constructor(onAction: (action: InputAction) => void, touch: TouchState) {
     this.onAction = onAction;
@@ -64,8 +66,16 @@ export class DriverInput {
     let brake = key('ArrowDown', 'KeyS') || this.touch.brake ? 1 : 0;
     let handbrake = key('Space') || this.touch.handbrake;
 
-    const pad = navigator.getGamepads?.().find((candidate) => candidate?.connected);
-    if (pad) {
+    const pads = navigator.getGamepads?.() ?? [];
+    const pad = this.assignedPad ? pads[this.assignedPad.index] : pads.find((candidate) => candidate?.connected);
+    if (pad?.connected && !this.assignedPad) this.assignedPad = { index: pad.index, id: pad.id };
+    if (!this.available && !this.disconnected) {
+      this.disconnected = true;
+      this.clear();
+      this.onAction('pause');
+    }
+    if (this.available) this.disconnected = false;
+    if (pad?.connected && this.available) {
       const stick = pad.axes[0] ?? 0;
       if (Math.abs(stick) > 0.15) steer = Math.sign(stick) * ((Math.abs(stick) - 0.15) / 0.85);
       if (pad.buttons[14]?.pressed) steer = -1;
@@ -88,5 +98,10 @@ export class DriverInput {
     window.removeEventListener('keydown', this.keyDown);
     window.removeEventListener('keyup', this.keyUp);
     window.removeEventListener('blur', this.clear);
+  }
+  get available() {
+    if (!this.assignedPad) return true;
+    const pad = navigator.getGamepads?.()[this.assignedPad.index];
+    return !!pad?.connected && pad.id === this.assignedPad.id;
   }
 }

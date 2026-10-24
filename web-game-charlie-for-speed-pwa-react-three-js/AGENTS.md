@@ -21,3 +21,5 @@ Run commands here with Node 22.12+. npm ci, npm start (4014), npm run check, npm
 ## PWA and scope
 
 Keep VITE_BASE_PATH support, offline precaching and user-requested updates without forced refresh. Charlie-specific storage and caches. GitHub Pages publishes the game under `/charlie-fs/`; the elevator service worker excludes that path from its navigation fallback, so keep both in sync. Do not change the pre-commit hook. Do not commit or push unless requested. Distinguish implemented behavior from future plans.
+
+WebRTC quick races for 2–8 devices (one player per device, never split screen) use two-way QR signaling, no servers, host-owned simulation and per-device cameras. Preserve local career/records during network play. Pause all peers on background/input/connection loss.

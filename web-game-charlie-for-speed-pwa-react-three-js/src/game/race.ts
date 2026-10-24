@@ -144,7 +144,7 @@ function completeLap(race: Race, racer: Racer) {
 
   if (racer.lap >= race.settings.laps && !racer.finishTime) {
     racer.finishTime = race.time;
-    if (racer.isPlayer) {
+    if (racer.isPlayer && race.racers.filter((r) => r.isPlayer).every((r) => r.finishTime > 0)) {
       race.phase = 'finished';
       race.finishedAt = race.time;
       showBanner(race, racer.position === 1 ? 'SEGER!' : 'MÅLGÅNG', 4);
@@ -164,7 +164,7 @@ function trackLaps(race: Race, racer: Racer, previousS: number) {
   else if (previousS < length * 0.25 && s > length * 0.75) racer.lap--;
 }
 
-export function stepRace(race: Race, playerControls: Controls) {
+export function stepRace(race: Race, playerControls: Controls, humanControls?: ReadonlyMap<number, Controls>) {
   const { track, settings } = race;
   const frozen = race.phase === 'countdown';
 
@@ -182,7 +182,7 @@ export function stepRace(race: Race, playerControls: Controls) {
   for (const racer of race.racers) {
     const previousS = racer.state.s;
     const autopilot = !racer.isPlayer || racer.finishTime > 0;
-    let controls = playerControls;
+    let controls = humanControls?.get(racer.id) ?? playerControls;
 
     if (autopilot) {
       const gap = racer.isPlayer ? 0 : raceDistance(race, racer) - playerDistance;

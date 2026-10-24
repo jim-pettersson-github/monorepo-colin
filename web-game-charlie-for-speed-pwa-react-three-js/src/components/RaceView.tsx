@@ -3,14 +3,17 @@ import { RaceAudio } from '../game/audio';
 import { POINTS } from '../game/career';
 import { carName } from '../game/cars';
 import { DriverInput, type InputAction, type TouchState } from '../game/input';
+import type { NetworkRace } from '../game/network-race';
 import { shift } from '../game/physics';
 import { createRace, type Entrant, formatTime, type Race, type ResultRow, raceResults, resetRacer, STEP, stepRace } from '../game/race';
 import { type Settings, saveLapRecord } from '../game/storage';
 import { cameraModes, RaceRenderer } from '../render/race-renderer';
+import { FullscreenButton } from './FullscreenButton';
 import { Hud, type HudController } from './Hud';
 import { TouchControls } from './TouchControls';
 
 type Props = {
+  network?: NetworkRace;
   settings: Settings;
   onSettings: (settings: Settings) => void;
   onExit: (screen: 'title' | 'garage') => void;
@@ -22,10 +25,11 @@ type Outcome = { rows: ResultRow[]; bestLap: number; record: boolean };
 
 const cameraNames = { chase: 'Jakt', far: 'Lång jakt', bumper: 'Stötfångare' };
 
-export function RaceView({ settings, onSettings, onExit, career }: Props) {
+export function RaceView({ settings, onSettings, onExit, career, network }: Props) {
   const [attempt, setAttempt] = useState(0);
-  const [race, setRace] = useState<Race>(() => createRace(settings, undefined, career?.field));
+  const [race, setRace] = useState<Race>(() => network?.race ?? createRace(settings, undefined, career?.field));
   const [paused, setPaused] = useState(false);
+  const [, refreshNetwork] = useState(0);
   const [outcome, setOutcome] = useState<Outcome>();
   const [renderError, setRenderError] = useState(false);
   const [touchMode, setTouchMode] = useState(() => matchMedia('(pointer: coarse)').matches);
@@ -34,18 +38,26 @@ export function RaceView({ settings, onSettings, onExit, career }: Props) {
   const pausedRef = useRef(false);
   const settingsRef = useRef(settings);
   const rendererRef = useRef<RaceRenderer>(undefined);
+  const networkDisposal = useRef<ReturnType<typeof setTimeout>>(undefined);
   const audioRef = useRef<RaceAudio>(undefined);
   const inputRef = useRef<DriverInput>(undefined);
   const touch = useRef<TouchState>({ left: false, right: false, throttle: false, brake: false, handbrake: false });
   const actionRef = useRef<(action: InputAction) => void>(() => {});
   settingsRef.current = settings;
 
-  const setPausedState = (value: boolean) => {
+  const applyPausedState = (value: boolean) => {
     pausedRef.current = value;
     setPaused(value);
     inputRef.current?.clear();
     if (value) audioRef.current?.suspend();
     else audioRef.current?.start();
+  };
+
+  const setPausedState = (value: boolean) => {
+    if (network) {
+      if (value) network.wire.pause();
+      else network.wire.resume();
+    } else applyPausedState(value);
   };
 
   actionRef.current = (action) => {
@@ -60,6 +72,10 @@ export function RaceView({ settings, onSettings, onExit, career }: Props) {
       renderer.mode = next;
       onSettings({ ...settingsRef.current, camera: next });
     }
+    if (network && ['reset', 'shiftUp', 'shiftDown'].includes(action)) {
+      network.action(action as 'reset' | 'shiftUp' | 'shiftDown');
+      return;
+    }
     if (action === 'reset' && race.phase === 'racing') resetRacer(race, race.player);
     if (action === 'mute') {
       const sound = !settingsRef.current.sound;
@@ -72,6 +88,7 @@ export function RaceView({ settings, onSettings, onExit, career }: Props) {
   // setPausedState only touches refs and stable setters, so the loop restarts only for a new race.
   // biome-ignore lint/correctness/useExhaustiveDependencies: see above
   useEffect(() => {
+    clearTimeout(networkDisposal.current);
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -85,7 +102,7 @@ export function RaceView({ settings, onSettings, onExit, career }: Props) {
     }
     renderer.mode = settingsRef.current.camera;
     rendererRef.current = renderer;
-    if (import.meta.env.DEV) Object.assign(window, { charlieRace: race, charlieRenderer: renderer });
+    if (import.meta.env.DEV) Object.assign(window, { charlieRace: race, charlieRenderer: renderer, charlieNetwork: network });
     const audio = new RaceAudio();
     audio.muted = !settingsRef.current.sound;
     audio.start();
@@ -103,14 +120,16 @@ export function RaceView({ settings, onSettings, onExit, career }: Props) {
     let accumulator = 0;
     let lastBeep = 4;
     let finishSeen = false;
+    let finishTimer: ReturnType<typeof setTimeout> | undefined;
 
     const loop = (now: number) => {
       const delta = Math.min(0.1, (now - last) / 1000);
       last = now;
       const controls = input.read();
 
+      if (network) network.advance(delta, controls, input.available);
       if (!pausedRef.current) {
-        accumulator += delta;
+        if (!network) accumulator += delta;
         while (accumulator >= STEP) {
           stepRace(race, controls);
           accumulator -= STEP;
@@ -133,22 +152,69 @@ export function RaceView({ settings, onSettings, onExit, career }: Props) {
       if (race.phase === 'finished' && !finishSeen) {
         finishSeen = true;
         const bestLap = race.player.bestLap;
-        const record = saveLapRecord(race.track.id, bestLap, race.player.spec.id);
-        window.setTimeout(() => setOutcome({ rows: raceResults(race), bestLap, record }), 3500);
+        const record = !network && saveLapRecord(race.track.id, bestLap, race.player.spec.id);
+        finishTimer = setTimeout(
+          () =>
+            setOutcome({
+              rows: raceResults(race).map((row) => (network ? { ...row, isPlayer: row.driverName === `Spelare ${network.localSlot + 1}` } : row)),
+              bestLap,
+              record,
+            }),
+          3500,
+        );
+      }
+      if (network && pausedRef.current) {
+        renderer.render(delta);
+        hud.current?.update(race);
+        canvas.dataset.rendered = 'true';
       }
       frame = requestAnimationFrame(loop);
     };
+    let epoch = network?.wire.epoch;
+    if (network)
+      network.onChange = () => {
+        refreshNetwork((revision) => revision + 1);
+        if (epoch !== network.wire.epoch) {
+          clearTimeout(finishTimer);
+          epoch = network.wire.epoch;
+          finishSeen = false;
+          lastBeep = 4;
+          setOutcome(undefined);
+        }
+        if (pausedRef.current !== network.wire.paused) applyPausedState(network.wire.paused);
+        else setPaused(network.wire.paused);
+      };
+    network?.onChange?.();
     frame = requestAnimationFrame(loop);
 
     const pauseWhenHidden = () => {
+      if (network) {
+        network.wire.setForeground(!document.hidden);
+        return;
+      }
       if (document.hidden && !pausedRef.current && race.phase !== 'finished') setPausedState(true);
     };
+    const blur = () => network?.wire.setForeground(false);
+    const focus = () => {
+      if (!document.hidden) network?.wire.setForeground(true);
+    };
+    window.addEventListener('blur', blur);
+    window.addEventListener('focus', focus);
+    window.addEventListener('pagehide', blur);
     const noticeTouch = () => setTouchMode(true);
     document.addEventListener('visibilitychange', pauseWhenHidden);
     window.addEventListener('touchstart', noticeTouch, { once: true });
 
     return () => {
       cancelAnimationFrame(frame);
+      clearTimeout(finishTimer);
+      if (network) {
+        network.onChange = undefined;
+        networkDisposal.current = setTimeout(() => network.dispose(), 0);
+      }
+      window.removeEventListener('blur', blur);
+      window.removeEventListener('focus', focus);
+      window.removeEventListener('pagehide', blur);
       observer.disconnect();
       document.removeEventListener('visibilitychange', pauseWhenHidden);
       window.removeEventListener('touchstart', noticeTouch);
@@ -160,6 +226,10 @@ export function RaceView({ settings, onSettings, onExit, career }: Props) {
   }, [race]);
 
   const restart = () => {
+    if (network) {
+      network.restart();
+      return;
+    }
     setOutcome(undefined);
     setPausedState(false);
     setAttempt((value) => value + 1);
@@ -173,6 +243,10 @@ export function RaceView({ settings, onSettings, onExit, career }: Props) {
       <canvas ref={canvasRef} className={settings.retro ? 'race-canvas retro' : 'race-canvas'} aria-label={`Race på ${race.track.name}`} />
       {renderError && <p className='render-error'>Kunde inte starta 3D-grafiken i den här webbläsaren.</p>}
       <Hud race={race} controller={hud} />
+      <div className='race-fullscreen'>
+        <FullscreenButton compact />
+      </div>
+      {network && <span className='network-race-label'>WI-FI · DU ÄR P{network.localSlot + 1}</span>}
 
       <div className='race-buttons'>
         <button type='button' className='round-button' aria-label='Pausa' onClick={() => setPausedState(true)}>
@@ -199,12 +273,15 @@ export function RaceView({ settings, onSettings, onExit, career }: Props) {
             <p>
               {carName(player.spec)} · {race.track.name} · Varv {Math.max(1, player.lap + 1)}/{race.settings.laps}
             </p>
-            <button type='button' className='primary' onClick={() => setPausedState(false)}>
+            {network && <p role='status'>{network.wire.reason}</p>}
+            <button type='button' className='primary' disabled={network && !network.wire.canResume} onClick={() => setPausedState(false)}>
               Fortsätt
             </button>
-            <button type='button' onClick={restart}>
-              Starta om
-            </button>
+            {(!network || network.localSlot === 0) && (
+              <button type='button' disabled={network && !network.wire.canResume} onClick={restart}>
+                Starta om
+              </button>
+            )}
             <button
               type='button'
               onClick={() => {
@@ -276,12 +353,18 @@ export function RaceView({ settings, onSettings, onExit, career }: Props) {
               </div>
             ) : (
               <div className='panel-actions'>
-                <button type='button' className='primary' onClick={restart}>
-                  Kör igen
-                </button>
-                <button type='button' onClick={() => onExit('garage')}>
-                  Byt bil
-                </button>
+                {!network || network.localSlot === 0 ? (
+                  <button type='button' className='primary' disabled={network && !network.wire.canResume} onClick={restart}>
+                    Kör igen
+                  </button>
+                ) : (
+                  <p>Väntar på värden.</p>
+                )}
+                {!network && (
+                  <button type='button' onClick={() => onExit('garage')}>
+                    Byt bil
+                  </button>
+                )}
                 <button type='button' onClick={() => onExit('title')}>
                   Huvudmeny
                 </button>

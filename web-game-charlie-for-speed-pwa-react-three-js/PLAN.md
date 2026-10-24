@@ -2,6 +2,8 @@
 
 ## Done
 
+- WebRTC races for 2–8 devices with two-way QR pairing, guest car choice, shared pause and separate local cameras; career remains local.
+
 - Six tracks: two circuits, two city tracks and two country roads.
 - Career mode with cups, prize money, car classes, upgrades and rivals who upgrade too.
 - Fourteen fictional 80s/90s supercar lookalikes with distinct stats and silhouettes.

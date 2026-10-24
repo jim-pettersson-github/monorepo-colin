@@ -15,8 +15,15 @@ An arcade sports-car racer inspired by late-1990s supercar racing games, with mo
 - **Controls:** keyboard, standard gamepads and on-screen touch pads on phones.
 - **Sound:** synthesised engine, tyre squeal, impacts and start beeps.
 - **Effects:** tyre smoke when sliding, dust on the grass, sparks along the barriers, sun lens flare and darker light inside tunnels.
+- **Body designs:** fourteen independent width/elevation profiles, with angular wedge, rounded fastback, muscle-car and prototype sections; different canopy positions, roof widths, wheel sizes, rear tyre widths and sculpted intake surrounds. The Velox has raised round headlamp pods, the Stallion has side exhausts, and the NX-R has a black roof. `node scripts/capture-car-lineup.mjs` captures identical-paint, side-profile and colour comparisons while the development server runs on 4014.
 - **Graphics:** filmic tone mapping, sky reflections, real-time sun shadows on desktop and detailed textures. **Retro mode** (Inställningar) switches to a late-90s look: half resolution, chunky pixels and flat shading.
 - **Performance:** static scenery and each car body are merged into a few draw calls per material, render resolution adapts to the frame rate, and high-density phone screens skip multisampling.
+
+## Wi-Fi multiplayer
+
+Choose Spela via Wi-Fi to race on 2–8 devices, one player per device, with AI drivers filling the rest of the eight-car grid. The host picks the number of players, the track, the laps and their own car; each guest picks their car on their own device. The host pairs with one guest at a time by exchanging QR codes, and every guest confirms readiness; changed settings or car picks require confirmation again. Camera scanning, QR-image upload and manual code copying work. Each device controls its own car and follows its own chase/bumper camera with keyboard, touch or a browser-visible gamepad.
+
+The host owns physics and results. Everyone pauses on backgrounding, controller loss, stale data or disconnection. All players finish, with a 30-second allowance after the first human finish before estimated results for an unfinished driver. The host can restart on the same connection. Quick Wi-Fi races do not modify career progress or lap records. No game server, STUN, TURN or signaling service is used; use a reachable LAN and avoid isolated guest networks. After loading the PWA, pairing and play work without HTTP services. Physical desktop/phone LAN and gamepad checks remain a separate review step.
 
 ## Controls
 

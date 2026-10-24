@@ -907,3 +907,66 @@ h3 {
     overflow-y: auto;
   }
 }
+
+/* Bottom centre stays clear of the dial, the map and the touch pads in every layout. */
+.network-race-label {
+  position: absolute;
+  bottom: max(12px, env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  padding: 6px 10px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 12px;
+  border-radius: 5px;
+  pointer-events: none;
+}
+
+/* Fullscreen sits above the minimap; the times and map shift down to make room when it shows. */
+.race-fullscreen {
+  position: absolute;
+  top: max(10px, env(safe-area-inset-top));
+  right: max(14px, env(safe-area-inset-right));
+}
+
+.race-fullscreen .round-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 48px;
+  padding: 0 14px;
+  border-radius: 24px;
+  background: rgb(11 15 30 / 0.6);
+  font-size: 1.3rem;
+}
+
+.race-fullscreen .fullscreen-error {
+  position: absolute;
+  top: 54px;
+  right: 0;
+  width: 220px;
+  font-size: 0.8rem;
+}
+
+.race-view:has(.race-fullscreen .round-control) .hud-times {
+  top: calc(max(10px, env(safe-area-inset-top)) + 58px);
+}
+
+@media (max-width: 700px) and (orientation: portrait) {
+  .race-view:has(.race-fullscreen .round-control):has(.touch-controls) .race-buttons {
+    top: calc(max(10px, env(safe-area-inset-top)) + 164px);
+  }
+}
+
+/* Short landscape screens: fullscreen joins the top-centre button row so the map keeps its place above the pads. */
+@media (max-height: 500px) {
+  .race-fullscreen {
+    right: auto;
+    left: calc(50% + 88px);
+  }
+
+  .race-view:has(.race-fullscreen .round-control) .hud-times {
+    top: max(10px, env(safe-area-inset-top));
+  }
+}

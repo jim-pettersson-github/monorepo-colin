@@ -1,6 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const baseURL = `http://127.0.0.1:4015${process.env.VITE_BASE_PATH || '/'}`;
+const port = Number(process.env.CFS_TEST_PORT || 4015);
+const baseURL = `http://127.0.0.1:${port}${process.env.VITE_BASE_PATH || '/'}`;
 
 export default defineConfig({
   testDir: './tests',
@@ -19,7 +20,7 @@ export default defineConfig({
     { name: 'phone-landscape', testIgnore: '**/rules.spec.ts', use: { ...devices['Pixel 7'], viewport: { width: 915, height: 412 } } },
   ],
   webServer: {
-    command: 'npm run build && npm run preview',
+    command: `npm run build && npm run preview -- --port ${port}`,
     url: baseURL,
     reuseExistingServer: false,
   },

@@ -4,7 +4,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import type { CarSpec } from '../game/cars';
 import type { CarState } from '../game/physics';
 import { batchStatic } from './batch';
-import { ARCH_RADIUS, axles, buildBodyShape, heightAt, WHEEL_RADIUS } from './car-body';
+import { ARCH_RADIUS, axles, buildBodyShape, WHEEL_RADIUS } from './car-body';
 import { designs, type RimStyle } from './car-designs';
 import { plateTexture } from './car-textures';
 import { glowTexture, shadowTexture } from './textures';
@@ -95,6 +95,8 @@ export function buildCarModel(spec: CarSpec, headlightsOn = false): CarModel {
   const features = new Set(design.features);
   const shape = buildBodyShape(design, length, width);
   const { front, rear } = axles(design, length);
+  const wheelScale = design.wheelScale ?? 1;
+  const wheelRadius = WHEEL_RADIUS * wheelScale;
   const roofTop = Math.max(...design.cabin.map(([, v]) => v));
   const [rearBase, roofRear, roofFront, screenBase] = design.cabin;
   const group = new THREE.Group();
@@ -142,26 +144,76 @@ export function buildCarModel(spec: CarSpec, headlightsOn = false): CarModel {
 
   // Body and glasshouse with painted roof and pillars.
   add(shape.body, paint);
-  add(shape.glass, [glass, paint]);
+  const roofPaint = features.has('blackRoof') ? new THREE.MeshPhysicalMaterial({ color: '#111923', metalness: 0.25, roughness: 0.2, clearcoat: 1 }) : paint;
+  if (roofPaint !== paint) materials.push(roofPaint);
+  add(shape.glass, [glass, roofPaint]);
 
   // Black rocker trim between the wheel arches.
   const sillZ = (front + rear) / 2;
-  const sillLength = front - rear - ARCH_RADIUS * 2.1;
+  const sillLength = front - rear - ARCH_RADIUS * wheelScale * 2.1;
   const sill = shape.section(sillZ);
   for (const side of [-1, 1])
     rounded(0.05, 0.09, sillLength, features.has('skirts') ? trim : black, side * (sill.halfWidth + 0.005), sill.bottom + 0.05, sillZ);
 
-  // Nose: intake with mesh, plate, indicators and optional splitter.
-  const noseZ = nose - 0.08;
-  const nosePart = shape.section(noseZ);
-  rounded(nosePart.halfWidth * 1.35, 0.13, 0.12, black, 0, nosePart.bottom + 0.11, noseZ, 0, 0, 0.03);
-  for (let i = -3; i <= 3; i++) rounded(0.012, 0.11, 0.02, trim, i * nosePart.halfWidth * 0.18, nosePart.bottom + 0.11, noseZ + 0.065);
-  add(new THREE.PlaneGeometry(0.42, 0.1), plate, 0, nosePart.bottom + 0.11, noseZ + 0.08);
-  if (features.has('splitter')) rounded(width * 0.9, 0.035, 0.28, black, 0, nosePart.bottom - 0.01, nose - 0.05);
+  // Sculpted intake surrounds sit in front of the closed nose, with dark recessed throats.
+  const noseZ = nose + 0.012;
+  const nosePart = shape.section(nose);
+  const intake = (x: number, y: number, w: number, h: number, oval: boolean, metal = false) => {
+    const outline = (w: number, h: number) => {
+      const p = new THREE.Shape();
+      if (oval) p.absellipse(0, 0, w / 2, h / 2, 0, Math.PI * 2, false);
+      else {
+        const r = Math.min(h * 0.25, w * 0.12);
+        p.moveTo(-w / 2 + r, -h / 2);
+        p.lineTo(w / 2 - r, -h / 2);
+        p.quadraticCurveTo(w / 2, -h / 2, w / 2, -h / 2 + r);
+        p.lineTo(w / 2, h / 2 - r);
+        p.quadraticCurveTo(w / 2, h / 2, w / 2 - r, h / 2);
+        p.lineTo(-w / 2 + r, h / 2);
+        p.quadraticCurveTo(-w / 2, h / 2, -w / 2, h / 2 - r);
+        p.lineTo(-w / 2, -h / 2 + r);
+        p.quadraticCurveTo(-w / 2, -h / 2, -w / 2 + r, -h / 2);
+      }
+      return p;
+    };
+    const outer = outline(w, h),
+      inner = outline(w - 0.045, h - 0.035);
+    outer.holes.push(new THREE.Path(inner.getPoints(24)));
+    add(new THREE.ShapeGeometry(inner), black, x, y, noseZ + 0.005);
+    add(
+      new THREE.ExtrudeGeometry(outer, { depth: 0.055, bevelEnabled: true, bevelThickness: 0.006, bevelSize: 0.004, bevelSegments: 1, curveSegments: 12 }),
+      metal ? chrome : paint,
+      x,
+      y,
+      noseZ,
+    );
+    for (let i = -1; i <= 1; i++) rounded(w * 0.77, 0.008, 0.008, trim, x, y + i * h * 0.2, noseZ + 0.012);
+  };
+  const fw = nosePart.halfWidth;
+  const fy = nosePart.bottom + 0.12;
+  if (design.face === 'oval') {
+    intake(0, fy, fw * 1.42, 0.23, true, spec.id === 'xk');
+    for (const side of [-1, 1]) intake(side * fw * 0.85, fy, fw * 0.2, 0.13, false);
+  } else if (design.face === 'wide') {
+    intake(0, fy + 0.025, fw * 1.72, 0.23, false, spec.id === 'dbs');
+  } else if (design.face === 'twin') {
+    for (const side of [-1, 1]) intake(side * fw * 0.43, fy, fw * 0.78, 0.22, true);
+  } else if (design.face === 'split') {
+    intake(0, fy, fw * 0.62, 0.16, false);
+    for (const side of [-1, 1]) intake(side * fw * 0.7, fy, fw * 0.49, 0.16, false);
+  } else if (design.face === 'endurance') {
+    intake(0, fy - 0.035, fw * 1.12, 0.15, false);
+    for (const side of [-1, 1]) {
+      intake(side * fw * 0.83, fy + 0.02, fw * 0.26, 0.21, false);
+      rounded(0.035, 0.17, 0.35, black, side * fw * 0.56, nosePart.bottom - 0.025, nose - 0.04);
+    }
+  } else intake(0, fy - 0.015, fw * 1.76, 0.1, false);
+  if (design.face !== 'endurance') add(new THREE.PlaneGeometry(0.29, 0.075), plate, 0, fy - 0.005, noseZ + 0.078);
+  if (features.has('splitter')) rounded(width * 0.96, 0.035, 0.32, black, 0, nosePart.bottom - 0.035, nose - 0.04);
 
   // Headlights by type, sitting on the front of the hood.
-  const lampZ = nose - (design.headlights === 'popup' ? 0.48 : 0.24);
-  const lampX = shape.section(lampZ).halfWidth * 0.6;
+  const lampZ = nose - (design.headlights === 'round' ? 0.55 : design.headlights === 'popup' ? 0.48 : 0.24);
+  const lampX = shape.section(lampZ).halfWidth * (design.headlights === 'round' ? 0.76 : 0.6);
   const lampY = surface(lampZ, 0.65);
   const hoodTilt = -slopeAt(lampZ);
   for (const side of [-1, 1]) {
@@ -169,14 +221,20 @@ export function buildCarModel(spec: CarSpec, headlightsOn = false): CarModel {
     if (design.headlights === 'popup') {
       rounded(0.46, 0.045, 0.34, paint, x, lampY + 0.012, lampZ, hoodTilt);
       rounded(0.44, 0.004, 0.006, black, x, lampY + 0.04, lampZ + 0.14, hoodTilt);
-      rounded(0.26, 0.05, 0.03, amber, side * nosePart.halfWidth * 0.82, nosePart.bottom + 0.24, nose - 0.04);
-      rounded(0.22, 0.05, 0.03, head, side * nosePart.halfWidth * 0.5, nosePart.bottom + 0.24, nose - 0.03);
+      rounded(0.26, 0.05, 0.03, amber, side * nosePart.halfWidth * 0.82, Math.min(nosePart.shoulder - 0.04, fy + 0.13), nose + 0.035);
+      rounded(0.22, 0.05, 0.03, head, side * nosePart.halfWidth * 0.5, Math.min(nosePart.shoulder - 0.04, fy + 0.13), nose + 0.032);
     } else if (design.headlights === 'round') {
-      disc(0.13, 0.05, chrome, x, lampY - 0.02, lampZ, hoodTilt - 0.55);
-      disc(0.11, 0.06, head, x, lampY - 0.01, lampZ + 0.01, hoodTilt - 0.55);
+      const y = shape.section(lampZ).shoulder;
+      const pod = add(new THREE.SphereGeometry(1, 20, 12), paint, x, y - 0.1, lampZ - 0.12);
+      pod.scale.set(0.19, 0.18, 0.34);
+      disc(0.13, 0.04, chrome, x, y - 0.065, lampZ + 0.15, -0.55);
+      disc(0.11, 0.05, head, x, y - 0.065, lampZ + 0.165, -0.55);
     } else if (design.headlights === 'quad') {
       rounded(0.42, 0.13, 0.2, black, x, lampY - 0.05, lampZ, hoodTilt);
       for (const offset of [-0.1, 0.1]) disc(0.055, 0.05, head, x + offset, lampY - 0.04, lampZ + 0.08, hoodTilt);
+    } else if (design.headlights === 'slim') {
+      rounded(0.54, 0.06, 0.16, black, x, lampY + 0.005, lampZ, hoodTilt, side * 0.08);
+      rounded(0.48, 0.025, 0.025, head, x, lampY + 0.015, lampZ + 0.085, hoodTilt);
     } else {
       rounded(0.5, 0.11, 0.26, black, x, lampY - 0.035, lampZ, hoodTilt, 0, 0.04);
       rounded(0.42, 0.025, 0.02, head, x, lampY - 0.01, lampZ + 0.12, hoodTilt);
@@ -214,8 +272,13 @@ export function buildCarModel(spec: CarSpec, headlightsOn = false): CarModel {
   rounded(tailPart.halfWidth * 1.7, 0.1, 0.24, black, 0, tailPart.bottom + 0.03, tailZ + 0.02);
   for (let i = -2; i <= 2; i++) rounded(0.015, 0.09, 0.22, black, i * 0.16, tailPart.bottom - 0.02, tailZ - 0.04);
   for (const side of [-1, 1]) {
-    const pipe = new THREE.CylinderGeometry(0.045, 0.05, 0.16, 16, 1, true);
-    add(pipe, chrome, side * (tailPart.halfWidth * 0.45), tailPart.bottom + 0.06, tailZ - 0.1, Math.PI / 2);
+    if (spec.id === 'stallion') {
+      const pipe = new THREE.CylinderGeometry(0.045, 0.045, (front - rear) * 0.6, 16, 1, true);
+      add(pipe, chrome, side * shape.section(0).halfWidth, 0.29, (front + rear) / 2, Math.PI / 2);
+    } else {
+      const pipe = new THREE.CylinderGeometry(0.045, 0.05, 0.16, 16, 1, true);
+      add(pipe, chrome, side * tailPart.halfWidth * 0.45, tailPart.bottom + 0.06, tailZ - 0.1, Math.PI / 2);
+    }
   }
 
   // Door mirrors and handles.
@@ -231,7 +294,7 @@ export function buildCarModel(spec: CarSpec, headlightsOn = false): CarModel {
 
   // Brake calipers stay put while the wheels spin around them.
   for (const z of [front, rear]) {
-    for (const side of [-1, 1]) rounded(0.05, 0.14, 0.12, caliper, side * (shape.section(z).halfWidth - 0.2), WHEEL_RADIUS + 0.1, z - 0.08, 0, 0, 0.02);
+    for (const side of [-1, 1]) rounded(0.05, 0.14, 0.12, caliper, side * (shape.section(z).halfWidth - 0.2), wheelRadius + 0.1, z - 0.08, 0, 0, 0.02);
   }
 
   // Model-specific details.
@@ -263,10 +326,6 @@ export function buildCarModel(spec: CarSpec, headlightsOn = false): CarModel {
       rounded(width * 0.5, 0.015, 0.04, black, 0, surface(z, 0.3) + 0.012, z);
     }
   }
-  if (features.has('hoodBulge')) {
-    const z = length * 0.22;
-    rounded(width * 0.36, 0.08, length * 0.3, paint, 0, surface(z, 0) + 0.015, z, -slopeAt(z), 0, 0.05);
-  }
   if (features.has('hoodVents')) {
     const z = length * 0.26;
     for (const side of [-1, 1]) rounded(0.22, 0.02, 0.4, black, side * 0.42, surface(z, 0.5) + 0.012, z, -slopeAt(z));
@@ -276,11 +335,6 @@ export function buildCarModel(spec: CarSpec, headlightsOn = false): CarModel {
     rounded(0.32, 0.12, 0.62, paint, 0, roofTop + 0.06, roofZ - 0.2, 0, 0, 0.05);
     rounded(0.24, 0.07, 0.03, black, 0, roofTop + 0.07, roofZ + 0.11);
   }
-  if (features.has('doubleBubble')) {
-    for (const side of [-1, 1])
-      rounded(width * 0.22, 0.04, (roofFront[0] - roofRear[0]) * length, paint, side * width * 0.15, roofTop + 0.02, roofZ, 0, 0, 0.02);
-  }
-
   // Stripes follow the hood, roof and deck but skip the glass.
   if (spec.stripe) {
     const stripe = new THREE.MeshPhysicalMaterial({ color: spec.stripe, metalness: 0.3, roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.05 });
@@ -312,7 +366,7 @@ export function buildCarModel(spec: CarSpec, headlightsOn = false): CarModel {
   }
 
   // Rear wings.
-  const tailTop = heightAt(design.top, -0.47);
+  const tailTop = shape.section(-length * 0.47).crown;
   const wingZ = -nose + 0.32;
   const airfoil = (span: number, chord: number, material: THREE.Material, y: number, z: number, roll = 0, x = 0) => {
     const section = new THREE.Shape();
@@ -335,8 +389,8 @@ export function buildCarModel(spec: CarSpec, headlightsOn = false): CarModel {
       rounded(0.05, 0.38, 0.12, black, side * 0.42, tailTop + 0.19, wingZ);
     }
   } else if (design.wing === 'whale') {
-    rounded(width * 0.72, 0.07, 0.5, paint, 0, heightAt(design.top, -0.42) + 0.11, -length * 0.42, -0.28, 0, 0.03);
-    rounded(width * 0.74, 0.025, 0.05, black, 0, heightAt(design.top, -0.42) + 0.08, -length * 0.42 - 0.26);
+    rounded(width * 0.72, 0.07, 0.5, paint, 0, shape.section(-length * 0.42).crown + 0.11, -length * 0.42, -0.28, 0, 0.03);
+    rounded(width * 0.74, 0.025, 0.05, black, 0, shape.section(-length * 0.42).crown + 0.08, -length * 0.42 - 0.26);
   } else if (design.wing === 'lip') {
     rounded(tailPart.halfWidth * 1.6, 0.04, 0.12, paint, 0, tailTop + 0.02, -nose + 0.1, -0.3);
   } else if (design.wing === 'low') {
@@ -382,8 +436,10 @@ export function buildCarModel(spec: CarSpec, headlightsOn = false): CarModel {
   for (const z of [front, rear]) {
     for (const side of [-1, 1]) {
       const pivot = new THREE.Group();
-      pivot.position.set(side * (shape.section(z).halfWidth - 0.13), WHEEL_RADIUS, z);
+      const tyreWidth = z < 0 ? (design.rearTyreWidth ?? 1) : 1;
+      pivot.position.set(side * (shape.section(z).halfWidth - 0.13 * tyreWidth), wheelRadius, z);
       const spinner = new THREE.Group();
+      spinner.scale.set(tyreWidth, wheelScale, wheelScale);
       const tyre = new THREE.Mesh(wheels.rubber, rubber);
       const metal = new THREE.Mesh(wheels.metal, rim);
       if (side < 0) {
@@ -423,7 +479,7 @@ export function buildCarModel(spec: CarSpec, headlightsOn = false): CarModel {
       const speed = Math.hypot(state.vx, state.vz);
       body.rotation.z = -state.steer * Math.min(1, speed / 45) * 0.03 - Math.min(0.04, state.slip * 0.003) * Math.sign(state.steer);
       body.position.y = state.surface === 'grass' ? Math.sin(state.wheelSpin * 2.3) * 0.02 : 0;
-      for (const spinner of spinners) spinner.rotation.x = state.wheelSpin;
+      for (const spinner of spinners) spinner.rotation.x = state.wheelSpin / wheelScale;
       for (const pivot of steerers) pivot.rotation.y = -state.steer * 0.45;
       for (const glow of brakeGlows) glow.visible = state.braking;
       tail.emissiveIntensity = state.braking ? 2.6 : 0.55;
