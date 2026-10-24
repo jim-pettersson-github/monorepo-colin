@@ -1,6 +1,9 @@
 import type { MatchState } from './model';
 import { attackDirection, clamp, FIELD } from './model';
 
+export const CAMERA_HEIGHT = 54;
+export const CAMERA_DEPTH = 52;
+
 export function matchCameraFrame(state: MatchState, aspect: number, portrait: boolean, preview = false) {
   if (preview) return { x: 0, z: 0, halfHeight: Math.max(52, 64 / aspect) };
   const ball = state.ball;
@@ -22,7 +25,7 @@ export function matchCameraFrame(state: MatchState, aspect: number, portrait: bo
   const horizontalSpan = portrait ? maxZ - minZ : maxX - minX;
   const verticalSpan = portrait ? maxX - minX : maxZ - minZ;
   const halfHeight = clamp(Math.max((horizontalSpan / 2 + 7) / aspect, (verticalSpan / 2 + 8) * 0.82), baseHeight, baseHeight * 1.5);
-  const groundProjection = 65 / Math.hypot(65, portrait ? 50 : 44);
+  const groundProjection = CAMERA_HEIGHT / Math.hypot(CAMERA_HEIGHT, portrait ? 50 : CAMERA_DEPTH);
   const halfGroundX = portrait ? halfHeight / groundProjection : halfHeight * aspect;
   const halfGroundZ = portrait ? halfHeight * aspect : halfHeight / groundProjection;
   const limitX = Math.max(0, FIELD.halfLength - halfGroundX + 5);

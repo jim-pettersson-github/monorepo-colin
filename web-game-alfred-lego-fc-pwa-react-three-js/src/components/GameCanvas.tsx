@@ -20,6 +20,9 @@ export function GameCanvas({ session }: { session: MatchSession }) {
     let frame = 0;
     let previous = performance.now();
     let elapsed = 0;
+    let previousState: typeof session.renderState | undefined;
+    let previousSize = '';
+    let wasPaused = false;
     const sounds = new MatchSoundTracker(session.state);
     const stopPaused = session.subscribe(() => {
       if (session.paused) gameSound.stop();
@@ -28,9 +31,16 @@ export function GameCanvas({ session }: { session: MatchSession }) {
       const dt = Math.min((now - previous) / 1000, 0.1);
       previous = now;
       if (!session.paused) elapsed += dt * (session.state.watching ? session.state.playbackSpeed : 1);
-      const portrait = world.draw(session.renderState, elapsed);
-      if (session.portrait !== portrait) session.input.clear();
-      session.portrait = portrait;
+      const state = session.renderState;
+      const size = `${canvas.clientWidth}:${canvas.clientHeight}`;
+      if (!session.paused || !wasPaused || state !== previousState || size !== previousSize) {
+        const portrait = world.draw(state, elapsed);
+        if (session.portrait !== portrait) session.input.clear();
+        session.portrait = portrait;
+      }
+      previousState = state;
+      previousSize = size;
+      wasPaused = session.paused;
       session.advance(dt);
       gameSound.play(sounds.update(session.state, session.paused));
       frame = requestAnimationFrame(loop);

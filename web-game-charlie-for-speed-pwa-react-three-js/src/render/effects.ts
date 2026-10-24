@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Lensflare, LensflareElement } from 'three/examples/jsm/objects/Lensflare.js';
-import { glowTexture, texture } from './textures';
+import { cloudTexture, glowTexture, texture } from './textures';
 
 function puffTexture() {
   const element = document.createElement('canvas');
@@ -120,12 +120,14 @@ export class Particles {
 
   update(delta: number, viewportHeight: number, fov: number) {
     const { capacity, gravity, growth } = this.options;
+    let active = false;
     for (let i = 0; i < capacity; i++) {
       if (this.ages[i] >= this.lives[i]) {
         this.alphas[i] = 0;
         continue;
       }
       this.ages[i] += delta;
+      active = true;
       const t = this.ages[i] / this.lives[i];
       this.velocities[i * 3 + 1] -= gravity * delta;
       for (let axis = 0; axis < 3; axis++) this.positions[i * 3 + axis] += this.velocities[i * 3 + axis] * delta;
@@ -134,6 +136,8 @@ export class Particles {
       this.sizes[i] += growth * delta;
       this.alphas[i] = Math.max(0, 1 - t) * this.options.opacity;
     }
+    this.points.visible = active;
+    if (!active) return;
     const geometry = this.points.geometry;
     for (const name of ['position', 'color', 'size', 'alpha']) geometry.attributes[name].needsUpdate = true;
     this.material.uniforms.scale.value = viewportHeight / (2 * Math.tan((fov * Math.PI) / 360));
@@ -190,9 +194,23 @@ export function skyEnvironment(renderer: THREE.WebGLRenderer, colors: { top: str
   const sun = new THREE.Mesh(sunGeometry, sunMaterial);
   sun.position.copy(colors.direction).multiplyScalar(42);
   scene.add(sun);
+  // Broad cloud reflections describe the curved paint and glass better than a single sun hotspot.
+  const clouds = cloudTexture(3);
+  const cloudMaterial = new THREE.MeshBasicMaterial({ map: clouds, transparent: true, depthWrite: false, color: new THREE.Color(2.2, 2.2, 2.2) });
+  const cloudGeometry = new THREE.PlaneGeometry(34, 15);
+  for (const [x, y, z] of [
+    [-25, 26, 12],
+    [18, 32, -19],
+    [12, 18, 32],
+  ]) {
+    const cloud = new THREE.Mesh(cloudGeometry, cloudMaterial);
+    cloud.position.set(x, y, z);
+    cloud.lookAt(0, 0, 0);
+    scene.add(cloud);
+  }
   const generator = new THREE.PMREMGenerator(renderer);
   const target = generator.fromScene(scene, 0.015);
   generator.dispose();
-  for (const item of [dome, domeMaterial, sunGeometry, sunMaterial]) item.dispose();
+  for (const item of [dome, domeMaterial, sunGeometry, sunMaterial, clouds, cloudMaterial, cloudGeometry]) item.dispose();
   return target;
 }

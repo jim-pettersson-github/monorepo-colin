@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { BoxGeometry, Group, InstancedMesh, Matrix4, Mesh, MeshBasicMaterial, Vector3 } from 'three';
 import { matchCameraFrame } from '../src/game/camera';
 import { clubs, getMatchClubs } from '../src/game/clubs';
 import {
@@ -32,6 +33,7 @@ import { nations } from '../src/game/nations';
 import { NetworkSession, validNetworkMatch } from '../src/game/network-session';
 import { decodeSignal, encodeSignal, type PeerLink } from '../src/game/peer-link';
 import { footballers, playerPrice, startingFive } from '../src/game/players';
+import { instanceParts } from '../src/game/render-batches';
 import { MatchSession } from '../src/game/session';
 import { performAction, stepMatch } from '../src/game/simulation';
 import { MatchSoundTracker } from '../src/game/sound';
@@ -48,6 +50,31 @@ import {
   squadFor,
   validTransfers,
 } from '../src/game/transfers';
+
+test('player batches follow articulated parts and update bounds after moving across the pitch', () => {
+  const actors = new Group();
+  const player = new Group();
+  actors.add(player);
+  const geometry = new BoxGeometry(1, 1, 1);
+  const material = new MeshBasicMaterial();
+  const limb = new Mesh(geometry, material);
+  limb.position.y = 2;
+  player.add(limb);
+  const parts = instanceParts(actors);
+  player.position.set(40, 0, 24);
+  player.rotation.z = Math.PI / 2;
+  parts.update();
+  const batch = parts.group.children[0];
+  expect(batch).toBeInstanceOf(InstancedMesh);
+  if (!(batch instanceof InstancedMesh)) throw new Error('Missing player batch');
+  const matrix = new Matrix4();
+  batch.getMatrixAt(0, matrix);
+  expect(new Vector3().setFromMatrixPosition(matrix).distanceTo(new Vector3(38, 0, 24))).toBeLessThan(0.00001);
+  expect(batch.boundingSphere?.containsPoint(new Vector3(38, 0, 24))).toBe(true);
+  parts.dispose();
+  geometry.dispose();
+  material.dispose();
+});
 
 test('sound cues follow real actions once and never replay events observed while paused', () => {
   const state = createMatch('versus');

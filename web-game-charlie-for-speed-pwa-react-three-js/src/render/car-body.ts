@@ -4,8 +4,6 @@ import type { CarDesign, Point } from './car-designs';
 export const WHEEL_RADIUS = 0.34;
 export const ARCH_RADIUS = 0.42;
 const FLOOR = 0.26;
-const BODY_STATIONS = 72;
-const GLASS_STATIONS = 28;
 
 function lineAt(points: Point[], u: number) {
   if (u <= points[0][0]) return points[0][1];
@@ -80,7 +78,9 @@ function loft(rings: THREE.Vector3[][], groups?: (station: number, segment: numb
   return geometry;
 }
 
-export function buildBodyShape(design: CarDesign, length: number, width: number): BodyShape {
+export function buildBodyShape(design: CarDesign, length: number, width: number, lowDetail = false): BodyShape {
+  const bodyStations = lowDetail ? 24 : 72;
+  const glassStations = lowDetail ? 10 : 28;
   const { front, rear } = axles(design, length);
   const wheelRadius = WHEEL_RADIUS * (design.wheelScale ?? 1);
   const archRadius = ARCH_RADIUS * (design.wheelScale ?? 1);
@@ -113,8 +113,8 @@ export function buildBodyShape(design: CarDesign, length: number, width: number)
   };
 
   const bodyRings: THREE.Vector3[][] = [];
-  for (let i = 0; i < BODY_STATIONS; i++) {
-    const t = i / (BODY_STATIONS - 1);
+  for (let i = 0; i < bodyStations; i++) {
+    const t = i / (bodyStations - 1);
     const z = (-0.5 + (1 - Math.cos(t * Math.PI)) / 2) * length;
     const { halfWidth: w, bottom, shoulder, crown } = section(z);
     const up = (f: number) => THREE.MathUtils.lerp(bottom, shoulder, f);
@@ -178,8 +178,8 @@ export function buildBodyShape(design: CarDesign, length: number, width: number)
   const pillarU = design.pillar ?? Number.NaN;
   const glassRings: THREE.Vector3[][] = [];
   const stationU: number[] = [];
-  for (let i = 0; i < GLASS_STATIONS; i++) {
-    const u = THREE.MathUtils.lerp(rearBase[0], screenBase[0], i / (GLASS_STATIONS - 1));
+  for (let i = 0; i < glassStations; i++) {
+    const u = THREE.MathUtils.lerp(rearBase[0], screenBase[0], i / (glassStations - 1));
     const z = u * length;
     const { halfWidth: w, crown } = section(z);
     const base = crown + 0.012;

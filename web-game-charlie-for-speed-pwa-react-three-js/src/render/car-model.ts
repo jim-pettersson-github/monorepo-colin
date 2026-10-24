@@ -70,12 +70,14 @@ function wheelGeometry(style: RimStyle) {
   const disc = new THREE.CylinderGeometry(0.19, 0.19, 0.022, 28);
   disc.rotateZ(Math.PI / 2);
   disc.translate(-0.02, 0, 0);
-  const parts = [spokeFace, barrel, cap, disc].map((geometry) => {
+  const sourceParts = [spokeFace, barrel, cap, disc];
+  const parts = sourceParts.map((geometry) => {
     const plain = geometry.index ? geometry.toNonIndexed() : geometry;
     plain.deleteAttribute('uv');
     return plain;
   });
   const metal = mergeGeometries(parts);
+  for (const geometry of new Set([...sourceParts, ...parts])) geometry.dispose();
   rubber.deleteAttribute('uv');
   const result = { rubber, metal };
   wheelCache.set(style, result);
@@ -84,6 +86,7 @@ function wheelGeometry(style: RimStyle) {
 
 export type CarModel = {
   group: THREE.Group;
+  setDistance: (distance: number) => void;
   update: (state: CarState, headingDot: number) => void;
   dispose: () => void;
 };
@@ -103,14 +106,14 @@ export function buildCarModel(spec: CarSpec, headlightsOn = false): CarModel {
   const body = new THREE.Group();
   group.add(body);
 
-  const paint = new THREE.MeshPhysicalMaterial({ color: spec.color, metalness: 0.4, roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.05 });
+  const paint = new THREE.MeshPhysicalMaterial({ color: spec.color, metalness: 0.38, roughness: 0.26, clearcoat: 1, clearcoatRoughness: 0.12 });
   const glass = new THREE.MeshPhysicalMaterial({
-    color: 0x05080c,
-    metalness: 0,
-    roughness: 0.08,
-    clearcoat: 0.5,
+    color: 0x172b38,
+    metalness: 0.15,
+    roughness: 0.12,
+    clearcoat: 1,
     clearcoatRoughness: 0.05,
-    envMapIntensity: 0.35,
+    envMapIntensity: 1.15,
   });
   const black = new THREE.MeshStandardMaterial({ color: 0x0d0e10, roughness: 0.55, metalness: 0.15 });
   const trim = new THREE.MeshStandardMaterial({ color: spec.trim, roughness: 0.35, metalness: 0.4 });
@@ -292,6 +295,19 @@ export function buildCarModel(spec: CarSpec, headlightsOn = false): CarModel {
     rounded(0.02, 0.025, 0.14, chrome, side * (handle.halfWidth + 0.003), handle.shoulder - 0.12, handleZ);
   }
 
+  // Fine door shuts give the broad painted flanks a readable scale without extra materials.
+  for (const side of [-1, 1]) {
+    const frontZ = front - wheelRadius * 1.15;
+    const rearZ = rear + wheelRadius * 1.3;
+    const points = [
+      [frontZ, shape.section(frontZ).shoulder - 0.06],
+      [frontZ - 0.08, shape.section(frontZ).bottom + 0.16],
+      [rearZ + 0.12, shape.section(rearZ).bottom + 0.16],
+      [rearZ, shape.section(rearZ).shoulder - 0.09],
+    ].map(([z, y]) => new THREE.Vector3(side * (shape.section(z).halfWidth + 0.008), y, z));
+    add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points, false, 'centripetal'), 16, 0.007, 4, false), black);
+  }
+
   // Brake calipers stay put while the wheels spin around them.
   for (const z of [front, rear]) {
     for (const side of [-1, 1]) rounded(0.05, 0.14, 0.12, caliper, side * (shape.section(z).halfWidth - 0.2), wheelRadius + 0.1, z - 0.08, 0, 0, 0.02);
@@ -432,7 +448,11 @@ export function buildCarModel(spec: CarSpec, headlightsOn = false): CarModel {
   const rim = new THREE.MeshStandardMaterial({ color: 0xc9cdd2, roughness: 0.22, metalness: 1 });
   materials.push(rubber, rim);
   const spinners: THREE.Group[] = [];
+  const wheelPivots: THREE.Group[] = [];
   const steerers: THREE.Group[] = [];
+  const tyres = new THREE.InstancedMesh(wheels.rubber, rubber, 4);
+  const rims = new THREE.InstancedMesh(wheels.metal, rim, 4);
+  group.add(tyres, rims);
   for (const z of [front, rear]) {
     for (const side of [-1, 1]) {
       const pivot = new THREE.Group();
@@ -440,18 +460,30 @@ export function buildCarModel(spec: CarSpec, headlightsOn = false): CarModel {
       pivot.position.set(side * (shape.section(z).halfWidth - 0.13 * tyreWidth), wheelRadius, z);
       const spinner = new THREE.Group();
       spinner.scale.set(tyreWidth, wheelScale, wheelScale);
-      const tyre = new THREE.Mesh(wheels.rubber, rubber);
-      const metal = new THREE.Mesh(wheels.metal, rim);
-      if (side < 0) {
-        tyre.rotation.y = Math.PI;
-        metal.rotation.y = Math.PI;
-      }
-      spinner.add(tyre, metal);
       pivot.add(spinner);
       group.add(pivot);
+      wheelPivots.push(pivot);
       spinners.push(spinner);
       if (z > 0) steerers.push(pivot);
     }
+  }
+  const wheelMatrix = new THREE.Matrix4();
+  const mirroredWheel = new THREE.Matrix4().makeRotationY(Math.PI);
+  const updateWheels = () => {
+    wheelPivots.forEach((pivot, index) => {
+      pivot.updateMatrix();
+      spinners[index].updateMatrix();
+      wheelMatrix.multiplyMatrices(pivot.matrix, spinners[index].matrix);
+      if (index % 2 === 0) wheelMatrix.multiply(mirroredWheel);
+      tyres.setMatrixAt(index, wheelMatrix);
+      rims.setMatrixAt(index, wheelMatrix);
+    });
+    tyres.instanceMatrix.needsUpdate = rims.instanceMatrix.needsUpdate = true;
+  };
+  updateWheels();
+  for (const mesh of [tyres, rims]) {
+    mesh.computeBoundingSphere();
+    if (mesh.boundingSphere) mesh.boundingSphere.radius += 0.2;
   }
 
   sharedShadow ??= shadowTexture();
@@ -465,13 +497,51 @@ export function buildCarModel(spec: CarSpec, headlightsOn = false): CarModel {
   group.rotation.order = 'YXZ';
 
   // Static body parts collapse into one mesh per material.
-  const batched = batchStatic(body, Number.POSITIVE_INFINITY);
+  batchStatic(body, Number.POSITIVE_INFINITY);
   group.traverse((child) => {
     if (child instanceof THREE.Mesh && child !== shadow) child.castShadow = true;
   });
 
+  // Distant rivals retain their individual silhouette, windows, wing and lights in a handful of draws.
+  const distant = new THREE.Group();
+  const simple = buildBodyShape(design, length, width, true);
+  distant.add(new THREE.Mesh(simple.body, paint), new THREE.Mesh(simple.glass, [glass, roofPaint]));
+  const lowBox = (w: number, h: number, d: number, material: THREE.Material, x: number, y: number, z: number) => {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
+    mesh.position.set(x, y, z);
+    distant.add(mesh);
+  };
+  if (design.wing && design.wing !== 'lip') lowBox(width * 0.9, 0.06, 0.4, paint, 0, tailTop + (design.wing === 'gt' ? 0.4 : 0.17), wingZ);
+  for (const side of [-1, 1]) {
+    lowBox(0.42, 0.09, 0.03, tail, side * tailX, tailY, tailZ - 0.07);
+    lowBox(0.42, 0.06, 0.03, head, side * lampX, lampY - 0.04, nose + 0.025);
+    for (const z of [front, rear]) {
+      const wheel = new THREE.Mesh(new THREE.CylinderGeometry(wheelRadius, wheelRadius, 0.26, 10), rubber);
+      wheel.rotation.z = Math.PI / 2;
+      wheel.position.set(side * (shape.section(z).halfWidth - 0.1), wheelRadius, z);
+      distant.add(wheel);
+      const hub = new THREE.Mesh(new THREE.CylinderGeometry(wheelRadius * 0.65, wheelRadius * 0.65, 0.025, 8), rim);
+      hub.rotation.z = Math.PI / 2;
+      hub.position.copy(wheel.position);
+      hub.position.x += side * 0.14;
+      distant.add(hub);
+    }
+  }
+  batchStatic(distant, Number.POSITIVE_INFINITY);
+  distant.visible = false;
+  group.add(distant);
+  let detailed = true;
+
   return {
     group,
+    setDistance(distance) {
+      // Hysteresis avoids flicker when another car hovers near the transition distance.
+      detailed = detailed ? distance < 65 : distance < 55;
+      body.visible = detailed;
+      distant.visible = !detailed;
+      tyres.visible = rims.visible = detailed;
+      shadow.visible = distance < 160;
+    },
     update(state, headingDot) {
       group.position.set(state.x, state.y, state.z);
       group.rotation.y = state.yaw;
@@ -479,8 +549,11 @@ export function buildCarModel(spec: CarSpec, headlightsOn = false): CarModel {
       const speed = Math.hypot(state.vx, state.vz);
       body.rotation.z = -state.steer * Math.min(1, speed / 45) * 0.03 - Math.min(0.04, state.slip * 0.003) * Math.sign(state.steer);
       body.position.y = state.surface === 'grass' ? Math.sin(state.wheelSpin * 2.3) * 0.02 : 0;
+      distant.position.y = body.position.y;
+      distant.rotation.z = body.rotation.z;
       for (const spinner of spinners) spinner.rotation.x = state.wheelSpin / wheelScale;
       for (const pivot of steerers) pivot.rotation.y = -state.steer * 0.45;
+      if (detailed) updateWheels();
       for (const glow of brakeGlows) glow.visible = state.braking;
       tail.emissiveIntensity = state.braking ? 2.6 : 0.55;
     },
@@ -489,8 +562,9 @@ export function buildCarModel(spec: CarSpec, headlightsOn = false): CarModel {
         if (child instanceof THREE.Mesh && child.geometry !== wheels.rubber && child.geometry !== wheels.metal) child.geometry.dispose();
       });
       for (const material of materials) material.dispose();
+      tyres.dispose();
+      rims.dispose();
       plateMap.dispose();
-      batched.dispose();
     },
   };
 }

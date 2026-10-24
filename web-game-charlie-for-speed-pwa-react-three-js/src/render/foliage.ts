@@ -300,15 +300,29 @@ export function plantFoliage({ scene, region, theme, ground, wall, forest, cente
       geometry.dispose();
       return;
     }
-    const mesh = new THREE.InstancedMesh(geometry, material, matrices.length);
-    matrices.forEach((matrix, index) => {
-      mesh.setMatrixAt(index, matrix);
+    // A forest-wide bound defeats frustum culling. Small cells leave off-screen trees on the CPU.
+    const cells = new Map<string, { matrix: THREE.Matrix4; color: THREE.Color }[]>();
+    for (const matrix of matrices) {
       const light = 1 - variation / 2 + random() * variation;
-      mesh.setColorAt(index, tint.setRGB(light * (0.95 + random() * 0.1), light, light * (0.9 + random() * 0.1)));
-    });
-    mesh.computeBoundingSphere();
-    scene.add(mesh);
-    disposables.push(geometry, { dispose: () => mesh.dispose() });
+      // Four-triangle distant cards stay in a species-wide batch; only modelled foliage needs cells.
+      const key = geometry.attributes.color ? `${Math.floor(matrix.elements[12] / 420)},${Math.floor(matrix.elements[14] / 420)}` : 'cards';
+      const cell = cells.get(key) ?? [];
+      cell.push({ matrix, color: tint.setRGB(light * (0.95 + random() * 0.1), light, light * (0.9 + random() * 0.1)).clone() });
+      cells.set(key, cell);
+    }
+    for (const cell of cells.values()) {
+      const mesh = new THREE.InstancedMesh(geometry, material, cell.length);
+      cell.forEach(({ matrix, color }, index) => {
+        mesh.setMatrixAt(index, matrix);
+        mesh.setColorAt(index, color);
+      });
+      mesh.computeBoundingSphere();
+      mesh.userData.foliage = true;
+      mesh.matrixAutoUpdate = false;
+      scene.add(mesh);
+      disposables.push({ dispose: () => mesh.dispose() });
+    }
+    disposables.push(geometry);
   };
 
   const bark = new THREE.MeshLambertMaterial({ vertexColors: true });

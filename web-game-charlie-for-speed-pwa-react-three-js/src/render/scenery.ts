@@ -170,9 +170,15 @@ export function buildScenery(scene: THREE.Scene, track: Track, ground: Ground, l
     keep(new THREE.MeshLambertMaterial({ color, flatShading: isRetro(), ...options }));
   const adList = ads[region];
   const nearTunnel = (s: number) => s > tunnel.start - 40 && s < tunnel.end + 40;
+  const shadows = (root: THREE.Object3D) => {
+    root.traverse((object) => {
+      if (object instanceof THREE.Mesh && object.geometry instanceof THREE.BoxGeometry) object.castShadow = true;
+    });
+  };
 
   // Local frame at distance s: +x runs along the track, -z faces the road and +z points away from it.
   const frame = (object: THREE.Object3D, s: number, lateral: number, onGround = true) => {
+    shadows(object);
     const sample = sampleAt(path, s);
     const x = sample.x + sample.rx * lateral;
     const z = sample.z + sample.rz * lateral;
@@ -188,6 +194,7 @@ export function buildScenery(scene: THREE.Scene, track: Track, ground: Ground, l
   };
 
   const place = (object: THREE.Object3D, x: number, z: number, radius: number) => {
+    shadows(object);
     object.position.set(x, ground.height(x, z), z);
     scene.add(object);
     reserved.push({ x, z, radius });
@@ -229,6 +236,7 @@ export function buildScenery(scene: THREE.Scene, track: Track, ground: Ground, l
   gantry.position.set(start.x, start.y, start.z);
   gantry.rotation.y = Math.atan2(start.rx, start.rz);
   scene.add(gantry);
+  shadows(gantry);
 
   // Grandstands beside the start straight: a full circuit gets five, a street race two.
   if (setting !== 'country') {

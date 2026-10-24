@@ -16,8 +16,8 @@ An arcade sports-car racer inspired by late-1990s supercar racing games, with mo
 - **Sound:** synthesised engine, tyre squeal, impacts and start beeps.
 - **Effects:** tyre smoke when sliding, dust on the grass, sparks along the barriers, sun lens flare and darker light inside tunnels.
 - **Body designs:** fourteen independent width/elevation profiles, with angular wedge, rounded fastback, muscle-car and prototype sections; different canopy positions, roof widths, wheel sizes, rear tyre widths and sculpted intake surrounds. The Velox has raised round headlamp pods, the Stallion has side exhausts, and the NX-R has a black roof. `node scripts/capture-car-lineup.mjs` captures identical-paint, side-profile and colour comparisons while the development server runs on 4014.
-- **Graphics:** filmic tone mapping, sky reflections, real-time sun shadows on desktop and detailed textures. **Retro mode** (Inställningar) switches to a late-90s look: half resolution, chunky pixels and flat shading.
-- **Performance:** static scenery and each car body are merged into a few draw calls per material, render resolution adapts to the frame rate, and high-density phone screens skip multisampling.
+- **Graphics:** filmic tone mapping, cloud and sky reflections on paint and tinted glass, fine door seams, rough asphalt and real-time car, building and grandstand shadows on desktop. **Retro mode** (Inställningar) switches to a late-90s look: half resolution, chunky pixels and flat shading.
+- **Performance:** car wheels use instancing; distant rivals switch to simpler versions of their own body shape. Modelled foliage, tyre walls and posts use spatial groups so off-screen sections can be culled. Static scenery and car bodies are merged by material, resolution adapts to frame rate, and high-density phones skip multisampling. Empty particle systems and off-screen showrooms skip rendering.
 
 ## Wi-Fi multiplayer
 

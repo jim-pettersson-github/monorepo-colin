@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { Box3, BoxGeometry, Group, Mesh, MeshBasicMaterial } from 'three';
 import {
   abandonCup,
   buyCar,
@@ -16,8 +17,37 @@ import { applyUpgrades, carById, cars } from '../src/game/cars';
 import { type CarState, forwardSpeed, placeCar, stepCar } from '../src/game/physics';
 import { createRace, formatTime, raceDistance, raceResults, STEP, stepRace } from '../src/game/race';
 import { trackById, trackDefs } from '../src/game/tracks';
+import { batchStatic } from '../src/render/batch';
 
 const idle = { throttle: 0, brake: 0, steer: 0, handbrake: false };
+
+test('static batches preserve transformed roots, shadow flags and dynamic parts', () => {
+  const root = new Group();
+  root.position.set(12, 3, -8);
+  root.rotation.y = 0.7;
+  const material = new MeshBasicMaterial();
+  const source = new BoxGeometry(2, 3, 4);
+  const first = new Mesh(source, material);
+  first.position.x = 4;
+  first.castShadow = true;
+  first.receiveShadow = true;
+  root.add(first);
+  const dynamic = new Group();
+  dynamic.userData.dynamic = true;
+  const second = new Mesh(new BoxGeometry(1, 1, 1), material);
+  dynamic.add(second);
+  root.add(dynamic);
+  const before = new Box3().setFromObject(root);
+  const batch = batchStatic(root);
+  const after = new Box3().setFromObject(root);
+  expect(after.min.distanceTo(before.min)).toBeLessThan(0.00001);
+  expect(after.max.distanceTo(before.max)).toBeLessThan(0.00001);
+  expect(second.parent).toBe(dynamic);
+  expect(root.children.find((child) => child instanceof Mesh)).toMatchObject({ castShadow: true, receiveShadow: true });
+  batch.dispose();
+  second.geometry.dispose();
+  material.dispose();
+});
 
 for (const def of trackDefs) {
   test(`AI field completes a race on ${def.name}`, () => {
@@ -250,10 +280,13 @@ test('network racing advances the countdown, separates human controls and valida
 import { axles, buildBodyShape, WHEEL_RADIUS } from '../src/render/car-body';
 import { designs } from '../src/render/car-designs';
 
-test('all redesigned bodies have outward bumper caps, finite geometry and clearance above their tyres', () => {
-  for (const car of cars) {
+test('both car detail levels have outward bumper caps, finite geometry and clearance above their tyres', () => {
+  for (const { car, lowDetail } of cars.flatMap((car) => [
+    { car, lowDetail: false },
+    { car, lowDetail: true },
+  ])) {
     const design = designs[car.id];
-    const shape = buildBodyShape(design, car.length, car.width);
+    const shape = buildBodyShape(design, car.length, car.width, lowDetail);
     for (const geometry of [shape.body, shape.glass]) {
       const positions = geometry.getAttribute('position'),
         normals = geometry.getAttribute('normal');

@@ -24,18 +24,28 @@ export function buildTrackside(scene: THREE.Scene, track: Track, look: ThemeLook
   const up = new THREE.Vector3(0, 1, 0);
   const unit = new THREE.Vector3(1, 1, 1);
 
-  // One instanced mesh per prop; `spots` yields position and heading along the track.
+  // Cull distant sections independently instead of submitting every tyre and post around the lap.
   const instanced = (geometry: THREE.BufferGeometry, material: THREE.Material, spots: { sample: TrackSample; lateral: number; y: number }[]) => {
-    if (!spots.length) return;
-    const mesh = new THREE.InstancedMesh(keep(geometry), material, spots.length);
-    spots.forEach(({ sample, lateral, y }, index) => {
-      quaternion.setFromAxisAngle(up, Math.atan2(sample.tx, sample.tz));
-      matrix.compose(new THREE.Vector3(sample.x + sample.rx * lateral, sample.y + y, sample.z + sample.rz * lateral), quaternion, unit);
-      mesh.setMatrixAt(index, matrix);
-    });
-    mesh.computeBoundingSphere();
-    scene.add(mesh);
-    disposables.push({ dispose: () => mesh.dispose() });
+    keep(geometry);
+    const cells = new Map<string, typeof spots>();
+    for (const spot of spots) {
+      const key = `${Math.floor(spot.sample.x / 300)},${Math.floor(spot.sample.z / 300)}`;
+      const cell = cells.get(key) ?? [];
+      cell.push(spot);
+      cells.set(key, cell);
+    }
+    for (const cell of cells.values()) {
+      const mesh = new THREE.InstancedMesh(geometry, material, cell.length);
+      cell.forEach(({ sample, lateral, y }, index) => {
+        quaternion.setFromAxisAngle(up, Math.atan2(sample.tx, sample.tz));
+        matrix.compose(new THREE.Vector3(sample.x + sample.rx * lateral, sample.y + y, sample.z + sample.rz * lateral), quaternion, unit);
+        mesh.setMatrixAt(index, matrix);
+      });
+      mesh.computeBoundingSphere();
+      mesh.matrixAutoUpdate = false;
+      scene.add(mesh);
+      disposables.push({ dispose: () => mesh.dispose() });
+    }
   };
   // Path samples are 2 m apart; props spaced closer than that need positions between them.
   const between = (s: number): TrackSample => {

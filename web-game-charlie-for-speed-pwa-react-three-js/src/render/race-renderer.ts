@@ -95,7 +95,7 @@ export class RaceRenderer {
 
   // Lowers the render resolution when frames run long and raises it again once there is headroom.
   private adaptQuality(frameTime: number) {
-    if (this.retro) return;
+    if (this.retro || frameTime <= 0 || frameTime >= 0.1) return;
     this.frameAverage += (frameTime - this.frameAverage) * 0.05;
     this.qualityTimer += frameTime;
     if (this.qualityTimer < 1.5) return;
@@ -123,6 +123,7 @@ export class RaceRenderer {
     const lit = race.phase === 'countdown' ? Math.min(5, Math.floor((3.4 - race.countdown) / 0.6)) : 0;
     this.world.setStartLights(lit, race.phase !== 'countdown' && race.time < 3);
     this.updateCamera(frameTime);
+    for (const model of this.models) model.setDistance(model.group.position.distanceTo(this.camera.position));
     const car = race.player.state;
     const sun = this.world.sunLight;
     sun.target.position.set(car.x, car.y, car.z);

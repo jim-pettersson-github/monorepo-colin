@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
-// A world-space copy of one material group, reduced to the attributes every batch shares.
+// A root-local copy of one material group, reduced to the attributes every batch shares.
 function bake(source: THREE.BufferGeometry, matrix: THREE.Matrix4, withColor: boolean, range?: { start: number; count: number }) {
   let geometry = source.index ? source.toNonIndexed() : source.clone();
   if (range) {
@@ -32,10 +32,12 @@ function bake(source: THREE.BufferGeometry, matrix: THREE.Matrix4, withColor: bo
  */
 export function batchStatic(root: THREE.Object3D, cellSize = 450) {
   root.updateMatrixWorld(true);
-  const buckets = new Map<string, { material: THREE.Material; parts: THREE.BufferGeometry[] }>();
+  const buckets = new Map<string, { material: THREE.Material; parts: THREE.BufferGeometry[]; castShadow: boolean; receiveShadow: boolean }>();
   const merged: THREE.Mesh[] = [];
   const replaced: THREE.Mesh[] = [];
   const center = new THREE.Vector3();
+  const rootInverse = root.matrixWorld.clone().invert();
+  const localMatrix = new THREE.Matrix4();
 
   const visit = (object: THREE.Object3D) => {
     if (object.userData.dynamic) return;
@@ -55,10 +57,11 @@ export function batchStatic(root: THREE.Object3D, cellSize = 450) {
       const material = materials[group.materialIndex ?? 0];
       if (!material) continue;
       const withColor = 'vertexColors' in material && !!material.vertexColors;
-      const key = `${material.uuid}|${cell}`;
+      const key = `${material.uuid}|${cell}|${object.castShadow}|${object.receiveShadow}`;
       const range = Number.isFinite(group.count) ? { start: group.start, count: group.count } : undefined;
-      const bucket = buckets.get(key) ?? { material, parts: [] as THREE.BufferGeometry[] };
-      bucket.parts.push(bake(geometry, object.matrixWorld, withColor, range));
+      const bucket = buckets.get(key) ?? { material, parts: [] as THREE.BufferGeometry[], castShadow: object.castShadow, receiveShadow: object.receiveShadow };
+      localMatrix.multiplyMatrices(rootInverse, object.matrixWorld);
+      bucket.parts.push(bake(geometry, localMatrix, withColor, range));
       buckets.set(key, bucket);
     }
     replaced.push(object);
@@ -67,12 +70,15 @@ export function batchStatic(root: THREE.Object3D, cellSize = 450) {
 
   for (const mesh of replaced) mesh.removeFromParent();
   for (const geometry of new Set(replaced.map((mesh) => mesh.geometry))) geometry.dispose();
-  for (const { material, parts } of buckets.values()) {
+  for (const { material, parts, castShadow, receiveShadow } of buckets.values()) {
     const geometry = mergeGeometries(parts);
     for (const part of parts) part.dispose();
     if (!geometry) continue;
     const mesh = new THREE.Mesh(geometry, material);
+    mesh.castShadow = castShadow;
+    mesh.receiveShadow = receiveShadow;
     mesh.matrixAutoUpdate = false;
+    mesh.matrixWorldNeedsUpdate = true;
     root.add(mesh);
     merged.push(mesh);
   }

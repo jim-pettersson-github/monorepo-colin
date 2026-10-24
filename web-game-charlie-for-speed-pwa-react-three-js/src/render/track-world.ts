@@ -430,7 +430,9 @@ export function buildTrackWorld(track: Track): TrackWorld {
   scene.add(new THREE.Mesh(keep(ribbon(path, -halfWidth + 0.2, -wall - 3, shoulderOptions)), shoulderMaterial));
 
   const asphalt = keep(asphaltTexture(look.lineColor));
-  const roadMaterial = keep(new THREE.MeshLambertMaterial({ map: asphalt }));
+  const roadMaterial = keep(
+    isRetro() ? new THREE.MeshLambertMaterial({ map: asphalt }) : new THREE.MeshStandardMaterial({ map: asphalt, roughness: 0.91, metalness: 0.025 }),
+  );
   scene.add(new THREE.Mesh(keep(ribbon(path, -halfWidth, halfWidth, { lift: 0.02, vLength: halfWidth * 2 })), roadMaterial));
 
   const curbMaterial = keep(new THREE.MeshLambertMaterial({ map: keep(curbTexture()) }));
@@ -471,6 +473,10 @@ export function buildTrackWorld(track: Track): TrackWorld {
   scene.traverse((object) => {
     if (object instanceof THREE.Mesh && !object.userData.dynamic) object.receiveShadow = true;
   });
+  const forestCells: THREE.InstancedMesh[] = [];
+  scene.traverse((object) => {
+    if (object instanceof THREE.InstancedMesh && object.userData.foliage) forestCells.push(object);
+  });
 
   return {
     scene,
@@ -483,10 +489,15 @@ export function buildTrackWorld(track: Track): TrackWorld {
     },
     update(camera, time) {
       sky.position.set(camera.position.x, 0, camera.position.z);
+      for (const cell of forestCells) {
+        const bounds = cell.boundingSphere;
+        if (bounds) cell.visible = bounds.center.distanceToSquared(camera.position) < (look.fogFar + bounds.radius) ** 2;
+      }
       scenery.update(time);
     },
     dispose() {
       for (const item of disposables) item.dispose();
+      sunLight.shadow.dispose();
     },
   };
 }

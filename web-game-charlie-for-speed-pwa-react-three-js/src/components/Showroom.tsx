@@ -34,7 +34,9 @@ export function Showroom({ carId, className = 'showroom' }: { carId: string; cla
     const scene = new THREE.Scene();
     // A studio light box for the paint and glass to reflect.
     const generator = new THREE.PMREMGenerator(renderer);
-    const studio = generator.fromScene(new RoomEnvironment(), 0.04);
+    const room = new RoomEnvironment();
+    const studio = generator.fromScene(room, 0.04);
+    room.dispose();
     generator.dispose();
     scene.environment = studio.texture;
     const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 100);
@@ -67,15 +69,22 @@ export function Showroom({ carId, className = 'showroom' }: { carId: string; cla
     const observer = new ResizeObserver(resize);
     observer.observe(canvas);
     resize();
+    let visible = true;
+    const visibility = new IntersectionObserver(([entry]) => {
+      visible = entry.isIntersecting;
+    });
+    visibility.observe(canvas);
 
     let frame = 0;
     let last = performance.now();
     const loop = (now: number) => {
       const delta = Math.min(0.05, (now - last) / 1000);
       last = now;
-      turntable.rotation.y += delta * 0.45;
-      renderer.render(scene, camera);
-      canvas.dataset.rendered = 'true';
+      if (visible && !document.hidden) {
+        turntable.rotation.y += delta * 0.45;
+        renderer.render(scene, camera);
+        canvas.dataset.rendered = 'true';
+      }
       frame = requestAnimationFrame(loop);
     };
     frame = requestAnimationFrame(loop);
@@ -83,6 +92,7 @@ export function Showroom({ carId, className = 'showroom' }: { carId: string; cla
     return () => {
       cancelAnimationFrame(frame);
       observer.disconnect();
+      visibility.disconnect();
       stageRef.current?.model?.dispose();
       floorGeometry.dispose();
       studio.dispose();
