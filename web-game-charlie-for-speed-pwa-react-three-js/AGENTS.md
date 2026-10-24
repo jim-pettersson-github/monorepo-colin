@@ -8,7 +8,7 @@ React, TypeScript, Three.js, Vite and vite-plugin-pwa. React owns menus and the 
 
 ## Direction
 
-An original late-1990s-style arcade racer: low-poly cars, bold flat colors, chunky HUD, chase camera. Car makes, models and liveries are fictional lookalikes; never use real brand names or logos.
+An original late-1990s-style arcade racer inspired by that era of supercar racing games, without recreating any specific game: low-poly cars with glossy paint, bold colors, chunky HUD, chase camera. Cars are fictional lookalikes of real 80s/90s supercars; never use real brand names or logos. Shapes live in src/render/car-designs.ts.
 
 ## Language and layout
 
@@ -20,4 +20,4 @@ Run commands here with Node 22.12+. npm ci, npm start (4014), npm run check, npm
 
 ## PWA and scope
 
-Keep VITE_BASE_PATH support, offline precaching and user-requested updates without forced refresh. Charlie-specific storage and caches. Do not change the elevator deployment or hook. Do not commit or push unless requested. Distinguish implemented behavior from future plans.
+Keep VITE_BASE_PATH support, offline precaching and user-requested updates without forced refresh. Charlie-specific storage and caches. GitHub Pages publishes the game under `/charlie-fs/`; the elevator service worker excludes that path from its navigation fallback, so keep both in sync. Do not change the pre-commit hook. Do not commit or push unless requested. Distinguish implemented behavior from future plans.

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { sampleAt } from '../game/track-path';
 import type { Track } from '../game/tracks';
-import { chevronTexture, crowdTexture, seeded, signTexture, texture, windowsTexture } from './textures';
+import { chevronTexture, concreteTexture, crowdTexture, seeded, signTexture, texture, windowsTexture } from './textures';
 import type { Ground, ThemeLook } from './track-world';
 
 type Disposable = { dispose: () => void };
@@ -165,13 +165,16 @@ export function buildScenery(scene: THREE.Scene, track: Track, ground: Ground, l
     reserved.push({ x: sample.x + sample.rx * (wall + 14), z: sample.z + sample.rz * (wall + 14), radius: 28 });
   }
 
+  const { tunnel } = track;
+  const nearTunnel = (s: number) => s > tunnel.start - 40 && s < tunnel.end + 40;
+
   // Billboards around the lap, alternating sides.
   const adList = ads[theme];
   const post = material('#8a8f96');
   let adIndex = 0;
   for (let s = 360; s < path.length - 120; s += 150 + random() * 90) {
     const sample = sampleAt(path, s);
-    if (Math.abs(sample.curve) > 1 / 70) continue;
+    if (Math.abs(sample.curve) > 1 / 70 || nearTunnel(s)) continue;
     const [lines, background, ink, accent] = adList[adIndex++ % adList.length];
     const board = new THREE.Group();
     const face = sign(lines, background, ink, accent);
@@ -227,6 +230,101 @@ export function buildScenery(scene: THREE.Scene, track: Track, ground: Ground, l
   bridge.position.set(bridgeSample.x, bridgeSample.y, bridgeSample.z);
   bridge.rotation.y = Math.atan2(-bridgeSample.rz, bridgeSample.rx);
   scene.add(bridge);
+
+  // Tunnel: concrete walls and ceiling with lamp rows, flanked by grassy hills.
+  const tunnelHeight = 7;
+  const tunnelPositions: number[] = [];
+  const tunnelUvs: number[] = [];
+  const corner = (s: number, lateral: number, height: number) => {
+    const sample = sampleAt(path, s);
+    return [sample.x + sample.rx * lateral, sample.y + height, sample.z + sample.rz * lateral];
+  };
+  const quad = (a: number[], b: number[], c: number[], d: number[], uv: number[][]) => {
+    tunnelPositions.push(...a, ...b, ...c, ...c, ...b, ...d);
+    for (const index of [0, 1, 2, 2, 1, 3]) tunnelUvs.push(...uv[index]);
+  };
+  for (let s = tunnel.start; s < tunnel.end; s += path.spacing) {
+    const next = s + path.spacing;
+    for (const side of [-wall, wall]) {
+      quad(corner(s, side, -0.6), corner(next, side, -0.6), corner(s, side, tunnelHeight), corner(next, side, tunnelHeight), [
+        [s / 6, 0],
+        [next / 6, 0],
+        [s / 6, 1],
+        [next / 6, 1],
+      ]);
+    }
+    quad(corner(s, -wall, tunnelHeight), corner(s, wall, tunnelHeight), corner(next, -wall, tunnelHeight), corner(next, wall, tunnelHeight), [
+      [s / 6, 0],
+      [s / 6, 3],
+      [next / 6, 0],
+      [next / 6, 3],
+    ]);
+  }
+  const tunnelGeometry = keep(new THREE.BufferGeometry());
+  tunnelGeometry.setAttribute('position', new THREE.Float32BufferAttribute(tunnelPositions, 3));
+  tunnelGeometry.setAttribute('uv', new THREE.Float32BufferAttribute(tunnelUvs, 2));
+  tunnelGeometry.computeVertexNormals();
+  const concrete = keep(concreteTexture());
+  scene.add(new THREE.Mesh(tunnelGeometry, keep(new THREE.MeshLambertMaterial({ map: concrete, color: '#8a8780', side: THREE.DoubleSide }))));
+
+  const lampMaterial = keep(new THREE.MeshBasicMaterial({ color: '#ffe7a0' }));
+  const lampGeometry = keep(new THREE.BoxGeometry(0.5, 0.12, 2.4));
+  for (let s = tunnel.start + 4; s < tunnel.end; s += 9) {
+    for (const lateral of [-wall * 0.45, wall * 0.45]) {
+      const lamp = new THREE.Mesh(lampGeometry, lampMaterial);
+      lamp.position.fromArray(corner(s, lateral, tunnelHeight - 0.08));
+      lamp.rotation.y = Math.atan2(sampleAt(path, s).tx, sampleAt(path, s).tz);
+      scene.add(lamp);
+    }
+  }
+
+  const portalMaterial = keep(new THREE.MeshLambertMaterial({ map: concrete, color: '#b8b4aa' }));
+  const portalSign = sign(theme === 'vaxjo' ? ['SKOGSTUNNELN'] : ['BURGTUNNEL'], '#1b2a4a', '#f4f4f4', '#ffcc1a');
+  for (const s of [tunnel.start, tunnel.end]) {
+    const portal = new THREE.Group();
+    const beam = new THREE.Mesh(keep(new THREE.BoxGeometry(1.6, 3.4, wall * 2 + 10)), [
+      portalSign,
+      portalSign,
+      portalMaterial,
+      portalMaterial,
+      portalMaterial,
+      portalMaterial,
+    ]);
+    beam.position.y = tunnelHeight + 1.7;
+    portal.add(beam);
+    for (const side of [-1, 1])
+      portal.add(
+        new THREE.Mesh(keep(new THREE.BoxGeometry(1.6, tunnelHeight + 4, 5)), portalMaterial)
+          .translateZ(side * (wall + 2.5))
+          .translateY((tunnelHeight + 4) / 2 - 1),
+      );
+    frame(portal, s, 0, false);
+  }
+
+  const hillMaterial = material(look.terrainTint[1]);
+  const mid = sampleAt(path, (tunnel.start + tunnel.end) / 2);
+  for (const side of [-1, 1]) {
+    const hill = new THREE.Mesh(keep(new THREE.IcosahedronGeometry(1, 2)), hillMaterial);
+    hill.scale.set((tunnel.end - tunnel.start) / 2 + 12, 16, 22);
+    hill.position.set(mid.x + mid.rx * side * (wall + 22), mid.y - 1, mid.z + mid.rz * side * (wall + 22));
+    hill.rotation.y = Math.atan2(-mid.tz, mid.tx);
+    scene.add(hill);
+    reserved.push({ x: hill.position.x, z: hill.position.z, radius: 30 });
+  }
+
+  // Overhead banner gantries spanning the road.
+  const gantryAds = theme === 'vaxjo' ? [adList[3], adList[0]] : [adList[3], adList[2]];
+  gantryAds.forEach(([lines, background, ink, accent], index) => {
+    let s = path.length * (0.42 + index * 0.2);
+    while (nearTunnel(s) || Math.abs(sampleAt(path, s).curve) > 1 / 150) s += 20;
+    const banner = new THREE.Group();
+    const face = sign(lines, background, ink, accent);
+    const truss = new THREE.Mesh(keep(new THREE.BoxGeometry(1, 2, wall * 2 + 1)), [face, face, steel, steel, steel, steel]);
+    truss.position.y = 7.6;
+    banner.add(truss);
+    for (const side of [-1, 1]) banner.add(new THREE.Mesh(keep(new THREE.BoxGeometry(0.5, 8.6, 0.5)), steel).translateZ(side * (wall + 0.6)).translateY(4.3));
+    frame(banner, s, 0, false);
+  });
 
   const place = (object: THREE.Object3D, x: number, z: number, radius: number) => {
     object.position.set(x, ground.height(x, z), z);

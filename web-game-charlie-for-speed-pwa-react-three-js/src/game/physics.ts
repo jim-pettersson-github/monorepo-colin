@@ -29,6 +29,7 @@ export type CarState = {
   surface: Surface;
   slip: number;
   impact: number;
+  scraping: boolean;
   pitch: number;
   wheelSpin: number;
   braking: boolean;
@@ -71,6 +72,7 @@ export function placeCar(track: Track, s: number, lateral: number): CarState {
     surface: 'road',
     slip: 0,
     impact: 0,
+    scraping: false,
     pitch: 0,
     wheelSpin: 0,
     braking: false,
@@ -193,9 +195,11 @@ export function updateTrackPosition(car: CarState, track: Track, dt: number) {
   car.pitch = location.sample.slope;
   car.surface = surfaceAt(track, location.lateral, location.sample);
   car.impact = 0;
+  car.scraping = false;
 
   const limit = track.wall - 1.1;
   if (Math.abs(location.lateral) <= limit) return;
+  car.scraping = true;
 
   const side = Math.sign(location.lateral);
   const { rx, rz, tx, tz } = location.sample;

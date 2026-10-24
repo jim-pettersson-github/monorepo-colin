@@ -266,3 +266,17 @@ export function ridgeTexture(color: string, seed: number, jagged: boolean) {
     true,
   );
 }
+
+export function concreteTexture() {
+  return texture(
+    canvas(32, 32, (context) => {
+      context.fillStyle = '#a9a69e';
+      context.fillRect(0, 0, 32, 32);
+      speckle(context, 32, 32, ['#9c9991', '#b5b2aa', '#a19e96'], 300, 21);
+      context.fillStyle = '#4a4844';
+      context.fillRect(0, 26, 32, 6);
+      context.fillStyle = '#8c8982';
+      context.fillRect(31, 0, 1, 32);
+    }),
+  );
+}

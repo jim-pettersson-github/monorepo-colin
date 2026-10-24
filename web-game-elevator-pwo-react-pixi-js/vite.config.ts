@@ -36,7 +36,7 @@ export default defineConfig({
         clientsClaim: false,
         cleanupOutdatedCaches: true,
         navigateFallback: `${base}index.html`,
-        navigateFallbackDenylist: [new RegExp(`^${base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}alfred-fc(?:/|$)`)],
+        navigateFallbackDenylist: [new RegExp(`^${base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:alfred-fc|charlie-fs)(?:/|$)`)],
         globPatterns: ['**/*.{html,js,css,json,svg,png,webp,woff2,mp3,ogg,wav}'],
         maximumFileSizeToCacheInBytes: 2 * 1024 * 1024,
       },

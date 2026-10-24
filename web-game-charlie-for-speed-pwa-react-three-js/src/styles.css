@@ -179,9 +179,9 @@ h3 {
 
 .carousel {
   position: absolute;
-  inset: 45% 16px auto;
+  inset: auto auto max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
   display: flex;
-  justify-content: space-between;
+  gap: 12px;
   pointer-events: none;
 }
 
@@ -856,6 +856,7 @@ h3 {
 
   .carousel {
     inset: 28% 8px auto;
+    justify-content: space-between;
   }
 
   .hud-times dl {
@@ -888,11 +889,6 @@ h3 {
   .logo {
     margin: 12px 0 0 max(24px, env(safe-area-inset-left));
     text-align: left;
-  }
-
-  .carousel {
-    inset: auto auto max(12px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
-    gap: 12px;
   }
 
   .logo-top {

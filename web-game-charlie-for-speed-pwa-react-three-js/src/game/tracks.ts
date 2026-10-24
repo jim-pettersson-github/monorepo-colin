@@ -1,4 +1,4 @@
-import { buildTrackPath, type ControlPoint, type TrackPath } from './track-path';
+import { buildTrackPath, type ControlPoint, sampleAt, type TrackPath } from './track-path';
 
 export type TrackTheme = 'vaxjo' | 'germany';
 
@@ -14,7 +14,7 @@ export type TrackDef = {
   wall: number;
 };
 
-export type Track = TrackDef & { path: TrackPath; racingLine: Float32Array };
+export type Track = TrackDef & { path: TrackPath; racingLine: Float32Array; tunnel: { start: number; end: number } };
 
 const vaxjoPoints: ControlPoint[] = [
   [0, 0, 0],
@@ -97,9 +97,20 @@ export function trackById(id: string): Track {
 
   const def = trackDefs.find((track) => track.id === id) ?? trackDefs[0];
   const path = buildTrackPath(def.points);
-  const track = { ...def, path, racingLine: buildRacingLine(path, def.halfWidth) };
+  const track = { ...def, path, racingLine: buildRacingLine(path, def.halfWidth), tunnel: findTunnel(path) };
   cache.set(id, track);
   return track;
+}
+
+// The straightest stretch in the back half of the lap gets a tunnel.
+function findTunnel(path: TrackPath, length = 140) {
+  let best = { start: 0, worst: Number.POSITIVE_INFINITY };
+  for (let start = path.length * 0.3; start < path.length * 0.85; start += 10) {
+    let worst = 0;
+    for (let s = start; s <= start + length; s += path.spacing) worst = Math.max(worst, Math.abs(sampleAt(path, s).curve));
+    if (worst < best.worst) best = { start, worst };
+  }
+  return { start: best.start, end: best.start + length };
 }
 
 // A smoothed lateral offset that cuts toward the inside of each bend.

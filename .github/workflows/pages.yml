@@ -6,12 +6,14 @@ on:
     paths:
       - 'web-game-elevator-pwo-react-pixi-js/**'
       - 'web-game-alfred-lego-fc-pwa-react-three-js/**'
+      - 'web-game-charlie-for-speed-pwa-react-three-js/**'
       - '.github/workflows/pages.yml'
   pull_request:
     branches: [main]
     paths:
       - 'web-game-elevator-pwo-react-pixi-js/**'
       - 'web-game-alfred-lego-fc-pwa-react-three-js/**'
+      - 'web-game-charlie-for-speed-pwa-react-three-js/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -42,6 +44,7 @@ jobs:
           cache-dependency-path: |
             web-game-elevator-pwo-react-pixi-js/package-lock.json
             web-game-alfred-lego-fc-pwa-react-three-js/package-lock.json
+            web-game-charlie-for-speed-pwa-react-three-js/package-lock.json
       - run: npm ci
       - run: npm run check
       - run: npm run build
@@ -58,6 +61,19 @@ jobs:
         run: npm run build
       - name: Include Alfred FC in the Pages site
         run: cp -R ../web-game-alfred-lego-fc-pwa-react-three-js/dist dist/alfred-fc
+      - name: Install Charlie for Speed
+        working-directory: web-game-charlie-for-speed-pwa-react-three-js
+        run: npm ci
+      - name: Check Charlie for Speed
+        working-directory: web-game-charlie-for-speed-pwa-react-three-js
+        run: npm run check
+      - name: Build Charlie for Speed
+        working-directory: web-game-charlie-for-speed-pwa-react-three-js
+        env:
+          VITE_BASE_PATH: /${{ github.event.repository.name }}/charlie-fs/
+        run: npm run build
+      - name: Include Charlie for Speed in the Pages site
+        run: cp -R ../web-game-charlie-for-speed-pwa-react-three-js/dist dist/charlie-fs
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         with:

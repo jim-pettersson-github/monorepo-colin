@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { TrackPath, TrackSample } from '../game/track-path';
 import type { Track, TrackTheme } from '../game/tracks';
+import { buildLensFlare } from './effects';
 import { buildScenery } from './scenery';
 import { asphaltTexture, barrierTexture, checkerTexture, cloudTexture, curbTexture, glowTexture, grassTexture, ridgeTexture, seeded } from './textures';
 
@@ -53,7 +54,7 @@ export const looks: Record<TrackTheme, ThemeLook> = {
     fogNear: 320,
     fogFar: 1700,
     sunColor: '#fff4dc',
-    sun: new THREE.Vector3(0.45, 0.62, -0.64).normalize(),
+    sun: new THREE.Vector3(0.5, 0.32, -0.8).normalize(),
     hemiSky: '#d8e8ff',
     hemiGround: '#506a30',
     grass: '#5d8f34',
@@ -72,6 +73,8 @@ export type TrackWorld = {
   scene: THREE.Scene;
   look: ThemeLook;
   setStartLights: (lit: number, green: boolean) => void;
+  // 0 in daylight, 1 deep inside a tunnel.
+  setShade: (amount: number) => void;
   update: (camera: THREE.Camera, time: number) => void;
   dispose: () => void;
 };
@@ -316,12 +319,17 @@ export function buildTrackWorld(track: Track): TrackWorld {
 
   scene.background = new THREE.Color(look.fog);
   scene.fog = new THREE.Fog(look.fog, look.fogNear, look.fogFar);
-  scene.add(new THREE.HemisphereLight(look.hemiSky, look.hemiGround, 1.6));
+  const skyLight = new THREE.HemisphereLight(look.hemiSky, look.hemiGround, 1.6);
+  scene.add(skyLight);
   const sunLight = new THREE.DirectionalLight(look.sunColor, 2.2);
   sunLight.position.copy(look.sun).multiplyScalar(100);
   scene.add(sunLight);
 
   const sky = buildSky(look, disposables);
+  const lensFlare = buildLensFlare(look.sunColor);
+  lensFlare.flare.position.copy(look.sun).multiplyScalar(1650);
+  sky.add(lensFlare.flare);
+  disposables.push(lensFlare);
   scene.add(sky);
 
   const ground = buildGround(track, look);
@@ -376,6 +384,10 @@ export function buildTrackWorld(track: Track): TrackWorld {
     scene,
     look,
     setStartLights: scenery.setStartLights,
+    setShade(amount) {
+      skyLight.intensity = 1.6 - amount * 1.0;
+      sunLight.intensity = 2.2 * (1 - amount * 0.9);
+    },
     update(camera, time) {
       sky.position.set(camera.position.x, 0, camera.position.z);
       scenery.update(time);

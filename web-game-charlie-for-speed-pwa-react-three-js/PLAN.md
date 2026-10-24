@@ -2,8 +2,10 @@
 
 ## Done
 
-- Two closed circuits (Växjö, Germany) with themed scenery.
-- Ten fictional sports cars with distinct stats and silhouettes.
+- Two closed circuits (Växjö, Germany) with themed scenery, tunnels and banner gantries.
+- Fourteen fictional 80s/90s supercar lookalikes with distinct stats and silhouettes.
+- Tyre smoke, grass dust, barrier sparks and lens flare.
+- Published on GitHub Pages under /charlie-fs/.
 - Single race against seven AI drivers, laps, positions, lap records and results.
 - Arcade driving model, chase/bumper cameras, 90s-style HUD, retro render mode.
 - Keyboard, gamepad and touch controls; synthesised sound.
@@ -14,4 +16,4 @@
 - Time trial with a ghost car.
 - Night or rain versions of the tracks.
 - Car colour choice and a championship across both tracks.
-- Physical phone and gamepad checks, and deployment.
+- Physical phone and gamepad checks.

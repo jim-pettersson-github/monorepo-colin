@@ -82,7 +82,7 @@ export function RaceView({ settings, onSettings, onExit }: Props) {
     }
     renderer.mode = settingsRef.current.camera;
     rendererRef.current = renderer;
-    if (import.meta.env.DEV) Object.assign(window, { charlieRace: race });
+    if (import.meta.env.DEV) Object.assign(window, { charlieRace: race, charlieRenderer: renderer });
     const audio = new RaceAudio();
     audio.muted = !settingsRef.current.sound;
     audio.start();

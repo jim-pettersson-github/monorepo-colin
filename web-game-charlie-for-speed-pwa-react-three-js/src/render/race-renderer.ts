@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Race } from '../game/race';
 import { buildCarModel, type CarModel } from './car-model';
+import { Particles } from './effects';
 import { buildTrackWorld, type TrackWorld } from './track-world';
 
 export type CameraMode = 'chase' | 'far' | 'bumper';
@@ -23,6 +24,12 @@ export class RaceRenderer {
   private lookTarget = new THREE.Vector3();
   private retro: boolean;
   private elapsed = 0;
+  private smoke = new Particles({ capacity: 600, opacity: 0.5, gravity: -0.8, growth: 2.4 });
+  private sparks = new Particles({ capacity: 240, opacity: 1, gravity: 9, growth: -0.4 });
+  private emitPosition = new THREE.Vector3();
+  private emitVelocity = new THREE.Vector3();
+  private colors = { smoke: new THREE.Color('#d8d8d4'), dust: new THREE.Color('#8f8058'), spark: new THREE.Color('#ffb43a') };
+  private drawingSize = new THREE.Vector2();
   mode: CameraMode = 'chase';
 
   constructor(canvas: HTMLCanvasElement, race: Race, retro: boolean) {
@@ -36,6 +43,7 @@ export class RaceRenderer {
       this.world.scene.add(model.group);
       return model;
     });
+    this.world.scene.add(this.smoke.points, this.sparks.points);
     this.cameraYaw = race.player.state.yaw;
   }
 
@@ -61,8 +69,53 @@ export class RaceRenderer {
     const lit = race.phase === 'countdown' ? Math.min(5, Math.floor((3.4 - race.countdown) / 0.6)) : 0;
     this.world.setStartLights(lit, race.phase !== 'countdown' && race.time < 3);
     this.updateCamera(frameTime);
+    this.emitEffects(frameTime);
+    this.renderer.getDrawingBufferSize(this.drawingSize);
+    this.smoke.update(frameTime, this.drawingSize.y, this.camera.fov);
+    this.sparks.update(frameTime, this.drawingSize.y, this.camera.fov);
+    const { tunnel } = race.track;
+    const s = race.player.state.s;
+    const inside = Math.min(s - tunnel.start, tunnel.end - s);
+    this.world.setShade(THREE.MathUtils.smoothstep(inside, -5, 18));
     this.world.update(this.camera, this.elapsed);
     this.renderer.render(this.world.scene, this.camera);
+  }
+
+  // Tyre smoke when sliding, dust on the grass and sparks along the barriers.
+  private emitEffects(frameTime: number) {
+    const { race, camera } = this;
+    if (race.phase === 'countdown') return;
+    const rate = frameTime * 60;
+    for (const racer of race.racers) {
+      const car = racer.state;
+      if ((car.x - camera.position.x) ** 2 + (car.z - camera.position.z) ** 2 > 160 ** 2) continue;
+      const speed = Math.hypot(car.vx, car.vz);
+      const fx = Math.sin(car.yaw);
+      const fz = Math.cos(car.yaw);
+      const sliding = car.surface !== 'grass' && car.slip > 3.5;
+      const dusty = car.surface === 'grass' && speed > 6;
+      if (sliding || dusty) {
+        for (const side of [-0.8, 0.8]) {
+          if (Math.random() > Math.min(1, (dusty ? 0.6 : (car.slip - 3) / 5) * rate)) continue;
+          this.emitPosition.set(car.x - fx * 1.3 - fz * side, car.y + 0.3, car.z - fz * 1.3 + fx * side);
+          this.emitVelocity.set(car.vx * 0.12 + (Math.random() - 0.5), 0.5 + Math.random() * 0.6, car.vz * 0.12 + (Math.random() - 0.5));
+          this.smoke.emit(this.emitPosition, this.emitVelocity, dusty ? this.colors.dust : this.colors.smoke, dusty ? 0.9 : 1.2, dusty ? 0.9 : 1.5);
+        }
+      }
+      if ((car.scraping && speed > 6) || car.impact > 3) {
+        const side = Math.sign(car.lateral) || 1;
+        const sample = race.track.path.samples[car.index];
+        for (let i = 0; i < Math.ceil(3 * rate); i++) {
+          // From the rear corner against the barrier, trailing back toward the camera.
+          const along = -racer.spec.length / 2 + Math.random() * 0.6;
+          const edge = racer.spec.width / 2 + 0.05;
+          const spray = Math.random() * 1.5;
+          this.emitPosition.set(car.x + sample.rx * side * edge + fx * along, car.y + 0.45, car.z + sample.rz * side * edge + fz * along);
+          this.emitVelocity.set(car.vx * 0.4 - sample.rx * side * spray, 1.5 + Math.random() * 3, car.vz * 0.4 - sample.rz * side * spray);
+          this.sparks.emit(this.emitPosition, this.emitVelocity, this.colors.spark, 0.3, 0.25 + Math.random() * 0.25);
+        }
+      }
+    }
   }
 
   private updateCamera(frameTime: number) {
@@ -120,6 +173,8 @@ export class RaceRenderer {
 
   dispose() {
     for (const model of this.models) model.dispose();
+    this.smoke.dispose();
+    this.sparks.dispose();
     this.world.dispose();
     this.renderer.dispose();
   }

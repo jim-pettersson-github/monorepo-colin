@@ -1,0 +1,385 @@
+export type Point = readonly [u: number, v: number];
+
+export type Feature =
+  | 'airboxes'
+  | 'naca'
+  | 'sideIntakes'
+  | 'louvres'
+  | 'hoodBulge'
+  | 'hoodVents'
+  | 'splitter'
+  | 'roofScoop'
+  | 'doubleBubble'
+  | 'blackRoof'
+  | 'skirts';
+
+export type CarDesign = {
+  // Upper outline from the rear bumper to the nose: u runs from -0.5 (rear) to 0.5 (front), v is height in metres.
+  top: Point[];
+  cabin: Point[];
+  // Half the wheelbase as a fraction of length, and how far the wheelbase centre sits toward the nose.
+  axle: number;
+  axleShift?: number;
+  // Plan-view shaping: narrower nose, wider rear hips and sides that lean in toward the roof.
+  pinch: number;
+  hips?: number;
+  tumble: number;
+  headlights: 'popup' | 'round' | 'covered' | 'quad' | 'slim';
+  taillights: 'bar' | 'round' | 'quad' | 'slim' | 'grille';
+  wing?: 'v' | 'gt' | 'whale' | 'lip' | 'low';
+  features?: Feature[];
+};
+
+export const designs: Record<string, CarDesign> = {
+  contaccio: {
+    top: [
+      [-0.5, 0.3],
+      [-0.5, 0.8],
+      [-0.44, 0.86],
+      [-0.2, 0.88],
+      [0.06, 0.84],
+      [0.42, 0.56],
+      [0.5, 0.46],
+      [0.5, 0.3],
+    ],
+    cabin: [
+      [-0.26, 0.86],
+      [-0.09, 1.07],
+      [0.06, 1.07],
+      [0.36, 0.62],
+    ],
+    axle: 0.3,
+    pinch: 0.14,
+    hips: 0.06,
+    tumble: 0.12,
+    headlights: 'popup',
+    taillights: 'grille',
+    wing: 'v',
+    features: ['airboxes', 'naca', 'skirts'],
+  },
+  furia: {
+    top: [
+      [-0.5, 0.3],
+      [-0.5, 0.8],
+      [-0.4, 0.87],
+      [-0.15, 0.88],
+      [0.1, 0.8],
+      [0.44, 0.52],
+      [0.5, 0.42],
+      [0.5, 0.28],
+    ],
+    cabin: [
+      [-0.24, 0.86],
+      [-0.08, 1.11],
+      [0.05, 1.11],
+      [0.33, 0.66],
+    ],
+    axle: 0.3,
+    pinch: 0.12,
+    hips: 0.04,
+    tumble: 0.14,
+    headlights: 'slim',
+    taillights: 'quad',
+    wing: 'low',
+    features: ['sideIntakes', 'louvres', 'skirts'],
+  },
+  volata: {
+    top: [
+      [-0.5, 0.32],
+      [-0.5, 0.74],
+      [-0.38, 0.84],
+      [-0.12, 0.85],
+      [0.15, 0.8],
+      [0.44, 0.62],
+      [0.5, 0.48],
+      [0.5, 0.3],
+    ],
+    cabin: [
+      [-0.3, 0.82],
+      [-0.12, 1.17],
+      [0.04, 1.17],
+      [0.26, 0.8],
+    ],
+    axle: 0.29,
+    pinch: 0.12,
+    hips: 0.03,
+    tumble: 0.2,
+    headlights: 'popup',
+    taillights: 'round',
+    wing: 'lip',
+    features: ['sideIntakes', 'louvres'],
+  },
+  corsa: {
+    top: [
+      [-0.5, 0.32],
+      [-0.5, 0.8],
+      [-0.4, 0.9],
+      [-0.2, 0.92],
+      [0.05, 0.86],
+      [0.44, 0.74],
+      [0.5, 0.58],
+      [0.5, 0.32],
+    ],
+    cabin: [
+      [-0.4, 0.88],
+      [-0.22, 1.27],
+      [-0.02, 1.27],
+      [0.14, 0.88],
+    ],
+    axle: 0.28,
+    axleShift: 0.02,
+    pinch: 0.1,
+    tumble: 0.2,
+    headlights: 'covered',
+    taillights: 'round',
+    features: ['hoodBulge', 'hoodVents'],
+  },
+  clr: {
+    top: [
+      [-0.5, 0.26],
+      [-0.5, 0.86],
+      [-0.3, 0.9],
+      [0.0, 0.84],
+      [0.2, 0.8],
+      [0.45, 0.56],
+      [0.5, 0.38],
+      [0.5, 0.24],
+    ],
+    cabin: [
+      [-0.2, 0.84],
+      [-0.04, 1.16],
+      [0.1, 1.16],
+      [0.3, 0.78],
+    ],
+    axle: 0.275,
+    pinch: 0.12,
+    hips: 0.03,
+    tumble: 0.14,
+    headlights: 'quad',
+    taillights: 'slim',
+    wing: 'gt',
+    features: ['roofScoop', 'splitter', 'sideIntakes', 'skirts'],
+  },
+  tempest: {
+    top: [
+      [-0.5, 0.28],
+      [-0.5, 0.84],
+      [-0.36, 0.88],
+      [-0.1, 0.86],
+      [0.44, 0.68],
+      [0.5, 0.48],
+      [0.5, 0.26],
+    ],
+    cabin: [
+      [-0.32, 0.86],
+      [-0.16, 1.2],
+      [0.0, 1.2],
+      [0.16, 0.84],
+    ],
+    axle: 0.29,
+    pinch: 0.1,
+    hips: 0.04,
+    tumble: 0.16,
+    headlights: 'quad',
+    taillights: 'round',
+    wing: 'gt',
+    features: ['splitter', 'hoodVents', 'skirts'],
+  },
+  stallion: {
+    top: [
+      [-0.5, 0.32],
+      [-0.5, 0.76],
+      [-0.38, 0.84],
+      [-0.1, 0.84],
+      [0.44, 0.7],
+      [0.5, 0.52],
+      [0.5, 0.3],
+    ],
+    cabin: [
+      [-0.36, 0.82],
+      [-0.22, 1.19],
+      [-0.04, 1.19],
+      [0.12, 0.82],
+    ],
+    axle: 0.27,
+    axleShift: 0.02,
+    pinch: 0.08,
+    hips: 0.05,
+    tumble: 0.2,
+    headlights: 'covered',
+    taillights: 'bar',
+    wing: 'lip',
+    features: ['hoodBulge', 'hoodVents', 'doubleBubble'],
+  },
+  sting: {
+    top: [
+      [-0.5, 0.32],
+      [-0.5, 0.82],
+      [-0.38, 0.88],
+      [-0.12, 0.86],
+      [0.1, 0.8],
+      [0.45, 0.68],
+      [0.5, 0.54],
+      [0.5, 0.32],
+    ],
+    cabin: [
+      [-0.34, 0.86],
+      [-0.16, 1.21],
+      [0.02, 1.21],
+      [0.18, 0.82],
+    ],
+    axle: 0.29,
+    pinch: 0.1,
+    tumble: 0.2,
+    headlights: 'popup',
+    taillights: 'quad',
+  },
+  xk: {
+    top: [
+      [-0.5, 0.34],
+      [-0.5, 0.76],
+      [-0.42, 0.88],
+      [-0.24, 0.9],
+      [0.0, 0.86],
+      [0.44, 0.74],
+      [0.5, 0.58],
+      [0.5, 0.34],
+    ],
+    cabin: [
+      [-0.38, 0.88],
+      [-0.2, 1.28],
+      [-0.02, 1.28],
+      [0.12, 0.86],
+    ],
+    axle: 0.27,
+    axleShift: 0.02,
+    pinch: 0.14,
+    tumble: 0.26,
+    headlights: 'covered',
+    taillights: 'slim',
+  },
+  dbs: {
+    top: [
+      [-0.5, 0.34],
+      [-0.5, 0.8],
+      [-0.4, 0.9],
+      [-0.2, 0.9],
+      [0.02, 0.86],
+      [0.44, 0.72],
+      [0.5, 0.58],
+      [0.5, 0.34],
+    ],
+    cabin: [
+      [-0.36, 0.88],
+      [-0.2, 1.26],
+      [0.0, 1.26],
+      [0.15, 0.86],
+    ],
+    axle: 0.28,
+    axleShift: 0.02,
+    pinch: 0.12,
+    tumble: 0.24,
+    headlights: 'covered',
+    taillights: 'slim',
+    wing: 'lip',
+    features: ['hoodBulge'],
+  },
+  velox: {
+    top: [
+      [-0.5, 0.28],
+      [-0.5, 0.6],
+      [-0.44, 0.76],
+      [-0.25, 0.84],
+      [0.18, 0.8],
+      [0.42, 0.7],
+      [0.5, 0.52],
+      [0.5, 0.28],
+    ],
+    cabin: [
+      [-0.4, 0.74],
+      [-0.14, 1.28],
+      [0.04, 1.3],
+      [0.24, 0.8],
+    ],
+    axle: 0.27,
+    axleShift: 0.04,
+    pinch: 0.12,
+    hips: 0.08,
+    tumble: 0.22,
+    headlights: 'round',
+    taillights: 'bar',
+    wing: 'whale',
+  },
+  nxr: {
+    top: [
+      [-0.5, 0.3],
+      [-0.5, 0.74],
+      [-0.3, 0.84],
+      [0.08, 0.82],
+      [0.44, 0.62],
+      [0.5, 0.46],
+      [0.5, 0.28],
+    ],
+    cabin: [
+      [-0.32, 0.8],
+      [-0.14, 1.16],
+      [0.04, 1.17],
+      [0.28, 0.78],
+    ],
+    axle: 0.29,
+    pinch: 0.1,
+    tumble: 0.18,
+    headlights: 'popup',
+    taillights: 'bar',
+    wing: 'lip',
+    features: ['blackRoof', 'sideIntakes'],
+  },
+  arrow: {
+    top: [
+      [-0.5, 0.3],
+      [-0.5, 0.84],
+      [-0.28, 0.9],
+      [0.06, 0.84],
+      [0.46, 0.5],
+      [0.5, 0.4],
+      [0.5, 0.28],
+    ],
+    cabin: [
+      [-0.26, 0.86],
+      [-0.1, 1.12],
+      [0.03, 1.12],
+      [0.34, 0.66],
+    ],
+    axle: 0.28,
+    pinch: 0.12,
+    tumble: 0.14,
+    headlights: 'popup',
+    taillights: 'bar',
+    features: ['sideIntakes', 'louvres'],
+  },
+  skarv: {
+    top: [
+      [-0.5, 0.26],
+      [-0.5, 0.8],
+      [-0.22, 0.86],
+      [0.14, 0.8],
+      [0.44, 0.52],
+      [0.5, 0.36],
+      [0.5, 0.24],
+    ],
+    cabin: [
+      [-0.2, 0.82],
+      [-0.06, 1.1],
+      [0.08, 1.1],
+      [0.3, 0.76],
+    ],
+    axle: 0.3,
+    pinch: 0.12,
+    hips: 0.03,
+    tumble: 0.16,
+    headlights: 'covered',
+    taillights: 'slim',
+    wing: 'low',
+    features: ['sideIntakes', 'roofScoop', 'skirts'],
+  },
+};
