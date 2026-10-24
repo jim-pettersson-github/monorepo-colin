@@ -2,14 +2,17 @@ import * as THREE from 'three';
 import { toCreasedNormals } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { CarSpec } from '../game/cars';
 import type { CarState } from '../game/physics';
+import { batchStatic } from './batch';
 import { type CarDesign, designs, type Point } from './car-designs';
-import { shadowTexture } from './textures';
+import { frontTexture, rearTexture, rimTexture, sideTexture } from './car-textures';
+import { glowTexture, shadowTexture } from './textures';
 
 const WHEEL_RADIUS = 0.34;
 const ARCH_RADIUS = 0.43;
 const SILL = 0.24;
 let sharedShadow: THREE.Texture | undefined;
 let sharedEnvironment: THREE.CubeTexture | undefined;
+let sharedGlows: { red: THREE.Texture; white: THREE.Texture } | undefined;
 
 // A tiny sky-and-road cube map: flat-shaded paint picks up a bright horizon band like late-90s chrome.
 function environment() {
@@ -142,12 +145,22 @@ export function buildCarModel(spec: CarSpec, headlightsOn = false): CarModel {
     combine: THREE.MixOperation,
   });
   const black = new THREE.MeshLambertMaterial({ color: 0x111215 });
-  const tail = new THREE.MeshLambertMaterial({ color: 0x5a0606, emissive: 0xff1a10, emissiveIntensity: 0.35 });
   const head = new THREE.MeshLambertMaterial({ color: 0xdddddd, emissive: 0xfff2c0, emissiveIntensity: headlightsOn ? 1 : 0.3 });
-  const amber = new THREE.MeshLambertMaterial({ color: 0xff9a1a, emissive: 0xff7a00, emissiveIntensity: 0.4 });
-  const materials: THREE.Material[] = [paint, trim, glass, black, tail, head, amber];
+  const { front, rear } = axles(design, length);
+  const sideMap = sideTexture(design, spec, [front, rear], ARCH_RADIUS);
+  const sidePaint = new THREE.MeshPhongMaterial({
+    color: spec.color,
+    map: sideMap,
+    shininess: 90,
+    specular: 0x777777,
+    envMap: env,
+    reflectivity: 0.14,
+    combine: THREE.MixOperation,
+  });
+  const materials: THREE.Material[] = [paint, sidePaint, trim, glass, black, head];
+  const textures: THREE.Texture[] = [sideMap];
 
-  const part = (geometry: THREE.BufferGeometry, material: THREE.Material, x: number, y: number, z: number, rotateX = 0, rotateZ = 0) => {
+  const part = (geometry: THREE.BufferGeometry, material: THREE.Material | THREE.Material[], x: number, y: number, z: number, rotateX = 0, rotateZ = 0) => {
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.set(x, y, z);
     mesh.rotation.set(rotateX, 0, rotateZ);
@@ -160,7 +173,8 @@ export function buildCarModel(spec: CarSpec, headlightsOn = false): CarModel {
     part(new THREE.CylinderGeometry(radius, radius, 0.06, 10), material, x, y, z, Math.PI / 2 + tilt);
 
   // Body, glasshouse and a painted roof skin that follows the roofline.
-  part(shape(extrude(bodyOutline(design, length), width - 0.12, 0.07)), paint, 0, 0, 0);
+  // Extrusion caps are the painted body sides; the walls are the plain top and ends.
+  part(shape(extrude(bodyOutline(design, length), width - 0.12, 0.07)), [sidePaint, paint], 0, 0, 0);
   const cabinWidth = width * 0.76;
   const cabinBottom = Math.min(...design.cabin.map(([, v]) => v));
   part(shape(extrude(scaled(design.cabin, length), cabinWidth, 0.04), 0.3, cabinBottom, roofTop), glass, 0, 0, 0);
@@ -191,11 +205,29 @@ export function buildCarModel(spec: CarSpec, headlightsOn = false): CarModel {
   }
 
   // Sills, bumpers and exhausts.
-  const { front, rear } = axles(design, length);
   const sillLength = front - rear - ARCH_RADIUS * 2;
   box(sideAt(0.3, 0) * 2 + 0.04, 0.12, sillLength, features.has('skirts') ? trim : black, 0, SILL + 0.06, (front + rear) / 2);
-  box(width * 0.5, 0.1, 0.06, black, 0, 0.36, nose + 0.05);
-  box(sideAt(0.4, -nose) * 2 - 0.1, 0.18, 0.06, black, 0, 0.38, -nose - 0.05);
+
+  // Painted front and rear fascias over the vertical end faces.
+  const faceTop = (end: number) => Math.max(...design.top.filter(([u]) => Math.abs(u - end) < 0.001).map(([, v]) => v));
+  const rearArt = rearTexture(design, spec);
+  const rearBottom = SILL + 0.02;
+  const rearHeight = faceTop(-0.5) - 0.02 - rearBottom;
+  const rearWidth = sideAt(rearBottom + rearHeight * 0.6, -nose) * 2 - 0.02;
+  const rearMaterial = new THREE.MeshPhongMaterial({ map: rearArt.map, shininess: 60, specular: 0x444444 });
+  part(new THREE.PlaneGeometry(rearWidth, rearHeight), rearMaterial, 0, rearBottom + rearHeight / 2, -nose - 0.06).rotation.y = Math.PI;
+  const frontMap = frontTexture(design, spec);
+  const frontHeight = Math.max(0.12, faceTop(0.5) - 0.02 - rearBottom);
+  const frontMaterial = new THREE.MeshPhongMaterial({ map: frontMap, shininess: 60, specular: 0x444444 });
+  part(
+    new THREE.PlaneGeometry(sideAt(rearBottom + frontHeight * 0.6, nose) * 2 - 0.04, frontHeight),
+    frontMaterial,
+    0,
+    rearBottom + frontHeight / 2,
+    nose + 0.06,
+  );
+  materials.push(rearMaterial, frontMaterial);
+  textures.push(rearArt.map, frontMap);
   for (const side of [-0.32, 0.32]) part(new THREE.CylinderGeometry(0.06, 0.06, 0.22, 8), trim, side, 0.32, -nose - 0.08, Math.PI / 2);
 
   // Headlights.
@@ -204,7 +236,7 @@ export function buildCarModel(spec: CarSpec, headlightsOn = false): CarModel {
     const x = side * lampX;
     if (design.headlights === 'popup') {
       box(0.44, 0.04, 0.3, paint, x, heightAt(design.top, 0.4) + 0.03, nose - 0.4, 0.12);
-      box(0.32, 0.06, 0.04, amber, x, noseHeight - 0.14, nose + 0.03);
+      box(0.42, 0.006, 0.006, black, x, heightAt(design.top, 0.4) + 0.052, nose - 0.25, 0.12);
     } else if (design.headlights === 'round') disc(0.12, head, x, noseHeight + 0.02, nose - 0.18, -0.5);
     else if (design.headlights === 'quad') {
       disc(0.08, head, x - side * 0.1, noseHeight - 0.08, nose + 0.02, -0.2);
@@ -215,21 +247,40 @@ export function buildCarModel(spec: CarSpec, headlightsOn = false): CarModel {
     } else box(0.52, 0.05, 0.05, head, x, noseHeight - 0.08, nose + 0.03);
   }
 
-  // Tail lights.
-  const tailX = sideAt(tailHeight, -nose) - 0.32;
-  const tailY = tailHeight - 0.13;
-  if (design.taillights === 'grille') box(sideAt(tailHeight, -nose) * 2 - 0.1, 0.24, 0.05, black, 0, tailY, -nose - 0.04);
+  // Door mirrors just behind the windscreen base.
+  const mirrorZ = design.cabin[3][0] * length - 0.3;
   for (const side of [-1, 1]) {
-    const x = side * tailX;
-    if (design.taillights === 'round' || design.taillights === 'quad') {
-      const radius = design.taillights === 'round' ? 0.085 : 0.1;
-      disc(radius, tail, x + side * 0.08, tailY, -nose - 0.05);
-      disc(radius, tail, x - side * 0.17, tailY, -nose - 0.05);
-    } else if (design.taillights === 'slim') box(0.62, 0.05, 0.06, tail, x, tailY + 0.04, -nose - 0.05);
-    else if (design.taillights === 'grille') {
-      box(0.44, 0.16, 0.06, tail, x, tailY, -nose - 0.07);
-      box(0.12, 0.16, 0.06, amber, x - side * 0.3, tailY, -nose - 0.07);
-    } else box(0.52, 0.11, 0.06, tail, x, tailY, -nose - 0.05);
+    const x = side * (sideAt(cabinBottom, mirrorZ) + 0.05);
+    box(0.12, 0.08, 0.17, paint, x, cabinBottom + 0.08, mirrorZ);
+    box(0.06, 0.03, 0.03, black, x - side * 0.07, cabinBottom + 0.05, mirrorZ + 0.03);
+  }
+
+  // Additive glows for brake lights, and headlights on evening tracks.
+  sharedGlows ??= { red: glowTexture('#ff2a1a'), white: glowTexture('#fff2c8') };
+  const brakeMaterial = new THREE.SpriteMaterial({ map: sharedGlows.red, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true });
+  const headMaterial = new THREE.SpriteMaterial({
+    map: sharedGlows.white,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    transparent: true,
+    opacity: 0.85,
+  });
+  materials.push(brakeMaterial, headMaterial);
+  const brakeGlows = rearArt.lamps.map(({ u, v }) => {
+    const sprite = new THREE.Sprite(brakeMaterial);
+    sprite.position.set(-(u - 0.5) * rearWidth, rearBottom + v * rearHeight, -nose - 0.15);
+    sprite.scale.setScalar(0.75);
+    sprite.visible = false;
+    body.add(sprite);
+    return sprite;
+  });
+  if (headlightsOn) {
+    for (const side of [-1, 1]) {
+      const sprite = new THREE.Sprite(headMaterial);
+      sprite.position.set(side * lampX, noseHeight - 0.08, nose + 0.22);
+      sprite.scale.setScalar(0.9);
+      body.add(sprite);
+    }
   }
 
   // Model-specific details.
@@ -294,13 +345,15 @@ export function buildCarModel(spec: CarSpec, headlightsOn = false): CarModel {
   }
 
   // Wheels.
-  const tire = new THREE.MeshLambertMaterial({ color: 0x18181a, flatShading: true });
-  const rim = new THREE.MeshPhongMaterial({ color: 0xc8ccd0, shininess: 90, envMap: env, reflectivity: 0.4, combine: THREE.MixOperation, flatShading: true });
-  materials.push(tire, rim);
-  const tireGeometry = new THREE.CylinderGeometry(WHEEL_RADIUS, WHEEL_RADIUS, 0.26, 14);
-  tireGeometry.rotateZ(Math.PI / 2);
-  const rimGeometry = new THREE.CylinderGeometry(WHEEL_RADIUS * 0.64, WHEEL_RADIUS * 0.64, 0.27, 5);
-  rimGeometry.rotateZ(Math.PI / 2);
+  // One mesh per wheel: the caps show the rim art and the tread samples its dark rubber edge.
+  const rimMap = rimTexture(design.rims ?? 'five');
+  const wheelMaterial = new THREE.MeshPhongMaterial({ map: rimMap, shininess: 70, specular: 0x555555 });
+  materials.push(wheelMaterial);
+  textures.push(rimMap);
+  const wheelGeometry = new THREE.CylinderGeometry(WHEEL_RADIUS, WHEEL_RADIUS, 0.26, 14);
+  const uv = wheelGeometry.attributes.uv;
+  for (let i = 0; i < 15 * 2; i++) uv.setXY(i, 0.5, 0.02);
+  wheelGeometry.rotateZ(Math.PI / 2);
   const spinners: THREE.Group[] = [];
   const steerers: THREE.Group[] = [];
   for (const z of [front, rear]) {
@@ -308,7 +361,7 @@ export function buildCarModel(spec: CarSpec, headlightsOn = false): CarModel {
       const pivot = new THREE.Group();
       pivot.position.set(side * (sideAt(WHEEL_RADIUS, z) - 0.06), WHEEL_RADIUS, z);
       const spinner = new THREE.Group();
-      spinner.add(new THREE.Mesh(tireGeometry, tire), new THREE.Mesh(rimGeometry, rim));
+      spinner.add(new THREE.Mesh(wheelGeometry, wheelMaterial));
       pivot.add(spinner);
       group.add(pivot);
       spinners.push(spinner);
@@ -326,6 +379,9 @@ export function buildCarModel(spec: CarSpec, headlightsOn = false): CarModel {
   group.add(shadow);
   group.rotation.order = 'YXZ';
 
+  // Static body parts collapse into one mesh per material.
+  const batched = batchStatic(body, Number.POSITIVE_INFINITY);
+
   return {
     group,
     update(state, headingDot) {
@@ -337,13 +393,15 @@ export function buildCarModel(spec: CarSpec, headlightsOn = false): CarModel {
       body.position.y = state.surface === 'grass' ? Math.sin(state.wheelSpin * 2.3) * 0.025 : 0;
       for (const spinner of spinners) spinner.rotation.x = state.wheelSpin;
       for (const pivot of steerers) pivot.rotation.y = -state.steer * 0.45;
-      tail.emissiveIntensity = state.braking ? 1.4 : 0.35;
+      for (const glow of brakeGlows) glow.visible = state.braking;
     },
     dispose() {
       group.traverse((child) => {
         if (child instanceof THREE.Mesh) child.geometry.dispose();
       });
       for (const material of materials) material.dispose();
+      for (const map of textures) map.dispose();
+      batched.dispose();
     },
   };
 }

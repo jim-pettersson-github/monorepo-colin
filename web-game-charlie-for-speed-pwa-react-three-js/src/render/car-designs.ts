@@ -1,5 +1,7 @@
 export type Point = readonly [u: number, v: number];
 
+export type RimStyle = 'dial' | 'five' | 'multi' | 'turbine';
+
 export type Feature =
   | 'airboxes'
   | 'naca'
@@ -27,6 +29,7 @@ export type CarDesign = {
   headlights: 'popup' | 'round' | 'covered' | 'quad' | 'slim';
   taillights: 'bar' | 'round' | 'quad' | 'slim' | 'grille';
   wing?: 'v' | 'gt' | 'whale' | 'lip' | 'low';
+  rims?: RimStyle;
   features?: Feature[];
 };
 
@@ -55,6 +58,7 @@ export const designs: Record<string, CarDesign> = {
     headlights: 'popup',
     taillights: 'grille',
     wing: 'v',
+    rims: 'dial',
     features: ['airboxes', 'naca', 'skirts'],
   },
   furia: {
@@ -158,6 +162,7 @@ export const designs: Record<string, CarDesign> = {
     headlights: 'quad',
     taillights: 'slim',
     wing: 'gt',
+    rims: 'multi',
     features: ['roofScoop', 'splitter', 'sideIntakes', 'skirts'],
   },
   tempest: {
@@ -183,6 +188,7 @@ export const designs: Record<string, CarDesign> = {
     headlights: 'quad',
     taillights: 'round',
     wing: 'gt',
+    rims: 'multi',
     features: ['splitter', 'hoodVents', 'skirts'],
   },
   stallion: {
@@ -380,6 +386,7 @@ export const designs: Record<string, CarDesign> = {
     headlights: 'covered',
     taillights: 'slim',
     wing: 'low',
+    rims: 'turbine',
     features: ['sideIntakes', 'roofScoop', 'skirts'],
   },
 };

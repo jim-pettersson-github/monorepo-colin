@@ -414,6 +414,7 @@ export function buildScenery(scene: THREE.Scene, track: Track, ground: Ground, l
       const banner = new THREE.Mesh(keep(new THREE.PlaneGeometry(3.2, 2)), flagMaterial);
       banner.position.set(1.65, 8.9, 0);
       const holder = new THREE.Group();
+      holder.userData.dynamic = true;
       holder.add(banner);
       pole.add(holder);
       frame(pole, s, lateral);
@@ -495,6 +496,7 @@ export function buildScenery(scene: THREE.Scene, track: Track, ground: Ground, l
       const turbine = new THREE.Group();
       turbine.add(new THREE.Mesh(keep(new THREE.CylinderGeometry(1, 1.8, 70, 8)), turbineWhite).translateY(35));
       const rotor = new THREE.Group();
+      rotor.userData.dynamic = true;
       rotor.position.set(0, 70, 3);
       for (let blade = 0; blade < 3; blade++) {
         const arm = new THREE.Mesh(keep(new THREE.BoxGeometry(1.4, 26, 0.4)), turbineWhite);

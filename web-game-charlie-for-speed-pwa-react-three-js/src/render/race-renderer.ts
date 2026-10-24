@@ -30,12 +30,20 @@ export class RaceRenderer {
   private emitVelocity = new THREE.Vector3();
   private colors = { smoke: new THREE.Color('#d8d8d4'), dust: new THREE.Color('#8f8058'), spark: new THREE.Color('#ffb43a') };
   private drawingSize = new THREE.Vector2();
+  private size = { width: 1, height: 1 };
+  private maxPixelRatio: number;
+  private pixelRatio: number;
+  private frameAverage = 1 / 60;
+  private qualityTimer = 0;
   mode: CameraMode = 'chase';
 
   constructor(canvas: HTMLCanvasElement, race: Race, retro: boolean) {
     this.race = race;
     this.retro = retro;
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: !retro, powerPreference: 'high-performance' });
+    // High-density phone screens hide jaggies anyway, so they skip the costly multisampling.
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: !retro && window.devicePixelRatio < 1.5, powerPreference: 'high-performance' });
+    this.maxPixelRatio = retro ? 0.5 : Math.min(window.devicePixelRatio, 1.5);
+    this.pixelRatio = this.maxPixelRatio;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.world = buildTrackWorld(race.track);
     this.models = race.racers.map((racer) => {
@@ -48,16 +56,32 @@ export class RaceRenderer {
   }
 
   resize(width: number, height: number) {
-    const pixelRatio = this.retro ? 0.5 : Math.min(window.devicePixelRatio, 1.5);
-    this.renderer.setPixelRatio(pixelRatio);
+    this.size = { width, height };
+    this.renderer.setPixelRatio(this.pixelRatio);
     this.renderer.setSize(width, height, false);
     this.camera.aspect = width / Math.max(height, 1);
     this.camera.updateProjectionMatrix();
   }
 
+  // Lowers the render resolution when frames run long and raises it again once there is headroom.
+  private adaptQuality(frameTime: number) {
+    if (this.retro) return;
+    this.frameAverage += (frameTime - this.frameAverage) * 0.05;
+    this.qualityTimer += frameTime;
+    if (this.qualityTimer < 1.5) return;
+    this.qualityTimer = 0;
+    let next = this.pixelRatio;
+    if (this.frameAverage > 1 / 45) next = Math.max(0.6, this.pixelRatio - 0.15);
+    else if (this.frameAverage < 1 / 57) next = Math.min(this.maxPixelRatio, this.pixelRatio + 0.1);
+    if (Math.abs(next - this.pixelRatio) < 0.01) return;
+    this.pixelRatio = next;
+    this.resize(this.size.width, this.size.height);
+  }
+
   render(frameTime: number) {
     const { race } = this;
     this.elapsed += frameTime;
+    this.adaptQuality(frameTime);
     const { samples } = race.track.path;
 
     race.racers.forEach((racer, index) => {

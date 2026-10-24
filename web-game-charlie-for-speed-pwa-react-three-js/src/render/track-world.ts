@@ -1,6 +1,8 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { TrackPath, TrackSample } from '../game/track-path';
 import type { Track, TrackTheme } from '../game/tracks';
+import { batchStatic } from './batch';
 import { buildLensFlare } from './effects';
 import { buildScenery } from './scenery';
 import { asphaltTexture, barrierTexture, checkerTexture, cloudTexture, curbTexture, glowTexture, grassTexture, ridgeTexture, seeded } from './textures';
@@ -256,6 +258,7 @@ function buildGround(track: Track, look: ThemeLook): Ground & { geometry: THREE.
 
 function buildSky(look: ThemeLook, disposables: { dispose: () => void }[]) {
   const sky = new THREE.Group();
+  sky.userData.dynamic = true;
   const dome = new THREE.SphereGeometry(1900, 24, 14);
   const top = new THREE.Color(look.skyTop);
   const horizon = new THREE.Color(look.skyHorizon);
@@ -279,15 +282,23 @@ function buildSky(look: ThemeLook, disposables: { dispose: () => void }[]) {
 
   const random = seeded(31);
   const clouds = [cloudTexture(3), cloudTexture(8)];
-  const cloudMaterials = clouds.map((map) => new THREE.SpriteMaterial({ map, fog: false, depthWrite: false, transparent: true, opacity: 0.85 }));
+  const cloudMaterials = clouds.map((map) => new THREE.MeshBasicMaterial({ map, fog: false, depthWrite: false, transparent: true, opacity: 0.85 }));
+  // The sky follows the camera, so cards facing its centre always face the viewer; one mesh per texture.
+  const cloudCards: THREE.BufferGeometry[][] = [[], []];
   for (let i = 0; i < 14; i++) {
-    const cloud = new THREE.Sprite(cloudMaterials[i % 2]);
     const angle = random() * Math.PI * 2;
     const distance = 1300 + random() * 350;
-    cloud.position.set(Math.cos(angle) * distance, 180 + random() * 380, Math.sin(angle) * distance);
-    cloud.scale.set(500 + random() * 300, 160 + random() * 80, 1);
-    sky.add(cloud);
+    const card = new THREE.PlaneGeometry(500 + random() * 300, 160 + random() * 80);
+    card.rotateY(-angle - Math.PI / 2);
+    card.translate(Math.cos(angle) * distance, 180 + random() * 380, Math.sin(angle) * distance);
+    cloudCards[i % 2].push(card);
   }
+  cloudCards.forEach((cards, index) => {
+    const geometry = mergeGeometries(cards);
+    for (const card of cards) card.dispose();
+    sky.add(new THREE.Mesh(geometry, cloudMaterials[index]));
+    disposables.push(geometry);
+  });
 
   const ridges = [
     { radius: 1700, height: 260, color: look.farRidge, jagged: false, repeat: 3, y: 60 },
@@ -379,6 +390,8 @@ export function buildTrackWorld(track: Track): TrackWorld {
 
   const scenery = buildScenery(scene, track, ground, look);
   disposables.push(scenery);
+  // Hundreds of static props collapse into a few batched draw calls.
+  disposables.push(batchStatic(scene));
 
   return {
     scene,
