@@ -1,0 +1,39 @@
+{
+  "name": "sagospelen",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "start": "vite",
+    "dev": "vite",
+    "typecheck": "tsc --noEmit",
+    "check": "biome check .",
+    "build": "npm run typecheck && vite build",
+    "preview": "vite preview",
+    "pretest": "playwright install chromium --only-shell",
+    "test": "playwright test",
+    "verify": "npm run check && npm test",
+    "icons": "node scripts/generate-icons.mjs",
+    "check:hosting": "node ../.github/scripts/check-selector.mjs",
+    "test:hosting": "node ../.github/scripts/assemble-pages.mjs && playwright test --config playwright.hosting.config.ts"
+  },
+  "dependencies": {
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.13",
+    "@playwright/test": "1.63.0",
+    "@types/node": "22.20.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.1",
+    "sharp": "0.35.5",
+    "typescript": "5.9.3",
+    "vite": "8.3.5",
+    "vite-plugin-pwa": "1.3.0"
+  }
+}

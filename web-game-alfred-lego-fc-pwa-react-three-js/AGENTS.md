@@ -18,4 +18,6 @@ Run commands here with Node 22.12+. npm ci, npm start (4012), npm run check, npm
 
 ## PWA and scope
 
-Keep VITE_BASE_PATH support, offline precaching and user-requested updates without forced refresh. Alfred-specific storage and caches. The shared Pages workflow deploys the elevator at `/monorepo-colin/` and Alfred at `/monorepo-colin/alfred-fc/`. Keep both URLs working and retain separate PWA caches and Alfred scope. The elevator worker must exclude Alfred navigations. Keep the elevator Git hook; run Alfred verification separately. Physical controller/phone checks remain separate review steps. Do not commit or push unless requested. Distinguish implemented behavior from future plans.
+Keep VITE_BASE_PATH support, offline precaching and user-requested updates without forced refresh. Alfred-specific storage and caches. The shared Pages workflow deploys the elevator at `/monorepo-colin/colin-elevator/` and Alfred at `/monorepo-colin/alfred-fc/`. Keep both URLs working and retain separate PWA caches and Alfred scope. The elevator worker must exclude Alfred navigations. Keep the elevator Git hook; run Alfred verification separately. Physical controller/phone checks remain separate review steps. Do not commit or push unless requested. Distinguish implemented behavior from future plans.
+
+The Pages root now hosts Spelhörnan, the game selector. The elevator lives under `/monorepo-colin/colin-elevator/`; existing same-origin saves retain their original keys.

@@ -7,6 +7,9 @@ on:
       - 'web-game-elevator-pwo-react-pixi-js/**'
       - 'web-game-alfred-lego-fc-pwa-react-three-js/**'
       - 'web-game-charlie-for-speed-pwa-react-three-js/**'
+      - 'web-game-disney-track-and-field-pwa-react-canvas/**'
+      - 'game-selector/**'
+      - '.github/scripts/**'
       - '.github/workflows/pages.yml'
   pull_request:
     branches: [main]
@@ -14,6 +17,9 @@ on:
       - 'web-game-elevator-pwo-react-pixi-js/**'
       - 'web-game-alfred-lego-fc-pwa-react-three-js/**'
       - 'web-game-charlie-for-speed-pwa-react-three-js/**'
+      - 'web-game-disney-track-and-field-pwa-react-canvas/**'
+      - 'game-selector/**'
+      - '.github/scripts/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -32,7 +38,7 @@ jobs:
       run:
         working-directory: web-game-elevator-pwo-react-pixi-js
     env:
-      VITE_BASE_PATH: /${{ github.event.repository.name }}/
+      VITE_BASE_PATH: /${{ github.event.repository.name }}/colin-elevator/
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -45,6 +51,7 @@ jobs:
             web-game-elevator-pwo-react-pixi-js/package-lock.json
             web-game-alfred-lego-fc-pwa-react-three-js/package-lock.json
             web-game-charlie-for-speed-pwa-react-three-js/package-lock.json
+            web-game-disney-track-and-field-pwa-react-canvas/package-lock.json
       - run: npm ci
       - run: npm run check
       - run: npm run build
@@ -59,8 +66,6 @@ jobs:
         env:
           VITE_BASE_PATH: /${{ github.event.repository.name }}/alfred-fc/
         run: npm run build
-      - name: Include Alfred FC in the Pages site
-        run: cp -R ../web-game-alfred-lego-fc-pwa-react-three-js/dist dist/alfred-fc
       - name: Install Charlie for Speed
         working-directory: web-game-charlie-for-speed-pwa-react-three-js
         run: npm ci
@@ -72,12 +77,27 @@ jobs:
         env:
           VITE_BASE_PATH: /${{ github.event.repository.name }}/charlie-fs/
         run: npm run build
-      - name: Include Charlie for Speed in the Pages site
-        run: cp -R ../web-game-charlie-for-speed-pwa-react-three-js/dist dist/charlie-fs
+      - name: Install Sagospelen
+        working-directory: web-game-disney-track-and-field-pwa-react-canvas
+        run: npm ci
+      - name: Check Sagospelen
+        working-directory: web-game-disney-track-and-field-pwa-react-canvas
+        run: npm run check
+      - name: Build Sagospelen
+        working-directory: web-game-disney-track-and-field-pwa-react-canvas
+        env:
+          VITE_BASE_PATH: /${{ github.event.repository.name }}/sagospelen/
+        run: npm run build
+      - name: Check the game selector and hosting scripts
+        working-directory: web-game-disney-track-and-field-pwa-react-canvas
+        run: npm run check:hosting
+      - name: Assemble the game selector and all four games
+        working-directory: .
+        run: node .github/scripts/assemble-pages.mjs
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         with:
-          path: web-game-elevator-pwo-react-pixi-js/dist
+          path: pages-site
 
   deploy:
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'

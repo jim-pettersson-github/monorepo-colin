@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <title>Alfred FC</title>
+  <rect width="512" height="512" rx="100" fill="#101e2b"/>
+  <path d="M98 104h316v208c0 63-77 109-158 139-81-30-158-76-158-139Z" fill="#d6f277"/>
+  <rect x="153" y="78" width="67" height="44" rx="12" fill="#d6f277"/>
+  <rect x="292" y="78" width="67" height="44" rx="12" fill="#d6f277"/>
+  <circle cx="256" cy="261" r="106" fill="#f3f6ed" stroke="#101e2b" stroke-width="10"/>
+  <path d="m256 215 43 31-16 50h-54l-16-50Z" fill="#101e2b"/>
+  <path d="m256 156 25 18-9 29h-32l-9-29Zm99 73-9 29-31 1-10-30 25-19Zm-37 116-31 1-10-29 25-19 25 18Zm-124 0-9-29 25-18 25 19-10 29Zm-37-116 25-19 25 19-10 30-31-1Z" fill="#101e2b"/>
+  <path d="m256 196 0 24m57 21-23 9m17 74-27-36m-75 36 27-36m-33-47 23 9" stroke="#101e2b" stroke-width="7"/>
+</svg>

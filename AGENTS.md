@@ -7,11 +7,13 @@ A personal elevator exploration game for an autistic child around eight years ol
 | Folder | Purpose | Local port |
 | --- | --- | --- |
 | [web-game-elevator-pwo-react-pixi-js](web-game-elevator-pwo-react-pixi-js/) | React + PixiJS game, delivered as an Android PWA | 4010 |
+| [web-game-charlie-for-speed-pwa-react-three-js](web-game-charlie-for-speed-pwa-react-three-js/) | Charlie for Speed: React + Three.js arcade racer and PWA | 4014 |
+| [web-game-disney-track-and-field-pwa-react-canvas](web-game-disney-track-and-field-pwa-react-canvas/) | Sagospelen: Disney athletics, React + Canvas 2D and PWA | 4016 |
 | [web-game-alfred-lego-fc-pwa-react-three-js](web-game-alfred-lego-fc-pwa-react-three-js/) | Alfred FC: React + Three.js football game and PWA | 4012 |
 
 Read each folder's CLAUDE.md and AGENTS.md before working there. This is standalone, with no backend, accounts, or external services.
 
-The elevator-specific art and gameplay guidance below applies to Colin's game. Alfred FC has its own instructions and plan in its folder. Each game is an independent npm project. Alfred uses preview port 4013; the Pages workflow builds both games, keeping the elevator at the site root and Alfred under `alfred-fc/`. The Git hook still targets the elevator game; run Alfred verification separately.
+The elevator-specific art and gameplay guidance below applies to Colin's game. The other games have their own instructions and plans in their folders. Each game is an independent npm project. Preview ports are 4011, 4013, 4015 and 4017. The Pages workflow builds all four games, placing the game selector at the root, the elevator under `colin-elevator/`, Alfred under `alfred-fc/`, racing under `charlie-fs/` and athletics under `sagospelen/`. The Git hook still targets the elevator game at its new hosted path; run the other games' verification separately.
 
 ## Writing UI
 

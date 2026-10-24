@@ -2,7 +2,7 @@
 set -eu
 
 cd "$(git rev-parse --show-toplevel)/web-game-elevator-pwo-react-pixi-js"
-export VITE_BASE_PATH=/monorepo-colin/
+export VITE_BASE_PATH=/monorepo-colin/colin-elevator/
 # Git Bash must pass this URL path unchanged to Windows Node.
 export MSYS2_ENV_CONV_EXCL=VITE_BASE_PATH
 
