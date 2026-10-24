@@ -1,8 +1,17 @@
 # Plan
 
-- Two closed circuit tracks: one near Växjö, Sweden, and one in Germany.
-- Ten fictional sports cars inspired by classic European and Japanese supercars.
-- Single race against AI opponents with laps, positions, lap times and a results screen.
-- Arcade driving model with grip, drift and a chase camera.
-- Late-1990s-inspired visuals and HUD: speedometer, tachometer, gear, lap and position.
-- Keyboard and touch controls.
+## Done
+
+- Two closed circuits (Växjö, Germany) with themed scenery.
+- Ten fictional sports cars with distinct stats and silhouettes.
+- Single race against seven AI drivers, laps, positions, lap records and results.
+- Arcade driving model, chase/bumper cameras, 90s-style HUD, retro render mode.
+- Keyboard, gamepad and touch controls; synthesised sound.
+
+## Ideas for later
+
+- Reverse and mirrored track variants.
+- Time trial with a ghost car.
+- Night or rain versions of the tracks.
+- Car colour choice and a championship across both tracks.
+- Physical phone and gamepad checks, and deployment.

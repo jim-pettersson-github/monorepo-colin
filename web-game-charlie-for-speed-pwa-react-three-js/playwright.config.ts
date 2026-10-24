@@ -13,9 +13,10 @@ export default defineConfig({
     launchOptions: { args: process.platform === 'win32' ? ['--use-angle=d3d11'] : [] },
   },
   projects: [
-    { name: 'desktop', use: { ...devices['Desktop Chrome'] } },
-    { name: 'phone-portrait', use: { ...devices['Pixel 7'] } },
-    { name: 'phone-landscape', use: { ...devices['Pixel 7'], viewport: { width: 915, height: 412 } } },
+    { name: 'rules', testMatch: '**/rules.spec.ts' },
+    { name: 'desktop', testIgnore: '**/rules.spec.ts', use: { ...devices['Desktop Chrome'] } },
+    { name: 'phone-portrait', testIgnore: '**/rules.spec.ts', use: { ...devices['Pixel 7'] } },
+    { name: 'phone-landscape', testIgnore: '**/rules.spec.ts', use: { ...devices['Pixel 7'], viewport: { width: 915, height: 412 } } },
   ],
   webServer: {
     command: 'npm run build && npm run preview',

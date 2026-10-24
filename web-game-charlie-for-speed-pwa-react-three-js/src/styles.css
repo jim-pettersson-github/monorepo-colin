@@ -7,9 +7,11 @@ body,
 #root {
   margin: 0;
   height: 100%;
+  overflow: hidden;
   background: var(--background);
   color: var(--ink);
-  font-family: system-ui, sans-serif;
+  font-family: "Arial Narrow", Arial, system-ui, sans-serif;
+  -webkit-tap-highlight-color: transparent;
 }
 
 button {
@@ -17,44 +19,895 @@ button {
   min-width: 48px;
   padding: 0 18px;
   border: 2px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface);
+  border-radius: 4px;
+  background: linear-gradient(var(--surface), var(--background));
   color: var(--ink);
   font: inherit;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   cursor: pointer;
 }
 
-button:focus-visible {
+button:hover {
+  border-color: var(--accent);
+}
+
+button:focus-visible,
+input:focus-visible {
   outline: 3px solid var(--accent);
   outline-offset: 2px;
 }
 
-.title-screen {
-  display: grid;
-  place-content: center;
-  gap: 16px;
-  min-height: 100%;
-  padding: 24px;
-  text-align: center;
+button.primary,
+button[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: linear-gradient(#ffe066, var(--accent) 55%, #d99a00);
+  color: #1a1200;
 }
 
-.title-screen h1 {
-  margin: 0;
-  color: var(--accent);
-  font-size: clamp(2rem, 8vw, 4.5rem);
+h1,
+h2,
+h3 {
   font-style: italic;
   text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.panel {
+  border: 2px solid var(--border);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--background) 88%, transparent);
+  box-shadow: 0 10px 40px rgb(0 0 0 / 0.45);
+  padding: 16px;
+}
+
+/* Menu screens */
+
+.menu-screen {
+  position: fixed;
+  inset: 0;
+  overflow: hidden auto;
+  background: radial-gradient(ellipse at 50% 65%, #2c3a6a 0%, var(--background) 70%);
+}
+
+.showroom {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
 }
 
 .home-link {
   position: absolute;
-  inset: 12px auto auto 16px;
+  inset: 14px auto auto 16px;
   color: var(--muted);
+  font-style: italic;
+  font-weight: 900;
   text-decoration: none;
+  z-index: 1;
+}
+
+.logo {
+  position: relative;
+  margin: clamp(24px, 6vh, 60px) auto 0;
+  text-align: center;
+  pointer-events: none;
+}
+
+.logo h1 {
+  display: grid;
+  margin: 0;
+  line-height: 0.85;
+  font-family: Impact, "Arial Black", sans-serif;
+  font-weight: 900;
+}
+
+.logo-top,
+.logo-bottom {
+  background: linear-gradient(#ffffff 0%, #c9d4e8 45%, #4c5a80 50%, #e6ecf8 75%, #ffffff 100%);
+  background-clip: text;
+  color: transparent;
+  -webkit-text-stroke: 2px #0b0f1e;
+  filter: drop-shadow(4px 5px 0 var(--danger));
+}
+
+.logo-top {
+  font-size: clamp(3rem, 12vw, 7.5rem);
+}
+
+.logo-bottom {
+  font-size: clamp(1.8rem, 6vw, 3.6rem);
+  background: linear-gradient(#fff2a8, var(--accent) 50%, #b87800);
+  background-clip: text;
+}
+
+.logo p {
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-style: italic;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+}
+
+.title-menu {
+  position: absolute;
+  left: 50%;
+  bottom: max(24px, env(safe-area-inset-bottom));
+  display: grid;
+  gap: 10px;
+  width: min(360px, calc(100% - 32px));
+  transform: translateX(-50%);
+}
+
+.title-menu button {
+  display: grid;
+  align-content: center;
+  min-height: 56px;
+  font-size: 1.15rem;
+  font-style: italic;
+}
+
+.title-menu small {
+  font-size: 0.72rem;
+  font-style: normal;
+  text-transform: none;
+  letter-spacing: 0;
+  opacity: 0.8;
+}
+
+.screen-header {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: max(12px, env(safe-area-inset-top)) 16px 12px;
+}
+
+.screen-header h2 {
+  flex: 1;
+  margin: 0;
+  font-size: clamp(1.4rem, 4vw, 2.2rem);
+  color: var(--accent);
+}
+
+.counter {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.carousel {
+  position: absolute;
+  inset: 45% 16px auto;
+  display: flex;
+  justify-content: space-between;
+  pointer-events: none;
+}
+
+.carousel .arrow {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  font-size: 1.4rem;
+  pointer-events: auto;
+}
+
+.car-card {
+  position: absolute;
+  right: 16px;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  display: grid;
+  gap: 6px;
+  width: min(380px, calc(100% - 32px));
+}
+
+.car-card p {
+  margin: 0;
+}
+
+.car-make {
+  color: var(--accent);
+  font-weight: 900;
+  font-style: italic;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.car-card h3 {
+  margin: -4px 0 0;
+  font-size: 2rem;
+}
+
+.car-origin {
+  color: var(--muted);
+}
+
+.car-card .car-blurb {
+  margin-bottom: 6px;
+}
+
+.rating {
+  display: grid;
+  grid-template-columns: 100px 1fr 96px;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+}
+
+.rating-bar {
+  height: 10px;
+  border: 1px solid var(--border);
+  background: #0a0d18;
+}
+
+.rating-bar span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #2bd46a, var(--accent), var(--danger));
+}
+
+.rating-detail {
+  color: var(--muted);
+  text-align: right;
+}
+
+.car-card .primary {
+  margin-top: 8px;
+}
+
+.track-select {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  padding-bottom: 24px;
+}
+
+.track-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+  padding: 0 16px;
+}
+
+.track-card {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 14px;
+  align-items: center;
+  padding: 14px;
+  text-align: left;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+}
+
+.track-card[aria-pressed="true"] {
+  background: linear-gradient(#26305a, #161d36);
+  color: var(--ink);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.track-card-map {
+  width: 140px;
+  height: 140px;
+}
+
+.track-card-text {
+  display: grid;
+  gap: 4px;
+}
+
+.track-card strong {
+  font-size: 1.3rem;
+  font-style: italic;
+  text-transform: uppercase;
+}
+
+.track-place,
+.track-facts {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.map-road {
+  fill: none;
+  stroke: #0a0d18;
+  stroke-width: 9;
+  stroke-linejoin: round;
+}
+
+.map-line {
+  fill: none;
+  stroke: #f4f4f0;
+  stroke-width: 3.5;
+  stroke-linejoin: round;
+}
+
+.map-start {
+  fill: var(--danger);
+  stroke: #fff;
+  stroke-width: 1.5;
+}
+
+.race-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 16px;
+  margin: 0 16px;
+}
+
+.choice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.choice legend {
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.start-button {
+  margin-left: auto;
+  font-size: 1.1rem;
+}
+
+/* Settings side panel */
+
+.side-panel-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  background: rgb(0 0 0 / 0.45);
+}
+
+.backdrop-close {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  border: 0;
+  background: transparent;
+}
+
+.side-panel {
+  position: absolute;
+  inset: 0 0 0 auto;
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  width: min(400px, 100%);
+  overflow-y: auto;
+  padding: 16px;
+  border-left: 2px solid var(--border);
+  background: var(--background);
+}
+
+.side-panel header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.side-panel h2,
+.side-panel h3 {
+  margin: 0;
+}
+
+.toggle {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  min-height: 48px;
+  font-weight: 700;
+}
+
+.toggle input {
+  width: 26px;
+  height: 26px;
+  accent-color: var(--accent);
+}
+
+.toggle small {
+  display: block;
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.control-list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+}
+
+.control-list div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+  padding: 4px 0;
+}
+
+.control-list dd {
+  margin: 0;
+  color: var(--muted);
+  text-align: right;
+}
+
+.hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
 }
 
 .game-update {
   display: grid;
   gap: 8px;
+}
+
+.game-update p {
+  margin: 0;
+}
+
+.fullscreen-control {
+  display: grid;
+  gap: 4px;
+}
+
+/* Race */
+
+.race-view {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: #000;
+  user-select: none;
+  touch-action: none;
+}
+
+.race-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.race-canvas.retro {
+  image-rendering: pixelated;
+}
+
+.render-error {
+  position: absolute;
+  inset: 40% 16px auto;
+  text-align: center;
+}
+
+.hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  font-family: Impact, "Arial Black", sans-serif;
+  font-style: italic;
+  color: #fff;
+  text-shadow:
+    2px 2px 0 #000,
+    -1px -1px 0 #000,
+    1px -1px 0 #000,
+    -1px 1px 0 #000;
+}
+
+.hud-standing {
+  position: absolute;
+  top: max(10px, env(safe-area-inset-top));
+  left: max(14px, env(safe-area-inset-left));
+  display: grid;
+  line-height: 0.95;
+}
+
+.hud-label {
+  color: var(--accent);
+  font-size: clamp(0.8rem, 2vw, 1.1rem);
+  letter-spacing: 0.12em;
+}
+
+.hud-position {
+  font-size: clamp(2.6rem, 8vw, 4.6rem);
+}
+
+.hud-position small {
+  font-size: 0.45em;
+}
+
+.hud-lap {
+  font-size: clamp(1.4rem, 4vw, 2.2rem);
+}
+
+.hud-times {
+  position: absolute;
+  top: max(10px, env(safe-area-inset-top));
+  right: max(14px, env(safe-area-inset-right));
+  display: flex;
+  gap: 12px;
+  align-items: start;
+}
+
+.hud-times dl {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 0 10px;
+  margin: 72px 0 0;
+  font-size: clamp(0.85rem, 2.2vw, 1.25rem);
+}
+
+.hud-times dt {
+  color: var(--accent);
+}
+
+.hud-times dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.hud-map {
+  width: clamp(96px, 18vw, 150px);
+  height: clamp(96px, 18vw, 150px);
+  border: 2px solid rgb(255 255 255 / 0.25);
+  border-radius: 6px;
+  background: rgb(5 8 20 / 0.45);
+  filter: drop-shadow(2px 2px 0 #000);
+}
+
+.map-player {
+  fill: var(--accent);
+  stroke: #000;
+  stroke-width: 1.5;
+}
+
+.map-rival {
+  fill: var(--danger);
+  stroke: #000;
+  stroke-width: 1;
+}
+
+.hud-banner,
+.hud-wrong-way {
+  position: absolute;
+  top: 26%;
+  left: 50%;
+  transform: translateX(-50%) scale(0.6);
+  opacity: 0;
+  white-space: nowrap;
+  font-size: clamp(2.6rem, 10vw, 6rem);
+  color: var(--accent);
+  transition:
+    transform 0.15s,
+    opacity 0.15s;
+}
+
+.hud-banner.visible,
+.hud-wrong-way.visible {
+  transform: translateX(-50%) scale(1);
+  opacity: 1;
+}
+
+.hud-wrong-way {
+  top: 40%;
+  color: var(--danger);
+  transition: none;
+}
+
+.hud-gauge {
+  position: absolute;
+  right: max(14px, env(safe-area-inset-right));
+  bottom: max(10px, env(safe-area-inset-bottom));
+  width: clamp(150px, 22vw, 230px);
+}
+
+.tacho {
+  display: block;
+  width: 100%;
+  filter: drop-shadow(3px 4px 0 rgb(0 0 0 / 0.6));
+}
+
+.dial-ring {
+  fill: #c7ccd6;
+  stroke: #333;
+  stroke-width: 2;
+}
+
+.dial-face {
+  fill: #0b0d14;
+}
+
+.redline {
+  fill: none;
+  stroke: var(--danger);
+  stroke-width: 10;
+}
+
+.tick {
+  stroke: #f4f4f0;
+}
+
+.tick.red {
+  stroke: #ff5a4a;
+}
+
+.tick-label {
+  fill: #f4f4f0;
+  font-size: 16px;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  text-shadow: none;
+}
+
+.needle {
+  stroke: #ff7a1a;
+  stroke-width: 5;
+  stroke-linecap: round;
+}
+
+.hub {
+  fill: #c7ccd6;
+}
+
+.dial-speed {
+  fill: var(--accent);
+  font-size: 34px;
+  text-anchor: middle;
+  text-shadow: none;
+}
+
+.dial-unit {
+  fill: #a9b0c8;
+  font-size: 12px;
+  text-anchor: middle;
+  text-shadow: none;
+}
+
+.hud-gear {
+  position: absolute;
+  left: -46px;
+  bottom: 10px;
+  display: grid;
   justify-items: center;
+  width: 54px;
+  padding: 2px 0 4px;
+  border: 2px solid #c7ccd6;
+  border-radius: 4px;
+  background: #0b0d14;
+  line-height: 1;
+}
+
+.hud-gear small {
+  font-size: 0.6rem;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+}
+
+.hud-gear span {
+  font-size: 2rem;
+  color: #fff;
+}
+
+.race-buttons {
+  position: absolute;
+  top: max(10px, env(safe-area-inset-top));
+  left: 50%;
+  display: flex;
+  gap: 8px;
+  transform: translateX(-50%);
+}
+
+.round-button {
+  width: 48px;
+  padding: 0;
+  border-radius: 50%;
+  background: rgb(11 15 30 / 0.6);
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  overflow-y: auto;
+  padding: 16px;
+  background: rgb(0 0 0 / 0.45);
+}
+
+.pause-panel {
+  display: grid;
+  gap: 10px;
+  width: min(360px, 100%);
+  text-align: center;
+}
+
+.pause-panel h2,
+.results-panel h2 {
+  margin: 0;
+  color: var(--accent);
+  font-size: 2.4rem;
+}
+
+.pause-panel p {
+  margin: 0 0 6px;
+  color: var(--muted);
+}
+
+.results-panel {
+  width: min(720px, 100%);
+}
+
+.results-sub {
+  margin: 4px 0 12px;
+  color: var(--muted);
+}
+
+.record {
+  color: var(--accent);
+}
+
+.results-panel table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.results-panel th,
+.results-panel td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+.results-panel th {
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+}
+
+.results-panel tr.me td {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.touch-controls {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.touch-pad {
+  position: absolute;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  width: clamp(64px, 11vw, 92px);
+  height: clamp(64px, 11vw, 92px);
+  border-radius: 14px;
+  border-color: rgb(255 255 255 / 0.4);
+  background: rgb(11 15 30 / 0.45);
+  font-size: 1.6rem;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.touch-pad.pressed {
+  background: rgb(255 204 26 / 0.55);
+}
+
+.pad-left {
+  left: max(16px, env(safe-area-inset-left));
+}
+
+.pad-right {
+  left: calc(max(16px, env(safe-area-inset-left)) + clamp(76px, 13vw, 108px));
+}
+
+.pad-throttle {
+  right: max(16px, env(safe-area-inset-right));
+  height: clamp(100px, 22vh, 150px);
+}
+
+.pad-brake {
+  right: calc(max(16px, env(safe-area-inset-right)) + clamp(76px, 13vw, 108px));
+}
+
+.pad-handbrake {
+  right: calc(max(16px, env(safe-area-inset-right)) + clamp(76px, 13vw, 108px));
+  bottom: calc(max(16px, env(safe-area-inset-bottom)) + clamp(76px, 13vw, 104px));
+  font-size: 1rem;
+}
+
+/* With touch pads along the bottom, the dial moves up beside the position so the car stays visible. */
+.race-view:has(.touch-controls) .hud-gauge {
+  top: max(8px, env(safe-area-inset-top));
+  right: auto;
+  bottom: auto;
+  left: calc(max(14px, env(safe-area-inset-left)) + clamp(96px, 14vw, 130px));
+  width: clamp(104px, 15vw, 140px);
+}
+
+.race-view:has(.touch-controls) .hud-gear {
+  left: auto;
+  right: -50px;
+  bottom: 4px;
+}
+
+@media (max-width: 700px) and (orientation: portrait) {
+  .car-card {
+    left: 16px;
+    width: auto;
+  }
+
+  .carousel {
+    inset: 28% 8px auto;
+  }
+
+  .hud-times dl {
+    margin-top: 0;
+    display: none;
+  }
+
+  .logo p {
+    letter-spacing: 0.12em;
+  }
+
+  .race-view:has(.touch-controls) .race-buttons {
+    top: calc(max(10px, env(safe-area-inset-top)) + 106px);
+    left: auto;
+    right: max(14px, env(safe-area-inset-right));
+    transform: none;
+  }
+
+  .track-card {
+    grid-template-columns: 96px 1fr;
+  }
+
+  .track-card-map {
+    width: 96px;
+    height: 96px;
+  }
+}
+
+@media (max-height: 500px) {
+  .logo {
+    margin: 12px 0 0 max(24px, env(safe-area-inset-left));
+    text-align: left;
+  }
+
+  .carousel {
+    inset: auto auto max(12px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+    gap: 12px;
+  }
+
+  .logo-top {
+    font-size: 3.4rem;
+  }
+
+  .title-menu {
+    left: auto;
+    right: 16px;
+    transform: none;
+  }
+
+  .car-card {
+    top: 64px;
+    bottom: 8px;
+    overflow-y: auto;
+  }
 }

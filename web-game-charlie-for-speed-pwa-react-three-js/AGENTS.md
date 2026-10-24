@@ -4,7 +4,7 @@ A standalone 3D sports-car racing game set on closed circuit tracks. The sibling
 
 ## Stack
 
-React, TypeScript, Three.js, Vite and vite-plugin-pwa. React owns menus and the HUD; Three.js owns the track. Cars, tracks and scenery use procedural geometry and canvas textures; assets stay local.
+React, TypeScript, Three.js, Vite and vite-plugin-pwa. React owns menus and the HUD; Three.js owns the track. `src/game` stays free of Three.js so races simulate headlessly in `tests/rules.spec.ts`; keep that test passing when tuning physics, AI or track layouts. Cars, tracks and scenery use procedural geometry and canvas textures; assets stay local.
 
 ## Direction
 

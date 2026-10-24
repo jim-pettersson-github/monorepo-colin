@@ -1,11 +1,13 @@
 import { expect, test } from '@playwright/test';
 
-test('title screen renders without horizontal overflow', async ({ page }) => {
+test('title screen renders without horizontal overflow', async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto('./');
   await expect(page).toHaveTitle('Charlie for Speed');
   await expect(page.getByRole('heading', { name: 'Charlie for Speed' })).toBeVisible();
+  await expect(page.locator('.showroom')).toHaveAttribute('data-rendered', 'true');
+  await page.screenshot({ path: testInfo.outputPath('title.png') });
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   expect(errors).toEqual([]);
 });
@@ -36,5 +38,7 @@ test('the installed shell reloads offline', async ({ page, context }) => {
   await context.setOffline(true);
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Charlie for Speed' })).toBeVisible();
+  await page.getByRole('button', { name: /Snabbstart/ }).click();
+  await expect(page.locator('.race-canvas')).toHaveAttribute('data-rendered', 'true');
   await context.setOffline(false);
 });
