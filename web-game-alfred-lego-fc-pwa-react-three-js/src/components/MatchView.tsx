@@ -16,6 +16,9 @@ export function MatchView({ session, onExit, onRematch }: { session: MatchSessio
   useSyncExternalStore(session.input.subscribe, session.input.getSnapshot);
   const state = session.state;
   const input = session.input;
+  const network = session.networkRole !== null;
+  const localTeam = session.localTeam ?? 0;
+  const canResume = session.canResume && (network ? input.available(0) : state.watching || controlsReady(input, state.mode));
   const clubs = getMatchClubs(state);
   const dialog = useRef<HTMLDialogElement>(null);
   const [confirmExit, setConfirmExit] = useState(false);
@@ -36,7 +39,17 @@ export function MatchView({ session, onExit, onRematch }: { session: MatchSessio
   }, [confirmExit]);
   const seconds = Math.ceil(state.remaining);
   const clock = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
-  const touchTeam = state.watching ? null : input.sources[0] === 'touch' ? 0 : state.mode === 'versus' && input.sources[1] === 'touch' ? 1 : null;
+  const touchTeam = state.watching
+    ? null
+    : network
+      ? input.sources[0] === 'touch'
+        ? localTeam
+        : null
+      : input.sources[0] === 'touch'
+        ? 0
+        : state.mode === 'versus' && input.sources[1] === 'touch'
+          ? 1
+          : null;
   const cards = [0, 1].map((team) => state.players.filter((player) => player.team === team).reduce((sum, player) => sum + (player.yellowCards || 0), 0));
   return (
     <main className={`match-shell ${touchTeam !== null ? 'touch-active' : ''}`} style={{ '--home': clubs[0].shirt, '--away': clubs[1].shirt } as CSSProperties}>
@@ -78,7 +91,9 @@ export function MatchView({ session, onExit, onRematch }: { session: MatchSessio
         <GameCanvas session={session} />
         <div className='match-ribbon'>
           <span>ALFRED ARENA</span>
-          <span>5 MOT 5 · {state.watching ? 'MATCHVISNING' : state.mode === 'solo' ? 'MOT DATORN' : 'TVÅ SPELARE'}</span>
+          <span>
+            5 MOT 5 · {network ? `WI-FI · DU ÄR P${localTeam + 1}` : state.watching ? 'MATCHVISNING' : state.mode === 'solo' ? 'MOT DATORN' : 'TVÅ SPELARE'}
+          </span>
         </div>
         {(state.phase === 'kickoff' || state.phase === 'goal') && !session.paused && (
           <div className={`match-announcement ${state.phase === 'goal' ? 'goal-announcement' : ''}`} role='status'>
@@ -122,8 +137,8 @@ export function MatchView({ session, onExit, onRematch }: { session: MatchSessio
         <TouchControls input={input} team={touchTeam} />
       ) : (
         <footer className='match-controls-hint'>
-          <ControlGuide source={input.sources[0]} input={input} team={0} compact />
-          {state.mode === 'versus' && <ControlGuide source={input.sources[1]} input={input} team={1} compact />}
+          <ControlGuide source={input.sources[0]} input={input} team={localTeam} compact />
+          {!network && state.mode === 'versus' && <ControlGuide source={input.sources[1]} input={input} team={1} compact />}
         </footer>
       )}
       <dialog
@@ -133,7 +148,7 @@ export function MatchView({ session, onExit, onRematch }: { session: MatchSessio
         onCancel={(event) => {
           event.preventDefault();
           if (confirmExit) setConfirmExit(false);
-          else if (state.phase !== 'finished' && (state.watching || controlsReady(input, state.mode))) session.resume();
+          else if (state.phase !== 'finished' && canResume) session.resume();
         }}
       >
         <p className='eyebrow'>{state.phase === 'finished' ? 'SLUTSIGNAL' : confirmExit ? 'AVSLUTA' : 'MATCHPAUS'}</p>
@@ -141,7 +156,11 @@ export function MatchView({ session, onExit, onRematch }: { session: MatchSessio
         {confirmExit ? (
           <div className='exit-confirm'>
             <p>
-              {state.league ? 'Matchen avbryts. Du kan spela om den från ligan. Dina tidigare ligaresultat sparas.' : 'Vill du avsluta och gå till startmenyn?'}
+              {network
+                ? 'Wi-Fi-matchen avslutas för båda. Ni behöver koppla ihop enheterna igen för en ny match.'
+                : state.league
+                  ? 'Matchen avbryts. Du kan spela om den från ligan. Dina tidigare ligaresultat sparas.'
+                  : 'Vill du avsluta och gå till startmenyn?'}
             </p>
             <button type='button' className='primary-button' onClick={onExit}>
               Ja, avsluta
@@ -157,11 +176,12 @@ export function MatchView({ session, onExit, onRematch }: { session: MatchSessio
               <span>–</span>
               <span className='away-name'>{state.score[1]}</span>
             </p>
-            {!state.league && (
-              <button type='button' className='primary-button' onClick={onRematch}>
+            {!state.league && session.networkRole !== 'guest' && (
+              <button type='button' className='primary-button' disabled={network && !session.canResume} onClick={onRematch}>
                 Spela igen <span>↗</span>
               </button>
             )}
+            {session.networkRole === 'guest' && <p className='small-copy'>Värden kan starta en returmatch med samma anslutning.</p>}
             <button type='button' onClick={onExit}>
               {state.league ? 'Till ligan' : 'Till startmenyn'}
             </button>
@@ -172,7 +192,7 @@ export function MatchView({ session, onExit, onRematch }: { session: MatchSessio
             <button
               type='button'
               className='primary-button'
-              disabled={!state.watching && !controlsReady(input, state.mode)}
+              disabled={!canResume}
               onClick={() => {
                 setConfirmExit(false);
                 session.resume();
@@ -180,7 +200,20 @@ export function MatchView({ session, onExit, onRematch }: { session: MatchSessio
             >
               Fortsätt matchen <span>▶</span>
             </button>
-            {!state.watching && <ControlSetup input={input} mode={state.mode} clubs={state.clubs} />}
+            {network && !session.canResume && (
+              <p className='control-warning' role='status'>
+                Båda behöver vara kvar i spelet med anslutna kontroller och fungerande Wi-Fi. Vid bruten anslutning: avsluta och koppla ihop igen.
+              </p>
+            )}
+            {!state.watching && (
+              <ControlSetup
+                input={input}
+                mode={network ? 'solo' : state.mode}
+                clubs={network && localTeam === 1 ? [state.clubs[1], state.clubs[0]] : state.clubs}
+                localTeam={network ? localTeam : undefined}
+                playerLabel={network ? `Din kontroll · Spelare ${localTeam + 1}` : undefined}
+              />
+            )}
             <div className='pause-tools'>
               <FullscreenButton />
               <button type='button' onClick={() => setConfirmExit(!confirmExit)}>

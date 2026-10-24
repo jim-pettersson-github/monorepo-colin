@@ -12,6 +12,7 @@
 - Twelve selectable clubs with distinct shirt colors, trim and crests; team selections persist through saves and rematches.
 - Procedural LEGO-style characters, animated limbs, selection rings, a patterned ball and brick-built stadium.
 - Solo versus AI or two local human players on one screen, with AI teammates.
+- Two-device LAN play via WebRTC and two-way compressed QR codes, camera/image scanning and copy/paste. The host runs the match; the guest controls player 2. Separate device input/orientation, shared pause, lost-peer handling, host rematches and local-save isolation. No external signaling, STUN or TURN.
 - Fixed-step movement, possession, directional passes, open-corner assisted shots and automatic/manual player switching.
 - Moving slide tackles with ball contact, possession transfer, opponent knockdowns and timed recovery.
 - Feet-first slides use small swept contact areas relative to both players' motion. Empty slides have no decision; any ball contact makes the tackle clean. Contact without a ball win has equal chances of a yellow card, free kick or play-on. Announcements identify the offender.
@@ -36,6 +37,7 @@ Desktop, portrait-phone and landscape-phone browser checks cover direct simulati
 
 - Play with two real controllers and verify assignment, mappings, reconnect and simultaneous actions.
 - Test Android browser/PWA portrait, landscape, multi-touch and Bluetooth/USB hardware.
+- Review QR scanning with real cameras and LAN discovery between physical devices on home routers; verify background, disconnect and rematch behavior.
 - Tune AI difficulty, movement, tackle range, shot assistance and match pace through playtesting.
 - Review minifigure detail and camera scale on physical phones.
 - Decide on sound and additional team customization if wanted.
@@ -43,4 +45,4 @@ Desktop, portrait-phone and landscape-phone browser checks cover direct simulati
 
 ## Scope
 
-Local single-device quick matches and a solo league are implemented. Multiple divisions, promotion/relegation, online multiplayer, full football rules, audio, replays and knockout tournaments are not implemented. Controller compatibility depends on the OS, browser and device. Universal compatibility is not promised.
+Local single-device quick matches, two-device LAN matches and a solo league are implemented. Multiple divisions, promotion/relegation, automatic internet matchmaking/relay, full football rules, audio, replays and knockout tournaments are not implemented. Controller compatibility depends on the OS, browser and device. Universal compatibility is not promised.

@@ -23,7 +23,7 @@ export function GameCanvas({ session }: { session: MatchSession }) {
       const dt = Math.min((now - previous) / 1000, 0.1);
       previous = now;
       if (!session.paused) elapsed += dt * (session.state.watching ? session.state.playbackSpeed : 1);
-      const portrait = world.draw(session.state, elapsed);
+      const portrait = world.draw(session.renderState, elapsed);
       if (session.portrait !== portrait) session.input.clear();
       session.portrait = portrait;
       session.advance(dt);

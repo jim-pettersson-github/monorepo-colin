@@ -16,9 +16,106 @@ import {
   validSeason,
 } from '../src/game/league';
 import { attackDirection, createMatch, ensureMatchRules, FIELD, neutralControls, resetPositions, STEP, screenToWorld, type Team } from '../src/game/model';
+import { NetworkSession, validNetworkMatch } from '../src/game/network-session';
+import { decodeSignal, encodeSignal, type PeerLink } from '../src/game/peer-link';
 import { MatchSession } from '../src/game/session';
 import { performAction, stepMatch } from '../src/game/simulation';
 import { validMatch } from '../src/game/storage';
+
+test('Wi-Fi codes round-trip compact local SDP and reject foreign, truncated and oversized payloads', async () => {
+  const signal = { v: 1 as const, id: '12345678-1234-1234-1234-123456789abc', type: 'offer' as const, sdp: 'v=0\r\na=ice-ufrag:local\r\n' };
+  const code = await encodeSignal(signal);
+  expect(await decodeSignal(code)).toEqual(signal);
+  for (const invalid of ['', 'https://example.com/', 'AFC2.Z.abc', `${code.slice(0, -8)}x`, `AFC1.P.${'a'.repeat(6000)}`]) {
+    await expect(decodeSignal(invalid)).rejects.toThrow();
+  }
+  await expect(decodeSignal(await encodeSignal({ ...signal, sdp: 'bad SDP' }))).rejects.toThrow();
+});
+
+function fakePeer(role: 'host' | 'guest') {
+  const messages: unknown[] = [];
+  const listeners = new Set<(value: unknown) => void>();
+  const link = {
+    role,
+    status: 'connected',
+    error: '',
+    send(value: unknown) {
+      messages.push(structuredClone(value));
+      return true;
+    },
+    onMessage(listener: (value: unknown) => void) {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+    subscribe() {
+      return () => {};
+    },
+    close() {},
+  } as unknown as PeerLink;
+  const input = { available: () => true, clear() {}, begin() {}, consume: () => neutralControls() } as unknown as InputManager;
+  return {
+    link,
+    input,
+    messages,
+    receive(value: unknown) {
+      for (const listener of listeners) listener(value);
+    },
+  };
+}
+
+test('the host rejects forged scores and invalid controls, synchronizes decisions and restarts the same peer match', () => {
+  const host = fakePeer('host');
+  const state = createMatch('versus', 60);
+  state.phase = 'playing';
+  const session = new NetworkSession(state, host.input, host.link);
+  const forged = structuredClone(state);
+  forged.score = [99, 99];
+  host.receive({ kind: 'frame', state: forged, paused: false, ready: true, reason: '', round: 0 });
+  host.receive({ kind: 'input', controls: { ...neutralControls(), x: Infinity }, ready: true, round: 0 });
+  host.receive({ kind: 'input', controls: { ...neutralControls(), x: -1 }, ready: true, round: 0 });
+  const x = state.players[9].x;
+  session.advance(0.1);
+  expect(state.players[9].x).toBeLessThan(x);
+  expect(state.score).toEqual([0, 0]);
+  expect(validNetworkMatch(state)).toBe(true);
+  session.setForeground(false);
+  host.receive({ kind: 'resume', round: 0 });
+  expect(session.paused).toBe(true);
+  session.setForeground(true);
+  host.receive({ kind: 'ready', ready: false });
+  session.resume();
+  expect(session.paused).toBe(true);
+  host.receive({ kind: 'ready', ready: true });
+  session.resume();
+  expect(session.paused).toBe(false);
+  const guest = fakePeer('guest');
+  const mirror = new NetworkSession(structuredClone(state), guest.input, guest.link);
+  state.phase = 'finished';
+  state.remaining = 0;
+  state.score = [3, 1];
+  state.message = 'Alfred FF vinner!';
+  session.advance(0.1);
+  guest.receive(host.messages.at(-1));
+  expect(mirror.state.score).toEqual([3, 1]);
+  expect(mirror.state.phase).toBe('finished');
+  const finished = structuredClone(mirror.state);
+  mirror.advance(5);
+  mirror.rematch();
+  expect(mirror.state).toEqual(finished);
+  session.rematch();
+  guest.receive(host.messages.at(-1));
+  expect(mirror.state.score).toEqual([0, 0]);
+  expect(mirror.state.phase).toBe('kickoff');
+  expect(mirror.state.clubs).toEqual(state.clubs);
+  expect(mirror.paused).toBe(false);
+  // Network snapshots do not use localStorage, including at full time or during a rematch.
+  session.save();
+  mirror.save();
+  session.dispose();
+  mirror.dispose();
+});
 
 test('a close slide past a standing opponent never counts as contact across the visible gap', () => {
   for (const gap of [0.7, 0.8, 0.95, 1.1, 2]) {
@@ -627,6 +724,20 @@ test('held gamepad actions fire once, and disconnecting a slot does not shift th
     expect(disconnected).toBe(0);
     expect(input.sources).toEqual(['pad:0', 'pad:1']);
     expect(input.available(1)).toBe(true);
+    // A peer device only has one active local input, even if an old two-player setup used the same pad in slot 2.
+    input.setSource(0, 'pad:1');
+    input.begin([0]);
+    let pauses = 0;
+    input.onPause = () => {
+      pauses++;
+    };
+    if (!pads[1]) throw new Error('Missing pad fixture');
+    (pads[1].buttons[9] as { pressed: boolean }).pressed = true;
+    (pads[1].buttons[0] as { pressed: boolean }).pressed = true;
+    input.poll();
+    expect(pauses).toBe(1);
+    expect(input.consume(0, false).pass).toBe(true);
+    expect(input.consume(1, false).pass).toBe(false);
   } finally {
     if (mediaDescriptor) Object.defineProperty(globalThis, 'matchMedia', mediaDescriptor);
     else Reflect.deleteProperty(globalThis, 'matchMedia');

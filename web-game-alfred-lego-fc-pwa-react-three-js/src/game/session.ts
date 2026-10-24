@@ -1,10 +1,12 @@
 import type { InputManager } from './input';
-import type { MatchState, PlaybackSpeed } from './model';
+import type { Controls, MatchState, PlaybackSpeed, Team } from './model';
 import { neutralControls, STEP } from './model';
 import { stepMatch } from './simulation';
 import { clearMatch, saveMatch } from './storage';
 
 export class MatchSession {
+  readonly networkRole: 'host' | 'guest' | null = null;
+  readonly localTeam: Team | null = null;
   paused = false;
   pauseReason = '';
   portrait = false;
@@ -27,9 +29,24 @@ export class MatchSession {
     };
   };
   getSnapshot = () => this.revision;
-  private publish() {
+  protected publish() {
     this.revision++;
     for (const listener of this.listeners) listener();
+  }
+
+  get canResume() {
+    return true;
+  }
+  get renderState() {
+    return this.state;
+  }
+  setForeground(available: boolean) {
+    if (!available) this.pause('Matchen pausades när du lämnade spelet.');
+  }
+  protected controls(): [Controls, Controls] {
+    return this.state.watching
+      ? [neutralControls(), neutralControls()]
+      : [this.input.consume(0, this.portrait), this.state.mode === 'versus' ? this.input.consume(1, this.portrait) : neutralControls()];
   }
 
   pause(reason = 'Ta en paus. Matchen väntar på dig.') {
@@ -61,13 +78,7 @@ export class MatchSession {
     this.accumulator += Math.min(elapsed, 0.1) * (this.state.watching ? this.state.playbackSpeed : 1);
     while (this.accumulator >= STEP) {
       const phase: MatchState['phase'] = this.state.phase;
-      stepMatch(
-        this.state,
-        this.state.watching
-          ? [neutralControls(), neutralControls()]
-          : [this.input.consume(0, this.portrait), this.state.mode === 'versus' ? this.input.consume(1, this.portrait) : neutralControls()],
-        STEP,
-      );
+      stepMatch(this.state, this.controls(), STEP);
       this.accumulator -= STEP;
       if (phase !== this.state.phase) {
         this.save();

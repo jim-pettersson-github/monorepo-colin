@@ -1,0 +1,196 @@
+.wifi-entry {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 18px;
+  align-self: flex-start;
+  margin-top: 12px;
+  border-color: var(--accent);
+}
+.wifi-entry span {
+  color: var(--muted);
+  font-size: 13px;
+}
+.wifi-shell {
+  max-width: 1060px;
+  gap: 24px;
+}
+.wifi-intro {
+  max-width: 680px;
+  padding-top: 18px;
+}
+.wifi-intro h1 {
+  font-size: clamp(36px, 6vw, 58px);
+}
+.wifi-intro p:last-child {
+  color: var(--muted);
+  line-height: 1.7;
+}
+.wifi-intro-compact {
+  padding-top: 0;
+}
+.wifi-intro-compact h1 {
+  font-size: 28px;
+  letter-spacing: -1px;
+}
+.wifi-intro-compact p {
+  display: none;
+}
+.wifi-role-options,
+.qr-exchange {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+.wifi-role-options button {
+  display: grid;
+  gap: 12px;
+  text-align: left;
+  padding: 24px;
+}
+.wifi-role-options strong {
+  font-size: 24px;
+}
+.wifi-role-options span {
+  font-size: 14px;
+}
+.wifi-connection-state,
+.wifi-settings,
+.wifi-start,
+.qr-output,
+.qr-input {
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  min-width: 0;
+}
+.wifi-connection-state p,
+.qr-exchange p,
+.wifi-help p {
+  line-height: 1.6;
+  color: var(--muted);
+}
+.wifi-shell summary,
+.qr-exchange summary {
+  min-height: 48px;
+  padding-block: 14px;
+  cursor: pointer;
+  font-weight: 650;
+}
+.wifi-shell h2 {
+  font-size: 21px;
+  letter-spacing: -0.5px;
+}
+.wifi-shell label {
+  display: grid;
+  gap: 8px;
+  margin-block: 12px;
+}
+.wifi-shell select {
+  max-width: 100%;
+}
+.wifi-shell textarea {
+  width: 100%;
+  min-height: 100px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--background);
+  color: var(--ink);
+  resize: vertical;
+  font: inherit;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.wifi-shell :is(textarea, input):focus-visible {
+  outline: 3px solid var(--accent);
+}
+.qr-exchange:has(> :only-child) {
+  grid-template-columns: minmax(0, 1fr);
+}
+.connection-qr {
+  display: block;
+  width: min(100%, 340px);
+  height: auto;
+  margin: 18px auto;
+  border-radius: 6px;
+}
+.qr-input-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+.qr-input-actions .qr-file-button {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 48px;
+  padding: 10px 18px;
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+}
+.qr-file-button input {
+  position: absolute;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+  inset: 0;
+}
+.qr-file-button:focus-within {
+  outline: 3px solid var(--accent);
+}
+.qr-input video {
+  width: 100%;
+  max-height: 320px;
+  margin-top: 16px;
+  border-radius: 10px;
+}
+.wifi-start {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  width: min(1060px, 100%);
+  margin-inline: auto;
+  padding-bottom: max(20px, env(safe-area-inset-bottom));
+  z-index: 2;
+  border-color: var(--accent);
+}
+.wifi-shell:has(.wifi-start) {
+  padding-bottom: max(190px, calc(env(safe-area-inset-bottom) + 190px));
+}
+.wifi-start p {
+  margin-top: 0;
+}
+.wifi-start button {
+  width: 100%;
+}
+.wifi-help {
+  border-top: 1px solid var(--border);
+}
+@media (max-width: 680px) {
+  .wifi-role-options,
+  .qr-exchange {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+  .wifi-shell {
+    gap: 18px;
+  }
+  .wifi-connection-state,
+  .wifi-settings,
+  .wifi-start,
+  .qr-output,
+  .qr-input {
+    padding: 16px;
+  }
+  .wifi-entry {
+    width: 100%;
+    text-align: left;
+  }
+}

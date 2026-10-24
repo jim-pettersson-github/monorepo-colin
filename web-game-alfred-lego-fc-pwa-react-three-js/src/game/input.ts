@@ -62,6 +62,7 @@ export class InputManager {
   private listeners = new Set<() => void>();
   private revision = 0;
   private running = false;
+  private activeTeams: readonly Team[] = [0, 1];
 
   constructor() {
     try {
@@ -115,10 +116,12 @@ export class InputManager {
     this.publish();
   }
 
-  begin() {
+  begin(teams: readonly Team[] = this.activeTeams) {
+    this.activeTeams = teams;
+    this.assignments.clear();
     this.clear();
     this.running = true;
-    for (const team of [0, 1] as const) {
+    for (const team of this.activeTeams) {
       const source = this.sources[team];
       const pad = source.startsWith('pad:') ? this.pads[Number(source.slice(4))] : null;
       if (pad) this.assignments.set(team, pad.id);
@@ -143,7 +146,7 @@ export class InputManager {
     this.touch.sprint = value;
   }
   touchAction(action: Action) {
-    for (const team of [0, 1] as const) if (this.sources[team] === 'touch') this.pending[team].add(action);
+    for (const team of this.activeTeams) if (this.sources[team] === 'touch') this.pending[team].add(action);
   }
 
   keyDown = (event: KeyboardEvent) => {
@@ -185,7 +188,7 @@ export class InputManager {
       Numpad3: ['keyboard2', 'switch'],
     };
     const binding = bindings[event.code];
-    if (binding) for (const team of [0, 1] as const) if (this.sources[team] === binding[0]) this.pending[team].add(binding[1]);
+    if (binding) for (const team of this.activeTeams) if (this.sources[team] === binding[0]) this.pending[team].add(binding[1]);
   };
   keyUp = (event: KeyboardEvent) => {
     this.keys.delete(event.code);
@@ -204,7 +207,7 @@ export class InputManager {
       this.devices = devices;
       this.publish();
     }
-    for (const team of [0, 1] as const) {
+    for (const team of this.activeTeams) {
       const source = this.sources[team];
       if (!this.running || !source.startsWith('pad:')) continue;
       const pad = this.pads[Number(source.slice(4))];
@@ -218,7 +221,8 @@ export class InputManager {
       if (!pad?.connected) continue;
       const values = readPad(pad, this.mapping(pad.index));
       const previous = this.previous.get(pad.index);
-      for (const team of [0, 1] as const) {
+      for (const team of this.activeTeams) {
+        if (!this.running) continue;
         if (this.sources[team] !== `pad:${pad.index}`) continue;
         for (const action of ['pass', 'shoot', 'switch'] as const) if (values[action] && !previous?.[action]) this.pending[team].add(action);
         if (values.pause && !previous?.pause) this.onPause?.();

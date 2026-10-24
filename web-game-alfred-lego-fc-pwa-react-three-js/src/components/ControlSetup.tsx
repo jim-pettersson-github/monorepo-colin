@@ -3,7 +3,7 @@ import type { MatchClubs } from '../game/clubs';
 import { defaultClubs, getClub } from '../game/clubs';
 import type { InputManager, PadMapping, Source } from '../game/input';
 import { readPad, sourceLabel } from '../game/input';
-import type { MatchMode } from '../game/model';
+import type { MatchMode, Team } from '../game/model';
 import { ControlGuide } from './ControlGuide';
 
 export function controlsReady(input: InputManager, mode: MatchMode) {
@@ -33,7 +33,19 @@ function PadTester({ input, index }: { input: InputManager; index: number }) {
   );
 }
 
-export function ControlSetup({ input, mode, clubs = defaultClubs }: { input: InputManager; mode: MatchMode; clubs?: MatchClubs }) {
+export function ControlSetup({
+  input,
+  mode,
+  clubs = defaultClubs,
+  playerLabel,
+  localTeam,
+}: {
+  input: InputManager;
+  mode: MatchMode;
+  clubs?: MatchClubs;
+  playerLabel?: string;
+  localTeam?: Team;
+}) {
   useSyncExternalStore(input.subscribe, input.getSnapshot);
   const teams = mode === 'solo' ? ([0] as const) : ([0, 1] as const);
   const sources: Source[] = ['keyboard1', 'keyboard2', 'touch', ...input.devices.map((d) => `pad:${d.index}` as const)];
@@ -46,9 +58,9 @@ export function ControlSetup({ input, mode, clubs = defaultClubs }: { input: Inp
       </div>
       {teams.map((team) => (
         <div className='source-entry' key={team}>
-          <label className={`source-label team-${team}`}>
+          <label className={`source-label team-${localTeam ?? team}`}>
             <span>
-              Spelare {team + 1} <small>{getClub(clubs[team]).name}</small>
+              {playerLabel || `Spelare ${team + 1}`} <small>{getClub(clubs[team]).name}</small>
             </span>
             <select value={input.sources[team]} onChange={(event) => input.setSource(team, event.target.value as Source)}>
               {sources.map((source) => (
@@ -58,7 +70,7 @@ export function ControlSetup({ input, mode, clubs = defaultClubs }: { input: Inp
               ))}
             </select>
           </label>
-          <ControlGuide source={input.sources[team]} input={input} team={team} />
+          <ControlGuide source={input.sources[team]} input={input} team={localTeam ?? team} />
         </div>
       ))}
       {!controlsReady(input, mode) && (

@@ -17,6 +17,7 @@ import { TeamSelection } from './TeamSelection';
 import './start-menu.css';
 
 interface Props {
+  onWifi: () => void;
   input: InputManager;
   screen: 'quick' | 'league';
   onScreen: (screen: 'quick' | 'league') => void;
@@ -101,6 +102,10 @@ export function StartMenu(props: Props) {
           <small>{season ? getClub(season.club).name : '12 lag · En hel säsong'}</small>
         </button>
       </nav>
+      <button type='button' className='wifi-entry' disabled={simulating} onClick={props.onWifi}>
+        <strong>Spela via Wi-Fi</strong>
+        <span>Två enheter · Koppla ihop med QR-koder ↗</span>
+      </button>
       {hub ? (
         <>
           <div className='league-toolbar'>

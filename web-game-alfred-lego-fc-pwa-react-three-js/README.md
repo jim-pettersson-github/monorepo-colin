@@ -29,6 +29,18 @@ Each side has four outfield players and an AI goalkeeper. Keepers wear black wit
 
 Choose from 12 clubs: Alfred FF, IFK Göteborg, Norrköping FC, Colin FF, Charlie FC, Växjö IF, Malmö IF, Jim FF, IFK Älmhult, IFK Örebro, Värnamo FF and IFK Lund. Each has its own shirt color, trim and crest. Choose both sides before kickoff; selecting the other side's club swaps them. Team choices follow the pitch preview, kits, HUD, goal/result messages, saves and rematches. Earlier saves keep their original club selections.
 
+## Play via Wi-Fi
+
+Choose **Spela via Wi-Fi** on both devices. The host selects **Skapa match** and the guest **Anslut**. The guest scans the host's match QR code, then shows the generated answer QR code for the host to scan. Both directions are required. Camera access is requested only after pressing **Skanna med kameran**; the camera stops after a scan, cancellation or leaving the screen. **Välj QR-bild** reads a saved image, and expandable copy/paste fields support devices without cameras.
+
+The guest chooses a local keyboard, touch input or gamepad and presses **Jag är redo**. The host chooses both clubs and the duration, then starts from the fixed bottom bar. Both players use their own screen and input; the guest is player 2 and can use the same keyboard layout as the host on their separate device. The lobby displays each player's club. Portrait/landscape controls follow each device's camera orientation independently.
+
+WebRTC uses local ICE candidates with no STUN, TURN, signaling server, accounts or external QR service. The host runs the fixed-step match and sends snapshots at 20 Hz; the guest sends controls and smooths the displayed positions between snapshots. Scores, tackles, cards, penalties, restarts and full time all come from the host. Only the host can start a rematch; the same connection is reused.
+
+Either player can pause or request resume. Backgrounding, losing a controller or losing contact pauses the match for both. Resume requires both devices to be back with available inputs and a responding connection. Missing peer traffic stops play after two seconds. A closed connection or reload requires new QR codes and a new match; live network matches do not replace local match or league saves.
+
+Use the same reachable home network, with client isolation disabled; guest Wi-Fi may block the connection. Open the HTTPS site on phones. Once the PWA is cached on both devices, the match does not need HTTP services or internet access. Real Android cameras, two physical devices and router-specific discovery still need device review; browser tests verify real WebRTC connections between isolated browser contexts, QR image decoding and copy/paste, keyboard/touch control, shared pause, disconnects, save isolation and operation with all HTTP requests blocked after caching.
+
 ## Controls
 
 | Input | Move | Pass | Shoot / slide tackle | Switch | Sprint |
@@ -84,6 +96,8 @@ For a production preview, run `npm run build` then `npm run preview` and open ht
 - `src/components/PitchOverview.tsx`: live team and ball overview.
 - `src/game/football-world.ts`: procedural stadium, minifigures, animation and camera; shared with the menu preview.
 - `src/palette.ts`, `src/styles.css`, `src/match.css`: semantic colors and responsive layouts.
+- `src/game/peer-link.ts`, `network-session.ts`: local WebRTC signaling codes, peer lifecycle, authoritative host and guest synchronization.
+- `src/components/WifiLobby.tsx`, `QrExchange.tsx`: QR camera/image/copy pairing and per-device setup.
 - `src/pwa.ts`: service-worker registration and requested updates.
 - [PLAN.md](PLAN.md): implemented scope and remaining review work.
 

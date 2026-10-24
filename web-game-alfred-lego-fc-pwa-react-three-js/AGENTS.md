@@ -8,7 +8,7 @@ React, TypeScript, Three.js, Vite and vite-plugin-pwa. Fixed-step simulation is 
 
 ## Controls and layout
 
-Solo versus AI and two local players on one device. Keyboard, touch and two browser-visible USB/Bluetooth gamepads. Stable controller slots, dead zones, mapping settings and pause on controller disconnect. Do not promise universal controller compatibility.
+Solo versus AI, two local players on one device, and two devices on the same reachable LAN using WebRTC with two-way QR signaling. The host owns simulation and results; the guest sends its local controls. No STUN, TURN or signaling service. Preserve local saves during network matches. Pause both peers on backgrounding, input loss or connection loss. Keyboard, touch and two browser-visible USB/Bluetooth gamepads. Stable controller slots, dead zones, mapping settings and pause on controller disconnect. Do not promise universal controller compatibility.
 
 Swedish UI, semantic colors, accessible menus and 48-pixel touch targets. Desktop landscape; phones portrait and landscape with no orientation lock. Movement follows camera orientation. Pause when hidden or focus is lost, without time catch-up.
 
