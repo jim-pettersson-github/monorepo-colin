@@ -13,6 +13,7 @@ import {
   curbTexture,
   glowTexture,
   grassTexture,
+  isRetro,
   pavingTexture,
   ridgeTexture,
   seeded,
@@ -183,6 +184,7 @@ export type TrackWorld = {
   setStartLights: (lit: number, green: boolean) => void;
   // 0 in daylight, 1 deep inside a tunnel.
   setShade: (amount: number) => void;
+  sunLight: THREE.DirectionalLight;
   update: (camera: THREE.Camera, time: number) => void;
   dispose: () => void;
 };
@@ -453,7 +455,7 @@ export function buildTrackWorld(track: Track): TrackWorld {
   const ground = buildGround(track, look);
   // Neutral speckle: vertex colours carry the hue, so fields and paving share one texture.
   const speckle = keep(grassTexture('#8a8a8a', ['#808080', '#949494', '#7a7a7a', '#9a9a9a'], 9));
-  const terrainMaterial = keep(new THREE.MeshLambertMaterial({ map: speckle, vertexColors: true, flatShading: true }));
+  const terrainMaterial = keep(new THREE.MeshLambertMaterial({ map: speckle, vertexColors: true, flatShading: isRetro() }));
   scene.add(new THREE.Mesh(keep(ground.geometry), terrainMaterial));
 
   const city = track.setting === 'city';
@@ -484,7 +486,7 @@ export function buildTrackWorld(track: Track): TrackWorld {
 
   const { lake } = track;
   if (lake) {
-    const waterMaterial = keep(new THREE.MeshPhongMaterial({ color: look.water, shininess: 90, specular: '#ffd7a8', flatShading: true }));
+    const waterMaterial = keep(new THREE.MeshPhongMaterial({ color: look.water, shininess: 90, specular: '#ffd7a8', flatShading: isRetro() }));
     const water = new THREE.Mesh(keep(new THREE.CircleGeometry(1, 40)), waterMaterial);
     water.rotation.x = -Math.PI / 2;
     water.scale.set(lake.rx * 1.3, lake.rz * 1.3, 1);
@@ -505,10 +507,14 @@ export function buildTrackWorld(track: Track): TrackWorld {
   disposables.push(scenery);
   // Hundreds of static props collapse into a few batched draw calls.
   disposables.push(batchStatic(scene));
+  scene.traverse((object) => {
+    if (object instanceof THREE.Mesh && !object.userData.dynamic) object.receiveShadow = true;
+  });
 
   return {
     scene,
     look,
+    sunLight,
     setStartLights: scenery.setStartLights,
     setShade(amount) {
       skyLight.intensity = 1.6 - amount * 1.0;

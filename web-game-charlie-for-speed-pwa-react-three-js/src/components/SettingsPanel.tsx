@@ -30,7 +30,7 @@ export function SettingsPanel({ settings, onChange, onClose }: Props) {
           <input type='checkbox' checked={settings.retro} onChange={(event) => onChange({ ...settings, retro: event.target.checked })} />
           <span>
             Retrostil
-            <small>Lägre upplösning och kantiga pixlar, som på 90-talet.</small>
+            <small>90-talsgrafik: låg upplösning, kantiga pixlar och platt skuggning.</small>
           </span>
         </label>
         <label className='toggle'>

@@ -18,13 +18,26 @@ function canvas(width: number, height: number, draw: (context: CanvasRenderingCo
   return element;
 }
 
-// Low-resolution textures with nearest magnification give the chunky late-90s look.
-export function texture(element: HTMLCanvasElement, repeat = true, pixelated = true) {
+// Retro mode keeps small textures with nearest magnification for the chunky late-90s look.
+let retroLook = false;
+
+export function setRetroLook(on: boolean) {
+  retroLook = on;
+}
+
+export function isRetro() {
+  return retroLook;
+}
+
+// Texture resolution multiplier: the modern look draws the same art four times finer.
+const detail = () => (retroLook ? 1 : 4);
+
+export function texture(element: HTMLCanvasElement, repeat = true, pixelated = retroLook) {
   const result = new THREE.CanvasTexture(element);
   result.colorSpace = THREE.SRGBColorSpace;
   if (repeat) result.wrapS = result.wrapT = THREE.RepeatWrapping;
   if (pixelated) result.magFilter = THREE.NearestFilter;
-  result.anisotropy = 4;
+  result.anisotropy = retroLook ? 4 : 8;
   return result;
 }
 
@@ -37,18 +50,36 @@ function speckle(context: CanvasRenderingContext2D, width: number, height: numbe
 }
 
 export function asphaltTexture(edge: string) {
+  const k = detail();
+  const size = 128 * k;
   return texture(
-    canvas(128, 128, (context) => {
+    canvas(size, size, (context) => {
       context.fillStyle = '#4b4d52';
-      context.fillRect(0, 0, 128, 128);
-      speckle(context, 128, 128, ['#45474c', '#505257', '#484a4f', '#55575c'], 9000, 11);
-      speckle(context, 128, 128, ['#3f4146', '#5a5c61'], 500, 12, 2);
+      context.fillRect(0, 0, size, size);
+      speckle(context, size, size, ['#45474c', '#505257', '#484a4f', '#55575c'], 9000 * k * k, 11);
+      speckle(context, size, size, ['#3f4146', '#5a5c61'], 500 * k * k, 12, 2);
+      if (k > 1) {
+        // Soft patches and rubbered-in tyre lines read as real tarmac up close.
+        const random = seeded(19);
+        for (let i = 0; i < 40; i++) {
+          const x = random() * size;
+          const y = random() * size;
+          const radius = 20 + random() * 60;
+          const patch = context.createRadialGradient(x, y, 0, x, y, radius);
+          patch.addColorStop(0, random() < 0.5 ? 'rgba(30,30,34,0.18)' : 'rgba(110,110,116,0.1)');
+          patch.addColorStop(1, 'rgba(0,0,0,0)');
+          context.fillStyle = patch;
+          context.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+        }
+        context.fillStyle = 'rgba(18,18,22,0.22)';
+        for (const lane of [0.36, 0.42, 0.58, 0.64]) context.fillRect(lane * size, 0, 0.035 * size, size);
+      }
       // Darker racing line worn into the middle of the road.
       context.fillStyle = 'rgba(20, 20, 24, 0.16)';
-      context.fillRect(40, 0, 48, 128);
+      context.fillRect(40 * k, 0, 48 * k, size);
       context.fillStyle = edge;
-      context.fillRect(3, 0, 3, 128);
-      context.fillRect(122, 0, 3, 128);
+      context.fillRect(3 * k, 0, 3 * k, size);
+      context.fillRect(122 * k, 0, 3 * k, size);
     }),
   );
 }
@@ -65,12 +96,22 @@ export function curbTexture() {
 }
 
 export function grassTexture(base: string, shades: string[], seed: number) {
+  const k = detail();
+  const size = 64 * k;
   return texture(
-    canvas(64, 64, (context) => {
+    canvas(size, size, (context) => {
       context.fillStyle = base;
-      context.fillRect(0, 0, 64, 64);
-      speckle(context, 64, 64, shades, 1400, seed);
-      speckle(context, 64, 64, shades, 60, seed + 1, 3);
+      context.fillRect(0, 0, size, size);
+      speckle(context, size, size, shades, 1400 * k * k, seed);
+      speckle(context, size, size, shades, 60 * k * k, seed + 1, 3);
+      if (k > 1) {
+        // Short blades of grass.
+        const random = seeded(seed + 7);
+        for (let i = 0; i < 6000; i++) {
+          context.fillStyle = shades[Math.floor(random() * shades.length)];
+          context.fillRect(Math.floor(random() * size), Math.floor(random() * size), 1, 2 + Math.floor(random() * 3));
+        }
+      }
     }),
   );
 }
@@ -272,8 +313,6 @@ export function ridgeTexture(color: string, seed: number, jagged: boolean) {
       context.lineTo(512, 64);
       context.fill();
     }),
-    true,
-    true,
   );
 }
 

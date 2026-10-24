@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { sampleAt } from '../game/track-path';
 import type { Region, Track, TrackTheme } from '../game/tracks';
-import { chevronTexture, concreteTexture, crowdTexture, seeded, signTexture, texture, windowsTexture } from './textures';
+import { chevronTexture, concreteTexture, crowdTexture, isRetro, seeded, signTexture, texture, windowsTexture } from './textures';
 import type { Ground, ThemeLook } from './track-world';
 
 type Disposable = { dispose: () => void };
@@ -56,22 +56,24 @@ function colored(source: THREE.BufferGeometry, color: string, x = 0, y = 0, z = 
 }
 
 function treeGeometries(region: Region) {
+  const sides = isRetro() ? 6 : 10;
+  const round = isRetro() ? 0 : 1;
   const pine = mergeGeometries([
     colored(new THREE.CylinderGeometry(0.25, 0.35, 2.4, 5), '#5a3b26', 0, 1.2, 0),
-    colored(new THREE.ConeGeometry(2.6, 5, 6), '#24502a', 0, 4.2, 0),
-    colored(new THREE.ConeGeometry(1.9, 4, 6), '#2b5e30', 0, 6.6, 0),
-    colored(new THREE.ConeGeometry(1.1, 3, 6), '#336b36', 0, 8.6, 0),
+    colored(new THREE.ConeGeometry(2.6, 5, sides), '#24502a', 0, 4.2, 0),
+    colored(new THREE.ConeGeometry(1.9, 4, sides), '#2b5e30', 0, 6.6, 0),
+    colored(new THREE.ConeGeometry(1.1, 3, sides), '#336b36', 0, 8.6, 0),
   ]);
   const leafy =
     region === 'sweden'
       ? mergeGeometries([
           colored(new THREE.CylinderGeometry(0.16, 0.24, 6, 5), '#ebe7de', 0, 3, 0),
-          colored(new THREE.IcosahedronGeometry(2.2, 0).scale(1, 1.5, 1), '#7aa646', 0, 7.2, 0),
+          colored(new THREE.IcosahedronGeometry(2.2, round).scale(1, 1.5, 1), '#7aa646', 0, 7.2, 0),
         ])
       : mergeGeometries([
           colored(new THREE.CylinderGeometry(0.3, 0.42, 3.2, 5), '#5a3b26', 0, 1.6, 0),
-          colored(new THREE.IcosahedronGeometry(3.4, 0), '#4f8a2e', 0, 5.6, 0),
-          colored(new THREE.IcosahedronGeometry(2.4, 0), '#5f9a36', 1.2, 7.2, 0.6),
+          colored(new THREE.IcosahedronGeometry(3.4, round), '#4f8a2e', 0, 5.6, 0),
+          colored(new THREE.IcosahedronGeometry(2.4, round), '#5f9a36', 1.2, 7.2, 0.6),
         ]);
   return { pine, leafy };
 }
@@ -153,7 +155,7 @@ export function buildScenery(scene: THREE.Scene, track: Track, ground: Ground, l
   const random = seeded([...track.id].reduce((sum, letter) => sum * 31 + letter.charCodeAt(0), 7) % 100000);
   const { path, halfWidth, wall, theme, setting, region, tunnel } = track;
   const material = (color: string, options: THREE.MeshLambertMaterialParameters = {}) =>
-    keep(new THREE.MeshLambertMaterial({ color, flatShading: true, ...options }));
+    keep(new THREE.MeshLambertMaterial({ color, flatShading: isRetro(), ...options }));
   const adList = ads[region];
   const nearTunnel = (s: number) => s > tunnel.start - 40 && s < tunnel.end + 40;
 

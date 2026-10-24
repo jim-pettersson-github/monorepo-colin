@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import type { Race } from '../game/race';
 import { buildCarModel, type CarModel } from './car-model';
-import { Particles } from './effects';
+import { Particles, skyEnvironment } from './effects';
+import { setRetroLook } from './textures';
 import { buildTrackWorld, type TrackWorld } from './track-world';
 
 export type CameraMode = 'chase' | 'far' | 'bumper';
@@ -31,6 +32,7 @@ export class RaceRenderer {
   private colors = { smoke: new THREE.Color('#d8d8d4'), dust: new THREE.Color('#8f8058'), spark: new THREE.Color('#ffb43a') };
   private drawingSize = new THREE.Vector2();
   private size = { width: 1, height: 1 };
+  private environment: THREE.WebGLRenderTarget;
   private maxPixelRatio: number;
   private pixelRatio: number;
   private frameAverage = 1 / 60;
@@ -45,7 +47,35 @@ export class RaceRenderer {
     this.maxPixelRatio = retro ? 0.5 : Math.min(window.devicePixelRatio, 1.5);
     this.pixelRatio = this.maxPixelRatio;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    setRetroLook(retro);
     this.world = buildTrackWorld(race.track);
+    const { look } = this.world;
+
+    // Modern look: filmic tone mapping, sky reflections and a sun shadow that follows the player.
+    if (!retro) {
+      const phone = matchMedia('(pointer: coarse)').matches;
+      this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      this.renderer.toneMappingExposure = 1.25;
+      this.renderer.shadowMap.enabled = !phone;
+      this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      const sun = this.world.sunLight;
+      sun.castShadow = !phone;
+      sun.shadow.mapSize.setScalar(window.devicePixelRatio >= 2 ? 1024 : 2048);
+      Object.assign(sun.shadow.camera, { left: -40, right: 40, top: 40, bottom: -40, near: 1, far: 320 });
+      sun.shadow.camera.updateProjectionMatrix();
+      sun.shadow.bias = -0.0004;
+      sun.shadow.normalBias = 0.03;
+      this.world.scene.add(sun.target);
+    }
+    this.environment = skyEnvironment(this.renderer, {
+      top: look.skyTop,
+      horizon: look.skyHorizon,
+      ground: look.hemiGround,
+      sun: look.sunColor,
+      direction: look.sun,
+    });
+    this.world.scene.environment = this.environment.texture;
+    this.world.scene.environmentIntensity = 0.9;
     this.models = race.racers.map((racer) => {
       const model = buildCarModel(racer.spec, this.world.look.headlights);
       this.world.scene.add(model.group);
@@ -93,6 +123,10 @@ export class RaceRenderer {
     const lit = race.phase === 'countdown' ? Math.min(5, Math.floor((3.4 - race.countdown) / 0.6)) : 0;
     this.world.setStartLights(lit, race.phase !== 'countdown' && race.time < 3);
     this.updateCamera(frameTime);
+    const car = race.player.state;
+    const sun = this.world.sunLight;
+    sun.target.position.set(car.x, car.y, car.z);
+    sun.position.set(car.x, car.y, car.z).addScaledVector(this.world.look.sun, 160);
     this.emitEffects(frameTime);
     this.renderer.getDrawingBufferSize(this.drawingSize);
     this.smoke.update(frameTime, this.drawingSize.y, this.camera.fov);
@@ -167,8 +201,8 @@ export class RaceRenderer {
       const progress = THREE.MathUtils.smoothstep(1 - race.countdown / 3.4, 0, 0.85);
       yaw = car.yaw + Math.PI * (1 - progress);
       view = {
-        back: THREE.MathUtils.lerp(9, views.chase.back, progress),
-        height: THREE.MathUtils.lerp(1.6, views.chase.height, progress),
+        back: THREE.MathUtils.lerp(6.5, views.chase.back, progress),
+        height: THREE.MathUtils.lerp(2.4, views.chase.height, progress),
         look: 0,
         lookHeight: 0.9,
       };
@@ -198,6 +232,7 @@ export class RaceRenderer {
   dispose() {
     for (const model of this.models) model.dispose();
     this.smoke.dispose();
+    this.environment.dispose();
     this.sparks.dispose();
     this.world.dispose();
     this.renderer.dispose();

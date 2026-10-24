@@ -166,3 +166,33 @@ export function buildLensFlare(sunColor: string) {
     },
   };
 }
+
+// A blurred copy of the track's sky, ground and sun for image-based reflections on the cars.
+export function skyEnvironment(renderer: THREE.WebGLRenderer, colors: { top: string; horizon: string; ground: string; sun: string; direction: THREE.Vector3 }) {
+  const scene = new THREE.Scene();
+  const dome = new THREE.SphereGeometry(50, 32, 16);
+  const top = new THREE.Color(colors.top);
+  const horizon = new THREE.Color(colors.horizon);
+  const ground = new THREE.Color(colors.ground);
+  const tint = new THREE.Color();
+  const shades: number[] = [];
+  for (let i = 0; i < dome.attributes.position.count; i++) {
+    const y = dome.attributes.position.getY(i) / 50;
+    if (y >= 0) tint.copy(horizon).lerp(top, Math.min(1, y * 1.8) ** 0.7);
+    else tint.copy(horizon).lerp(ground, Math.min(1, -y * 6));
+    shades.push(tint.r, tint.g, tint.b);
+  }
+  dome.setAttribute('color', new THREE.Float32BufferAttribute(shades, 3));
+  const domeMaterial = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide });
+  scene.add(new THREE.Mesh(dome, domeMaterial));
+  const sunGeometry = new THREE.SphereGeometry(3, 12, 8);
+  const sunMaterial = new THREE.MeshBasicMaterial({ color: new THREE.Color(colors.sun).multiplyScalar(18) });
+  const sun = new THREE.Mesh(sunGeometry, sunMaterial);
+  sun.position.copy(colors.direction).multiplyScalar(42);
+  scene.add(sun);
+  const generator = new THREE.PMREMGenerator(renderer);
+  const target = generator.fromScene(scene, 0.015);
+  generator.dispose();
+  for (const item of [dome, domeMaterial, sunGeometry, sunMaterial]) item.dispose();
+  return target;
+}

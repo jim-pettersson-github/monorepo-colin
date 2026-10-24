@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { carById } from '../game/cars';
 import { placeCar } from '../game/physics';
 import { trackById } from '../game/tracks';
@@ -28,7 +29,14 @@ export function Showroom({ carId, className = 'showroom' }: { carId: string; cla
       return;
     }
     renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.1;
     const scene = new THREE.Scene();
+    // A studio light box for the paint and glass to reflect.
+    const generator = new THREE.PMREMGenerator(renderer);
+    const studio = generator.fromScene(new RoomEnvironment(), 0.04);
+    generator.dispose();
+    scene.environment = studio.texture;
     const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 100);
     camera.position.set(0, 2.4, 10.5);
     camera.lookAt(0, -0.35, 0);
@@ -77,6 +85,7 @@ export function Showroom({ carId, className = 'showroom' }: { carId: string; cla
       observer.disconnect();
       stageRef.current?.model?.dispose();
       floorGeometry.dispose();
+      studio.dispose();
       floorMaterial.dispose();
       renderer.dispose();
       stageRef.current = undefined;
