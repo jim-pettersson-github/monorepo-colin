@@ -1,10 +1,11 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import type { TrackPath, TrackSample } from '../game/track-path';
+import type { TrackSample } from '../game/track-path';
 import type { Track, TrackTheme } from '../game/tracks';
 import { batchStatic } from './batch';
 import { buildLensFlare } from './effects';
 import { buildScenery } from './scenery';
+import { ribbon, upright } from './strips';
 import {
   asphaltTexture,
   barrierTexture,
@@ -14,10 +15,12 @@ import {
   glowTexture,
   grassTexture,
   isRetro,
+  mowedGrassTexture,
   pavingTexture,
   ridgeTexture,
   seeded,
 } from './textures';
+import { buildTrackside } from './trackside';
 
 export type ThemeLook = {
   skyTop: string;
@@ -56,7 +59,7 @@ export const looks: Record<TrackTheme, ThemeLook> = {
     hemiGround: '#3f5a2a',
     grass: '#4e7a2c',
     grassShades: ['#446d26', '#5a8834', '#3d6322', '#62903a'],
-    terrainTint: ['#5b8a36', '#3e6526'],
+    terrainTint: ['#5e8638', '#3f6228'],
     farRidge: '#6f7fa4',
     nearRidge: '#24402a',
     barrier: 'armco',
@@ -78,7 +81,7 @@ export const looks: Record<TrackTheme, ThemeLook> = {
     hemiGround: '#506a30',
     grass: '#5d8f34',
     grassShades: ['#52822c', '#68993c', '#4a7628', '#74a446'],
-    terrainTint: ['#6c9a3e', '#4b7a2c'],
+    terrainTint: ['#6a913f', '#4b742e'],
     farRidge: '#7d93b8',
     nearRidge: '#3f5e3a',
     barrier: 'concrete',
@@ -144,7 +147,7 @@ export const looks: Record<TrackTheme, ThemeLook> = {
     hemiGround: '#5a7a30',
     grass: '#62982f',
     grassShades: ['#578a28', '#6ea83a', '#4f7f24', '#79b244'],
-    terrainTint: ['#74a83c', '#558a2a'],
+    terrainTint: ['#719c3e', '#55812d'],
     farRidge: '#7c97c0',
     nearRidge: '#35603a',
     barrier: 'wood',
@@ -166,7 +169,7 @@ export const looks: Record<TrackTheme, ThemeLook> = {
     hemiGround: '#3e5232',
     grass: '#4f7a33',
     grassShades: ['#466e2c', '#5a873a', '#3f6427', '#628f40'],
-    terrainTint: ['#5d8a3a', '#3f6829'],
+    terrainTint: ['#5b8339', '#3f6329'],
     farRidge: '#8e9ea8',
     nearRidge: '#2e4a32',
     barrier: 'armco',
@@ -198,71 +201,24 @@ export type Ground = {
 const TERRAIN_SIZE = 2800;
 const TERRAIN_CELLS = 175;
 
-// Builds a strip alongside the centre line, optionally only where `keep` allows.
-export function ribbon(
-  path: TrackPath,
-  inner: number,
-  outer: number,
-  options: { lift?: number; outerDrop?: number; vLength?: number; uMeters?: number; keep?: (sample: TrackSample) => boolean } = {},
-) {
-  const { lift = 0, outerDrop = 0, vLength = 8, uMeters, keep } = options;
-  const positions: number[] = [];
-  const uvs: number[] = [];
-  const { samples, length } = path;
-  const count = samples.length;
-
-  for (let i = 0; i < count; i++) {
-    const a = samples[i];
-    const b = samples[(i + 1) % count];
-    if (keep && !keep(a) && !keep(b)) continue;
-    const vA = a.s / vLength;
-    const vB = (i + 1 === count ? length : b.s) / vLength;
-    const corners = [
-      [a, inner, vA, 0],
-      [a, outer, vA, 1],
-      [b, inner, vB, 0],
-      [b, outer, vB, 1],
-    ] as const;
-    const vertices = corners.map(([sample, lateral, v, u]) => {
-      const drop = u === 1 ? outerDrop : 0;
-      return [sample.x + sample.rx * lateral, sample.y + lift - drop, sample.z + sample.rz * lateral, uMeters ? (lateral - inner) / uMeters : u, v];
-    });
-    const flip = outer > inner;
-    for (const index of flip ? [0, 1, 2, 2, 1, 3] : [0, 2, 1, 1, 2, 3]) {
-      const [x, y, z, u, v] = vertices[index];
-      positions.push(x, y, z);
-      uvs.push(u, v);
-    }
-  }
-
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-  geometry.computeVertexNormals();
-  return geometry;
+// Smooth value noise in [0, 1].
+function valueNoise(x: number, z: number, seed: number) {
+  const xi = Math.floor(x);
+  const zi = Math.floor(z);
+  const hash = (i: number, j: number) => {
+    const n = Math.sin(i * 127.1 + j * 311.7 + seed * 74.7) * 43758.5453;
+    return n - Math.floor(n);
+  };
+  const sx = THREE.MathUtils.smoothstep(x - xi, 0, 1);
+  const sz = THREE.MathUtils.smoothstep(z - zi, 0, 1);
+  const top = THREE.MathUtils.lerp(hash(xi, zi), hash(xi + 1, zi), sx);
+  const bottom = THREE.MathUtils.lerp(hash(xi, zi + 1), hash(xi + 1, zi + 1), sx);
+  return THREE.MathUtils.lerp(top, bottom, sz);
 }
 
-function wallGeometry(path: TrackPath, lateral: number, height: number) {
-  const positions: number[] = [];
-  const uvs: number[] = [];
-  const { samples, length } = path;
-  for (let i = 0; i < samples.length; i++) {
-    const a = samples[i];
-    const b = samples[(i + 1) % samples.length];
-    const vA = a.s / 4;
-    const vB = (i + 1 === samples.length ? length : b.s) / 4;
-    const ax = a.x + a.rx * lateral;
-    const az = a.z + a.rz * lateral;
-    const bx = b.x + b.rx * lateral;
-    const bz = b.z + b.rz * lateral;
-    positions.push(ax, a.y - 0.6, az, bx, b.y - 0.6, bz, ax, a.y + height, az, ax, a.y + height, az, bx, b.y - 0.6, bz, bx, b.y + height, bz);
-    uvs.push(vA, 0, vB, 0, vA, 1, vA, 1, vB, 0, vB, 1);
-  }
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-  geometry.computeVertexNormals();
-  return geometry;
+// Three octaves, coarse to fine, for natural-looking colour patches across the terrain.
+function patches(x: number, z: number, seed: number) {
+  return valueNoise(x / 190, z / 190, seed) * 0.55 + valueNoise(x / 75, z / 75, seed + 1) * 0.3 + valueNoise(x / 33, z / 33, seed + 2) * 0.15;
 }
 
 function buildGround(track: Track, look: ThemeLook): Ground & { geometry: THREE.BufferGeometry } {
@@ -328,6 +284,7 @@ function buildGround(track: Track, look: ThemeLook): Ground & { geometry: THREE.
   const light = new THREE.Color(look.terrainTint[0]);
   const dark = new THREE.Color(look.terrainTint[1]);
   const sand = new THREE.Color('#c8b48a');
+  const dry = new THREE.Color('#8d9653');
   const color = new THREE.Color();
   // Countryside gets a patchwork of fields away from the road.
   const fields = (
@@ -341,7 +298,9 @@ function buildGround(track: Track, look: ThemeLook): Ground & { geometry: THREE.
     const row = Math.round((z - center.z + half) / cell);
     const height = heights[row * grid + column];
     position.setY(i, height);
-    color.copy(light).lerp(dark, 0.5 + 0.5 * Math.sin(x * 0.02 + z * 0.013) * Math.cos(z * 0.021));
+    color.copy(light).lerp(dark, THREE.MathUtils.smoothstep(patches(x, z, 3), 0.25, 0.75));
+    // Sun-dried patches in the open countryside and on the circuit infields.
+    if (track.setting !== 'city') color.lerp(dry, THREE.MathUtils.smoothstep(valueNoise(x / 140, z / 140, 9), 0.65, 0.95) * 0.22);
     if (track.setting === 'country' && distances[row * grid + column] > track.wall + 28) {
       const fx = Math.floor((x + Math.sin(z * 0.011) * 40) / 120);
       const fz = Math.floor((z + Math.sin(x * 0.009) * 40) / 90);
@@ -459,10 +418,12 @@ export function buildTrackWorld(track: Track): TrackWorld {
   scene.add(new THREE.Mesh(keep(ground.geometry), terrainMaterial));
 
   const city = track.setting === 'city';
+  // Circuit verges are mown in bands; country roadsides keep the plain field grass.
+  const verge = track.setting === 'circuit' ? keep(mowedGrassTexture('#8a8a8a', ['#808080', '#949494', '#7a7a7a', '#9a9a9a'], 9)) : speckle;
   const shoulderMaterial = keep(
     city
       ? new THREE.MeshLambertMaterial({ map: keep(pavingTexture()), color: '#c4c2bc' })
-      : new THREE.MeshLambertMaterial({ map: speckle, color: look.terrainTint[0] }),
+      : new THREE.MeshLambertMaterial({ map: verge, color: look.terrainTint[0] }),
   );
   const shoulderOptions = { lift: -0.04, outerDrop: 0.5, uMeters: 12, vLength: 12 };
   scene.add(new THREE.Mesh(keep(ribbon(path, halfWidth - 0.2, wall + 3, shoulderOptions)), shoulderMaterial));
@@ -481,8 +442,8 @@ export function buildTrackWorld(track: Track): TrackWorld {
   const barrierMap = keep(barrierTexture(look.barrier));
   const barrierMaterial = keep(new THREE.MeshLambertMaterial({ map: barrierMap, side: THREE.DoubleSide, alphaTest: 0.5 }));
   const barrierHeight = look.barrier === 'concrete' ? 1.1 : 0.9;
-  scene.add(new THREE.Mesh(keep(wallGeometry(path, wall, barrierHeight)), barrierMaterial));
-  scene.add(new THREE.Mesh(keep(wallGeometry(path, -wall, barrierHeight)), barrierMaterial));
+  for (const side of [-1, 1]) scene.add(new THREE.Mesh(keep(upright(path, side * wall, -0.6, barrierHeight)), barrierMaterial));
+  disposables.push(...buildTrackside(scene, track, look));
 
   const { lake } = track;
   if (lake) {

@@ -80,7 +80,10 @@ h3 {
 
 .home-link {
   position: absolute;
-  inset: 14px auto auto 16px;
+  inset: 2px auto auto 16px;
+  display: inline-flex;
+  align-items: center;
+  min-height: 48px;
   color: var(--muted);
   font-style: italic;
   font-weight: 900;

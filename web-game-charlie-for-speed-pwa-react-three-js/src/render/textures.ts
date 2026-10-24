@@ -8,7 +8,7 @@ export function seeded(seed: number) {
   };
 }
 
-function canvas(width: number, height: number, draw: (context: CanvasRenderingContext2D) => void) {
+export function canvas(width: number, height: number, draw: (context: CanvasRenderingContext2D) => void) {
   const element = document.createElement('canvas');
   element.width = width;
   element.height = height;
@@ -30,7 +30,7 @@ export function isRetro() {
 }
 
 // Texture resolution multiplier: the modern look draws the same art four times finer.
-const detail = () => (retroLook ? 1 : 4);
+export const detail = () => (retroLook ? 1 : 4);
 
 export function texture(element: HTMLCanvasElement, repeat = true, pixelated = retroLook) {
   const result = new THREE.CanvasTexture(element);
@@ -116,6 +116,79 @@ export function grassTexture(base: string, shades: string[], seed: number) {
   );
 }
 
+// Circuit verges: grass mown in alternating bands across the track, half a texture each.
+export function mowedGrassTexture(base: string, shades: string[], seed: number) {
+  const grass = grassTexture(base, shades, seed);
+  const element = grass.image as HTMLCanvasElement;
+  const context = element.getContext('2d');
+  if (context) {
+    const { width, height } = element;
+    context.fillStyle = 'rgba(255, 255, 230, 0.15)';
+    context.fillRect(0, 0, width, height / 2);
+    context.fillStyle = 'rgba(0, 20, 0, 0.13)';
+    context.fillRect(0, height / 2, width, height / 2);
+  }
+  return grass;
+}
+
+export function gravelTexture() {
+  const k = detail();
+  const size = 64 * k;
+  return texture(
+    canvas(size, size, (context) => {
+      context.fillStyle = '#b3a283';
+      context.fillRect(0, 0, size, size);
+      speckle(context, size, size, ['#a39272', '#c4b495', '#9a8a6c', '#d2c4a6', '#8c7e64'], 2600 * k * k, 41);
+      if (k > 1) {
+        // Pebbles: a lit top edge and a shadow below give them body.
+        const random = seeded(43);
+        for (let i = 0; i < 2600; i++) {
+          const x = random() * size;
+          const y = random() * size;
+          const radius = 1 + random() * 2.2;
+          const tone = 150 + Math.floor(random() * 70);
+          context.fillStyle = 'rgba(60, 50, 36, 0.35)';
+          context.beginPath();
+          context.ellipse(x + 0.6, y + 0.8, radius, radius * 0.75, 0, 0, Math.PI * 2);
+          context.fill();
+          context.fillStyle = `rgb(${tone + 12}, ${tone}, ${tone - 22})`;
+          context.beginPath();
+          context.ellipse(x, y, radius, radius * 0.75, 0, 0, Math.PI * 2);
+          context.fill();
+        }
+      }
+    }),
+  );
+}
+
+// Diamond wire mesh with a top rail; transparent between the wires.
+export function fenceTexture() {
+  const k = detail();
+  const width = 64 * k;
+  const height = 64 * k;
+  return texture(
+    canvas(width, height, (context) => {
+      context.clearRect(0, 0, width, height);
+      context.strokeStyle = 'rgba(70, 76, 84, 0.85)';
+      context.lineWidth = Math.max(1, k * 0.45);
+      const step = width / 10;
+      for (let x = -height; x < width + height; x += step) {
+        context.beginPath();
+        context.moveTo(x, 0);
+        context.lineTo(x + height, height);
+        context.moveTo(x, height);
+        context.lineTo(x + height, 0);
+        context.stroke();
+      }
+      context.fillStyle = '#5c636c';
+      context.fillRect(0, 0, width, 2 * k);
+      context.fillRect(0, height - 2 * k, width, 2 * k);
+    }),
+    true,
+    false,
+  );
+}
+
 export function checkerTexture() {
   return texture(
     canvas(16, 4, (context) => {
@@ -142,6 +215,21 @@ export function barrierTexture(kind: 'armco' | 'concrete' | 'wood') {
         context.fillRect(0, 4, 32, 1);
         context.fillRect(0, 11, 32, 1);
         context.fillRect(14, 0, 4, 16);
+      } else if (kind === 'armco' && detail() > 1) {
+        // Two galvanised W-beam rails with daylight between and below them; posts are real geometry.
+        context.clearRect(0, 0, 32, 16);
+        for (const top of [1, 6]) {
+          const rail = context.createLinearGradient(0, top, 0, top + 4);
+          rail.addColorStop(0, '#e2e7ea');
+          rail.addColorStop(0.35, '#a9b2b8');
+          rail.addColorStop(0.55, '#6c757c');
+          rail.addColorStop(0.8, '#b8c0c5');
+          rail.addColorStop(1, '#7c858c');
+          context.fillStyle = rail;
+          context.fillRect(0, top, 32, 4);
+        }
+        context.fillStyle = '#4e555b';
+        context.fillRect(15, 1, 1, 9);
       } else if (kind === 'armco') {
         context.fillStyle = '#9aa3aa';
         context.fillRect(0, 0, 32, 16);
@@ -168,6 +256,46 @@ export function barrierTexture(kind: 'armco' | 'concrete' | 'wood') {
 }
 
 export function crowdTexture(seed: number) {
+  if (detail() > 1) {
+    // One row of spectators per step: shirts, heads, a few raised arms and flags.
+    const shirts = ['#e8322b', '#f2c400', '#2a6fd6', '#f4f4f4', '#3fa34d', '#ff8a2a', '#1d2a44', '#8a3c8a', '#5a5f66'];
+    const skin = ['#f1c9a5', '#e0ac85', '#c68863', '#8d5a3c', '#f5d6bc'];
+    const random = seeded(seed);
+    return texture(
+      canvas(512, 64, (context) => {
+        context.fillStyle = '#3a3f48';
+        context.fillRect(0, 0, 512, 64);
+        context.fillStyle = '#2a2e36';
+        context.fillRect(0, 44, 512, 20);
+        for (let x = 4; x < 512; x += 12 + random() * 6) {
+          if (random() < 0.12) continue;
+          const lean = (random() - 0.5) * 3;
+          const shirt = shirts[Math.floor(random() * shirts.length)];
+          context.fillStyle = shirt;
+          context.beginPath();
+          context.roundRect(x - 5 + lean, 26, 11, 22, 4);
+          context.fill();
+          context.fillStyle = skin[Math.floor(random() * skin.length)];
+          context.beginPath();
+          context.arc(x + lean * 1.4, 19, 4.4, 0, Math.PI * 2);
+          context.fill();
+          if (random() < 0.15) {
+            context.fillRect(x + 4 + lean, 6, 2, 20);
+            if (random() < 0.5) {
+              context.fillStyle = random() < 0.5 ? '#e8322b' : '#f2c400';
+              context.fillRect(x + 6 + lean, 2, 9, 6);
+            }
+          }
+          if (random() < 0.3) {
+            context.fillStyle = random() < 0.5 ? '#1a1a1a' : shirt;
+            context.fillRect(x - 4 + lean * 1.4, 13, 9, 3);
+          }
+        }
+        context.fillStyle = 'rgba(0, 0, 0, 0.25)';
+        context.fillRect(0, 48, 512, 16);
+      }),
+    );
+  }
   return texture(
     canvas(64, 32, (context) => {
       context.fillStyle = '#2a2e38';
@@ -249,6 +377,116 @@ export function windowsTexture(wall: string, frame: string, glass: string, timbe
   );
 }
 
+// City facade at 32 px per metre: two floors of two windows over 8 × 7 m, with frames, sills and floor cornices.
+export function facadeDetailTexture(wall: string, lit: number, seed: number) {
+  const random = seeded(seed);
+  return texture(
+    canvas(256, 224, (context) => {
+      context.fillStyle = wall;
+      context.fillRect(0, 0, 256, 224);
+      speckle(context, 256, 224, ['rgba(0,0,0,0.06)', 'rgba(255,255,255,0.06)', 'rgba(0,0,0,0.1)'], 5000, seed + 1, 2);
+      for (const floor of [0, 112]) {
+        // Weathering darkens each storey toward its sill line.
+        const grime = context.createLinearGradient(0, floor, 0, floor + 112);
+        grime.addColorStop(0, 'rgba(0,0,0,0)');
+        grime.addColorStop(1, 'rgba(0,0,0,0.12)');
+        context.fillStyle = grime;
+        context.fillRect(0, floor, 256, 112);
+        context.fillStyle = 'rgba(255,255,255,0.28)';
+        context.fillRect(0, floor, 256, 5);
+        context.fillStyle = 'rgba(0,0,0,0.22)';
+        context.fillRect(0, floor + 5, 256, 3);
+        for (const center of [64, 192]) {
+          const x = center - 30;
+          const y = floor + 22;
+          const glow = random() < lit;
+          context.fillStyle = 'rgba(0,0,0,0.25)';
+          context.fillRect(x - 6, y - 10, 72, 8);
+          context.fillStyle = '#ece8de';
+          context.fillRect(x - 5, y - 5, 70, 90);
+          const glass = context.createLinearGradient(x, y, x + 40, y + 80);
+          if (glow) {
+            glass.addColorStop(0, '#ffe2a0');
+            glass.addColorStop(1, '#e89a48');
+          } else {
+            glass.addColorStop(0, '#5d7590');
+            glass.addColorStop(0.45, '#2b3a4c');
+            glass.addColorStop(1, '#3c4e63');
+          }
+          context.fillStyle = glass;
+          context.fillRect(x, y, 60, 80);
+          if (!glow) {
+            context.fillStyle = 'rgba(255,255,255,0.14)';
+            context.beginPath();
+            context.moveTo(x + 8, y);
+            context.lineTo(x + 26, y);
+            context.lineTo(x + 6, y + 40);
+            context.lineTo(x, y + 40);
+            context.fill();
+          } else if (random() < 0.5) {
+            context.fillStyle = 'rgba(120, 50, 20, 0.35)';
+            context.fillRect(x, y, 14, 80);
+            context.fillRect(x + 46, y, 14, 80);
+          }
+          // Recess: shadow under the lintel and down the left reveal.
+          context.fillStyle = 'rgba(0,0,0,0.35)';
+          context.fillRect(x, y, 60, 6);
+          context.fillRect(x, y, 5, 80);
+          context.fillStyle = '#ece8de';
+          context.fillRect(x + 28, y, 4, 80);
+          context.fillRect(x, y + 28, 60, 4);
+          context.fillStyle = '#f4f1ea';
+          context.fillRect(x - 8, y + 84, 76, 6);
+          context.fillStyle = 'rgba(0,0,0,0.3)';
+          context.fillRect(x - 8, y + 90, 76, 4);
+        }
+      }
+    }),
+  );
+}
+
+const shopColors = ['#b8352a', '#1f5e8a', '#2f7a4a', '#d9a020', '#5a3a6a', '#222222'];
+
+// Street-level shop front over 8 × 4.5 m: sign board, striped awning and a lit window.
+export function shopTexture(seed: number) {
+  const random = seeded(seed);
+  const color = shopColors[seed % shopColors.length];
+  return texture(
+    canvas(256, 144, (context) => {
+      context.fillStyle = '#3a3634';
+      context.fillRect(0, 0, 256, 144);
+      context.fillStyle = color;
+      context.fillRect(0, 8, 256, 26);
+      context.fillStyle = 'rgba(255,255,255,0.85)';
+      for (let x = 30; x < 220; x += 12 + random() * 10) context.fillRect(x, 16, 6 + random() * 6, 10);
+      for (let x = 0; x < 256; x += 32) {
+        context.fillStyle = x % 64 ? '#f2efe6' : color;
+        context.beginPath();
+        context.moveTo(x, 36);
+        context.lineTo(x + 32, 36);
+        context.lineTo(x + 32, 52);
+        context.arc(x + 16, 52, 16, 0, Math.PI);
+        context.fill();
+      }
+      const pane = context.createLinearGradient(0, 60, 0, 140);
+      pane.addColorStop(0, random() < 0.5 ? '#ffd890' : '#cfe0ea');
+      pane.addColorStop(1, '#6a5a48');
+      context.fillStyle = pane;
+      context.fillRect(12, 62, 150, 74);
+      context.fillStyle = 'rgba(40,30,20,0.55)';
+      for (let x = 20; x < 150; x += 22) context.fillRect(x, 100 + random() * 16, 14, 40);
+      context.fillStyle = '#2a2624';
+      context.fillRect(184, 62, 52, 82);
+      context.fillStyle = '#5a4a3a';
+      context.fillRect(190, 68, 40, 76);
+      context.fillStyle = '#d8d0c0';
+      context.fillRect(222, 104, 4, 4);
+      context.fillStyle = 'rgba(0,0,0,0.4)';
+      context.fillRect(0, 56, 256, 6);
+    }),
+  );
+}
+
 export function cloudTexture(seed: number) {
   return texture(
     canvas(128, 64, (context) => {
@@ -312,6 +550,21 @@ export function ridgeTexture(color: string, seed: number, jagged: boolean) {
       }
       context.lineTo(512, 64);
       context.fill();
+      // Haze thickens toward the horizon so the hills sit back in the distance.
+      context.globalCompositeOperation = 'source-atop';
+      const haze = context.createLinearGradient(0, 0, 0, 64);
+      haze.addColorStop(0, 'rgba(255, 255, 255, 0)');
+      haze.addColorStop(1, 'rgba(255, 255, 255, 0.22)');
+      context.fillStyle = haze;
+      context.fillRect(0, 0, 512, 64);
+      if (jagged) {
+        // A darker tree line along the crest of the near hills.
+        const crest = context.createLinearGradient(0, 0, 0, 64);
+        crest.addColorStop(0, 'rgba(0, 0, 0, 0.3)');
+        crest.addColorStop(0.5, 'rgba(0, 0, 0, 0)');
+        context.fillStyle = crest;
+        context.fillRect(0, 0, 512, 64);
+      }
     }),
   );
 }

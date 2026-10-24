@@ -8,6 +8,7 @@ import { trackById } from '../game/tracks';
 import { DealerTab, GarageTab, type Shop } from './CareerHub';
 import { InviteSteps } from './QrExchange';
 import { RaceView } from './RaceView';
+import { RoomCodeCard, RoomInvite } from './RoomPairing';
 import './career.css';
 
 const modeNames: Record<SessionMode, string> = { fresh: 'Ny start', own: 'Egna bilar' };
@@ -39,8 +40,9 @@ export function WifiCareerStart({ identity, onIdentity, sessions, onCreate, onRe
       <div className='career-body'>
         <section className='panel career-stack'>
           <p>
-            En karriär för flera enheter på samma Wi-Fi. Alla har egna pengar, bilar och uppgraderingar i sessionen, och ni kör cuperna tillsammans mot
-            datorförarna. Värdens enhet sparar sessionen så att ni kan fortsätta senare. Nya spelare kan gå med när som helst men börjar från början.
+            En karriär för flera enheter, via rumskod eller på samma Wi-Fi. Alla har egna pengar, bilar och uppgraderingar i sessionen, och ni kör cuperna
+            tillsammans mot datorförarna. Värdens enhet sparar sessionen så att ni kan fortsätta senare. Nya spelare kan gå med när som helst men börjar från
+            början.
           </p>
           <label className='field'>
             Ditt namn
@@ -206,7 +208,24 @@ export function WifiCareerHub({ controller, onExit }: HubProps) {
           <p className='hint'>● är här nu. Bara de som är anslutna kör nästa race.</p>
           {host && !controller.race && (
             <div className='career-stack'>
-              {controller.invite ? (
+              {controller.room && <RoomCodeCard room={controller.room} />}
+              {controller.invite && controller.room ? (
+                <>
+                  <RoomInvite room={controller.room} link={controller.invite} onError={() => {}} />
+                  <p role='status'>Väntar på att spelare {controller.present.length + 1} skriver rumskoden…</p>
+                  <details className='code-details'>
+                    <summary>Ingen internet? Para ihop med QR-kod</summary>
+                    <InviteSteps
+                      code={controller.invite.code}
+                      player={controller.present.length + 1}
+                      onAnswer={(value) => controller.invite?.acceptAnswer(value) ?? Promise.resolve()}
+                    />
+                  </details>
+                  <button type='button' onClick={() => controller.cancelInvite()}>
+                    Avbryt inbjudan
+                  </button>
+                </>
+              ) : controller.invite ? (
                 <>
                   <InviteSteps
                     code={controller.invite.code}

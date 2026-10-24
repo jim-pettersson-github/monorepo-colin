@@ -323,3 +323,46 @@
     font-size: 0.75rem;
   }
 }
+
+.room-card {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  margin: 0 0 12px;
+  padding: 14px 16px;
+  border: 2px solid var(--accent, #e4bd40);
+  border-radius: 8px;
+  text-align: center;
+}
+.room-card p {
+  margin: 0;
+}
+.room-code {
+  font-size: clamp(2.6rem, 14vw, 4rem);
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  letter-spacing: 0.18em;
+  line-height: 1.1;
+}
+.room-join {
+  display: grid;
+  gap: 10px;
+}
+.room-join input {
+  min-height: 56px;
+  padding: 0 12px;
+  border: 2px solid var(--border, #cec6bb);
+  border-radius: 6px;
+  background: var(--surface, #fff9ef);
+  color: var(--ink);
+  font:
+    700 2rem / 1 ui-monospace,
+    "Cascadia Mono",
+    Consolas,
+    monospace;
+  letter-spacing: 0.2em;
+  text-align: center;
+  text-transform: uppercase;
+}
+.room-join p {
+  margin: 0;
+}

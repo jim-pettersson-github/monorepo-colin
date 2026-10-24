@@ -164,13 +164,14 @@ export function App() {
           available={true}
           hostSettings={<p>Session: {careerLobby.session}</p>}
           onBack={() => setScreen('wifi-career')}
-          onLaunch={(connections, config, state) => {
+          onLaunch={(connections, config, state, room) => {
             const solo = loadCareer();
             const options = {
               identity,
               own: solo ? { garage: solo.garage, activeCarId: solo.activeCarId } : undefined,
               transmission: settings.transmission,
               save: saveSession,
+              room,
             };
             const controller =
               state || !hostSession
@@ -257,7 +258,9 @@ export function App() {
             </>
           }
           onBack={() => setScreen('title')}
-          onLaunch={(connections, config, state) => {
+          onLaunch={(connections, config, state, room) => {
+            // A quick race keeps its players; new ones join the next lobby.
+            room?.close();
             const session = new NetworkRace(config, connections, state ? connections[0].slot : 0);
             setNetwork(session);
             setScreen('network-race');

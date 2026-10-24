@@ -21,11 +21,13 @@ An arcade sports-car racer inspired by late-1990s supercar racing games, with mo
 
 ## Wi-Fi multiplayer
 
+**Room codes (internet or Wi-Fi):** when the game is built with `VITE_ROOM_SERVER` (the Pages build uses https://games.charliecare.se/api.php), the host gets a four-character room code. Guests choose Jag går med and type it; several guests can type it at once, and each gets the next free place. The server only swaps the pairing codes. The race runs directly between the devices, which use public STUN servers to find each other across networks. Some strict mobile or school networks block direct contact, and there is no relay server. If the server cannot be reached, the lobby falls back to QR pairing. The Wi-Fi career keeps its room code open in the hub for players who join later.
+
 Pairing uses a short code shown as a QR image. If a camera cannot read it, Dela koden opens the share sheet (SMS, chat) and Kopiera koden copies it; the other device pastes it with Klistra in.
 
 Choose Spela via Wi-Fi to race on 2–8 devices, one player per device, with AI drivers filling the rest of the eight-car grid. The host picks the number of players, the track, the laps and their own car; each guest picks their car on their own device. The host pairs with one guest at a time by exchanging QR codes, and every guest confirms readiness; changed settings or car picks require confirmation again. Camera scanning, QR-image upload and manual code copying work. Each device controls its own car and follows its own chase/bumper camera with keyboard, touch or a browser-visible gamepad.
 
-The host owns physics and results. Everyone pauses on backgrounding, controller loss, stale data or disconnection. All players finish, with a 30-second allowance after the first human finish before estimated results for an unfinished driver. The host can restart on the same connection. Quick Wi-Fi races do not modify career progress or lap records. No game server, STUN, TURN or signaling service is used; use a reachable LAN and avoid isolated guest networks. After loading the PWA, pairing and play work without HTTP services. Physical desktop/phone LAN and gamepad checks remain a separate review step.
+The host owns physics and results. Everyone pauses on backgrounding, controller loss, stale data or disconnection. All players finish, with a 30-second allowance after the first human finish before estimated results for an unfinished driver. The host can restart on the same connection. Quick Wi-Fi races do not modify career progress or lap records. QR pairing uses no game server, STUN, TURN or signaling service; use a reachable LAN and avoid isolated guest networks. After loading the PWA, pairing and play work without HTTP services. Physical desktop/phone LAN and gamepad checks remain a separate review step.
 
 ### Wi-Fi career
 

@@ -19,6 +19,7 @@ import type { Connection } from './network-play';
 import { NetworkRace, type RaceConfig, validRaceConfig } from './network-race';
 import { PeerLink } from './peer-link';
 import type { ResultRow } from './race';
+import { ONLINE_ICE, type Room } from './room-server';
 
 export type Identity = { id: string; name: string };
 export type OwnGarage = { garage: OwnedCar[]; activeCarId: string };
@@ -39,6 +40,8 @@ type Options = {
   own?: OwnGarage;
   transmission: RaceConfig['settings']['transmission'];
   save: (session: Session) => void;
+  // The lobby's room code stays open on the host so more players can join between races.
+  room?: Room;
 };
 
 /**
@@ -261,10 +264,14 @@ export class CareerSession {
     this.broadcast();
   }
 
-  // Host: open a QR invitation for one more device between races.
+  get room() {
+    return this.options.room;
+  }
+
+  // Host: open an invitation for one more device between races, by room code or QR.
   async inviteGuest() {
     if (!this.host || this.invite) return;
-    const link = new PeerLink('host');
+    const link = new PeerLink('host', this.options.room ? ONLINE_ICE : []);
     this.invite = link;
     const slot = this.nextSlot++;
     const unsubscribe = link.subscribe(() => {
@@ -298,6 +305,7 @@ export class CareerSession {
     this.race?.dispose();
     this.race = undefined;
     this.invite?.close();
+    this.options.room?.close();
     this.cleanup();
     for (const guest of this.guests) {
       for (const remove of guest.remove) remove();

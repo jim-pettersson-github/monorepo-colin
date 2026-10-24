@@ -1,4 +1,5 @@
 import { carById, carName } from '../game/cars';
+import { roomServer } from '../game/room-server';
 import type { Settings } from '../game/storage';
 import { trackById } from '../game/tracks';
 import { Showroom } from './Showroom';
@@ -19,8 +20,8 @@ export function TitleScreen({ settings, onRace, onGarage, onCareer, onSettings, 
   return (
     <main className='menu-screen title-screen'>
       <Showroom carId={settings.carId} />
-      <a className='home-link' href={import.meta.env.BASE_URL} aria-label='Charlie for Speed startsida'>
-        CFS
+      <a className='home-link all-games-link' href={`${import.meta.env.BASE_URL}../`}>
+        ← Alla spel
       </a>
       <header className='logo'>
         <h1>
@@ -43,10 +44,12 @@ export function TitleScreen({ settings, onRace, onGarage, onCareer, onSettings, 
           </small>
         </button>
         <button type='button' onClick={onWifi}>
-          Spela via Wi-Fi<small>Upp till 8 enheter · QR eller kod</small>
+          {roomServer() ? 'Spela online' : 'Spela via Wi-Fi'}
+          <small>{roomServer() ? 'Upp till 8 enheter · rumskod, eller QR på samma Wi-Fi' : 'Upp till 8 enheter · QR eller kod'}</small>
         </button>
         <button type='button' onClick={onWifiCareer}>
-          Wi-Fi-karriär<small>Cuper och uppgraderingar med kompisar</small>
+          {roomServer() ? 'Online-karriär' : 'Wi-Fi-karriär'}
+          <small>Cuper och uppgraderingar med kompisar</small>
         </button>
         <button type='button' onClick={onSettings}>
           Inställningar

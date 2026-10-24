@@ -1,6 +1,10 @@
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { defineConfig, devices } from '@playwright/test';
 
 const port = Number(process.env.CFS_TEST_PORT || 4015);
+const roomPort = Number(process.env.CFS_ROOM_PORT || 4024);
+const roomServer = `http://127.0.0.1:${roomPort}/api.php`;
 const baseURL = `http://127.0.0.1:${port}${process.env.VITE_BASE_PATH || '/'}`;
 
 export default defineConfig({
@@ -19,9 +23,19 @@ export default defineConfig({
     { name: 'phone-portrait', testIgnore: '**/rules.spec.ts', use: { ...devices['Pixel 7'] } },
     { name: 'phone-landscape', testIgnore: '**/rules.spec.ts', use: { ...devices['Pixel 7'], viewport: { width: 915, height: 412 } } },
   ],
-  webServer: {
-    command: `npm run build && npm run preview -- --port ${port}`,
-    url: baseURL,
-    reuseExistingServer: false,
-  },
+  webServer: [
+    {
+      command: `npm run build && npm run preview -- --port ${port}`,
+      url: baseURL,
+      reuseExistingServer: false,
+    },
+    // The shared room server, for the room-code pairing tests.
+    {
+      command: `php -S 127.0.0.1:${roomPort} -t ../game-server/public`,
+      url: `${roomServer}?a=health`,
+      reuseExistingServer: false,
+      stderr: 'ignore',
+      env: { GAME_DB: join(tmpdir(), `charlie-room-test-${roomPort}.sqlite`) },
+    },
+  ],
 });

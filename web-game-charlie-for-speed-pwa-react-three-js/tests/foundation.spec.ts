@@ -21,7 +21,7 @@ test('manifest and app links stay within the configured base path', async ({ pag
   const manifest = await response.json();
   const base = new URL(baseURL).pathname;
   expect(manifest).toMatchObject({ name: 'Charlie for Speed', short_name: 'Charlie for Speed', start_url: base, scope: base });
-  await expect(page.getByRole('link', { name: 'Charlie for Speed startsida' })).toHaveAttribute('href', base);
+  await expect(page.getByRole('link', { name: '← Alla spel' })).toHaveAttribute('href', `${base}../`);
   for (const icon of manifest.icons) {
     const iconResponse = await request.get(new URL(icon.src, new URL(href, baseURL)).href);
     expect(iconResponse.ok()).toBe(true);

@@ -2,7 +2,19 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { sampleAt } from '../game/track-path';
 import type { Region, Track, TrackTheme } from '../game/tracks';
-import { chevronTexture, concreteTexture, crowdTexture, isRetro, seeded, signTexture, texture, windowsTexture } from './textures';
+import { plantFoliage } from './foliage';
+import {
+  chevronTexture,
+  concreteTexture,
+  crowdTexture,
+  facadeDetailTexture,
+  isRetro,
+  seeded,
+  shopTexture,
+  signTexture,
+  texture,
+  windowsTexture,
+} from './textures';
 import type { Ground, ThemeLook } from './track-world';
 
 type Disposable = { dispose: () => void };
@@ -128,7 +140,7 @@ function facadeTexture(wall: string, lit: number, seed: number) {
   return texture(element);
 }
 
-function scaleBoxUv(geometry: THREE.BoxGeometry, width: number, height: number, depth: number) {
+function scaleBoxUv(geometry: THREE.BoxGeometry, width: number, height: number, depth: number, tileWidth = 8, tileHeight = 7) {
   const uv = geometry.attributes.uv;
   const faces = [
     [depth, height],
@@ -139,7 +151,7 @@ function scaleBoxUv(geometry: THREE.BoxGeometry, width: number, height: number, 
     [width, height],
   ];
   faces.forEach(([across, up], face) => {
-    for (let i = face * 4; i < face * 4 + 4; i++) uv.setXY(i, (uv.getX(i) * across) / 8, (uv.getY(i) * up) / 7);
+    for (let i = face * 4; i < face * 4 + 4; i++) uv.setXY(i, (uv.getX(i) * across) / tileWidth, (uv.getY(i) * up) / tileHeight);
   });
   return geometry;
 }
@@ -221,7 +233,7 @@ export function buildScenery(scene: THREE.Scene, track: Track, ground: Ground, l
   // Grandstands beside the start straight: a full circuit gets five, a street race two.
   if (setting !== 'country') {
     const crowd = keep(crowdTexture(5));
-    crowd.repeat.set(4, 1);
+    crowd.repeat.set(isRetro() ? 4 : 3, 1);
     const crowdMaterial = keep(new THREE.MeshLambertMaterial({ map: crowd }));
     const standConcrete = material('#b9b4a8');
     const roofMaterial = material(region === 'sweden' ? '#2c5d9a' : '#d8d8d8');
@@ -449,10 +461,52 @@ export function buildScenery(scene: THREE.Scene, track: Track, ground: Ground, l
     }
 
     const palette = facades[theme];
+    const modern = !isRetro();
     const walls = palette.walls.flatMap((color, index) =>
-      [0, 1].map((variant) => keep(new THREE.MeshLambertMaterial({ map: keep(facadeTexture(color, look.litWindows, index * 10 + variant + 3)) }))),
+      [0, 1].map((variant) => {
+        const seed = index * 10 + variant + 3;
+        const map = modern ? facadeDetailTexture(color, look.litWindows, seed) : facadeTexture(color, look.litWindows, seed);
+        return keep(new THREE.MeshLambertMaterial({ map: keep(map) }));
+      }),
     );
     const roofs = palette.roofs.map((color) => material(color));
+    const shops = [0, 1, 2, 3, 4, 5].map((seed) => keep(new THREE.MeshLambertMaterial({ map: keep(shopTexture(seed + (theme === 'hamburg' ? 6 : 0))) })));
+    const stoneTrim = material(theme === 'hamburg' ? '#cfc8bc' : '#efe6d2');
+    const plinth = material('#4a4744');
+    const rooftop = [material('#8d9196'), material('#6e3a2c'), material('#a6a8aa')];
+    const box = (width: number, height: number, depth: number, materials: THREE.Material | THREE.Material[], y: number) => {
+      const mesh = new THREE.Mesh(keep(new THREE.BoxGeometry(width, height, depth)), materials);
+      mesh.position.y = y + height / 2;
+      return mesh;
+    };
+    // A street-front building: plinth and shop floor, upper storeys, cornices and roof clutter.
+    const detailed = (width: number, depth: number, height: number, front: boolean) => {
+      const holder = new THREE.Group();
+      const wallMaterial = walls[Math.floor(random() * walls.length)];
+      const roofMaterial = roofs[Math.floor(random() * roofs.length)];
+      const base = front ? 4.5 : -1;
+      if (front) {
+        const shop = shops[Math.floor(random() * shops.length)];
+        const shopFloor = keep(scaleBoxUv(new THREE.BoxGeometry(width, 4.5, depth), width, 4.5, depth, 8, 4.5));
+        holder.add(new THREE.Mesh(shopFloor, [shop, shop, roofMaterial, roofMaterial, shop, shop]).translateY(2.25));
+        holder.add(box(width + 0.2, 1.3, depth + 0.2, plinth, -1));
+        holder.add(box(width + 0.5, 0.35, depth + 0.5, stoneTrim, 4.4));
+      }
+      const upper = height - base;
+      const storeys = keep(scaleBoxUv(new THREE.BoxGeometry(width, upper, depth), width, upper, depth));
+      holder.add(new THREE.Mesh(storeys, [wallMaterial, wallMaterial, roofMaterial, roofMaterial, wallMaterial, wallMaterial]).translateY(base + upper / 2));
+      holder.add(box(width + 0.7, 0.6, depth + 0.7, stoneTrim, height - 0.3));
+      holder.add(box(width - 0.4, 0.9, depth - 0.4, wallMaterial, height));
+      for (let i = 0, count = 1 + Math.floor(random() * 3); i < count; i++) {
+        const kind = Math.floor(random() * 3);
+        const [w, h, d] = kind === 0 ? [1.6, 1.1, 1.2] : kind === 1 ? [0.9, 2.4, 0.9] : [4, 2.6, 3];
+        const unit = box(w, h, d, rooftop[kind], height + 0.3);
+        unit.position.x = (random() - 0.5) * (width - w - 2);
+        unit.position.z = (random() - 0.5) * (depth - d - 2);
+        holder.add(unit);
+      }
+      return holder;
+    };
     const block = (s: number, lateral: number, width: number, depth: number, height: number) => {
       const sample = sampleAt(path, s);
       const side = Math.sign(lateral);
@@ -466,6 +520,10 @@ export function buildScenery(scene: THREE.Scene, track: Track, ground: Ground, l
       const x = sample.x + sample.rx * lateral;
       const z = sample.z + sample.rz * lateral;
       if (reserved.some((spot) => Math.hypot(spot.x - x, spot.z - z) < spot.radius)) return false;
+      if (modern) {
+        frame(detailed(width, depth, height, Math.abs(lateral) < wall + 4 + depth), s, lateral);
+        return true;
+      }
       const wallMaterial = walls[Math.floor(random() * walls.length)];
       const roofMaterial = roofs[Math.floor(random() * roofs.length)];
       const geometry = keep(scaleBoxUv(new THREE.BoxGeometry(width, height, depth), width, height, depth));
@@ -737,46 +795,52 @@ export function buildScenery(scene: THREE.Scene, track: Track, ground: Ground, l
 
   // Forests: dense close to the barriers, thinning out toward the horizon.
   const forest = forests[theme];
-  const { pine, leafy } = treeGeometries(region);
-  keep(pine);
-  keep(leafy);
-  const treeMaterial = material('#ffffff', { vertexColors: true });
-  const transforms: { pine: THREE.Matrix4[]; leafy: THREE.Matrix4[] } = { pine: [], leafy: [] };
   const center = path.samples.reduce((sum, sample) => ({ x: sum.x + sample.x / path.samples.length, z: sum.z + sample.z / path.samples.length }), {
     x: 0,
     z: 0,
   });
-  const quaternion = new THREE.Quaternion();
-  const up = new THREE.Vector3(0, 1, 0);
-  for (let attempt = 0; attempt < 60000 && transforms.pine.length + transforms.leafy.length < forest.count; attempt++) {
-    const x = center.x + (random() - 0.5) * 2500;
-    const z = center.z + (random() - 0.5) * 2500;
-    const distance = ground.trackDistance(x, z);
-    if (distance < wall + forest.clearance || ground.inLake(x, z)) continue;
-    if (random() > (distance < 90 ? 0.95 : distance < 300 ? 0.45 : 0.18)) continue;
-    if (reserved.some((spot) => Math.hypot(spot.x - x, spot.z - z) < spot.radius)) continue;
-    const kind = random() < forest.pines ? 'pine' : 'leafy';
-    const size = 0.8 + random() * 0.7;
-    quaternion.setFromAxisAngle(up, random() * Math.PI * 2);
-    transforms[kind].push(
-      new THREE.Matrix4().compose(
-        new THREE.Vector3(x, ground.height(x, z) - 0.3, z),
-        quaternion,
-        new THREE.Vector3(size, size * (0.85 + random() * 0.4), size),
-      ),
-    );
-  }
-  const tint = new THREE.Color();
-  for (const kind of ['pine', 'leafy'] as const) {
-    if (!transforms[kind].length) continue;
-    const mesh = new THREE.InstancedMesh(kind === 'pine' ? pine : leafy, treeMaterial, transforms[kind].length);
-    transforms[kind].forEach((matrix, index) => {
-      mesh.setMatrixAt(index, matrix);
-      mesh.setColorAt(index, tint.setHSL(0, 0, 0.78 + random() * 0.3));
-    });
-    mesh.computeBoundingSphere();
-    scene.add(mesh);
-    disposables.push({ dispose: () => mesh.dispose() });
+  const blocked = (x: number, z: number) => reserved.some((spot) => Math.hypot(spot.x - x, spot.z - z) < spot.radius);
+  if (!isRetro()) disposables.push(...plantFoliage({ scene, region, theme, ground, wall, forest, center, random, blocked }));
+  else plantRetroForest();
+
+  function plantRetroForest() {
+    const { pine, leafy } = treeGeometries(region);
+    keep(pine);
+    keep(leafy);
+    const treeMaterial = material('#ffffff', { vertexColors: true });
+    const transforms: { pine: THREE.Matrix4[]; leafy: THREE.Matrix4[] } = { pine: [], leafy: [] };
+    const quaternion = new THREE.Quaternion();
+    const up = new THREE.Vector3(0, 1, 0);
+    for (let attempt = 0; attempt < 60000 && transforms.pine.length + transforms.leafy.length < forest.count; attempt++) {
+      const x = center.x + (random() - 0.5) * 2500;
+      const z = center.z + (random() - 0.5) * 2500;
+      const distance = ground.trackDistance(x, z);
+      if (distance < wall + forest.clearance || ground.inLake(x, z)) continue;
+      if (random() > (distance < 90 ? 0.95 : distance < 300 ? 0.45 : 0.18)) continue;
+      if (blocked(x, z)) continue;
+      const kind = random() < forest.pines ? 'pine' : 'leafy';
+      const size = 0.8 + random() * 0.7;
+      quaternion.setFromAxisAngle(up, random() * Math.PI * 2);
+      transforms[kind].push(
+        new THREE.Matrix4().compose(
+          new THREE.Vector3(x, ground.height(x, z) - 0.3, z),
+          quaternion,
+          new THREE.Vector3(size, size * (0.85 + random() * 0.4), size),
+        ),
+      );
+    }
+    const tint = new THREE.Color();
+    for (const kind of ['pine', 'leafy'] as const) {
+      if (!transforms[kind].length) continue;
+      const mesh = new THREE.InstancedMesh(kind === 'pine' ? pine : leafy, treeMaterial, transforms[kind].length);
+      transforms[kind].forEach((matrix, index) => {
+        mesh.setMatrixAt(index, matrix);
+        mesh.setColorAt(index, tint.setHSL(0, 0, 0.78 + random() * 0.3));
+      });
+      mesh.computeBoundingSphere();
+      scene.add(mesh);
+      disposables.push({ dispose: () => mesh.dispose() });
+    }
   }
 
   return {
