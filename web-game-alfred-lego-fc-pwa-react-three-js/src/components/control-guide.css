@@ -1,0 +1,227 @@
+.control-guide {
+  --guide-color: var(--accent);
+  margin-block: 16px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--background);
+  min-width: 0;
+}
+.guide-team-0 {
+  --guide-color: var(--home);
+}
+.guide-team-1 {
+  --guide-color: var(--away);
+}
+.control-guide-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--guide-color);
+  margin-bottom: 14px;
+  font-size: 12px;
+  font-weight: 800;
+}
+.control-guide-heading small {
+  display: block;
+  font-size: 10px;
+  color: var(--muted);
+  font-weight: 400;
+  margin-top: 3px;
+}
+.device-icon {
+  width: 34px;
+  height: 27px;
+  display: block;
+  flex-shrink: 0;
+}
+.control-bindings {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px 6px;
+}
+.control-binding {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: end;
+  gap: 7px;
+  min-width: 0;
+}
+.binding-graphic {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 56px;
+  color: var(--guide-color);
+}
+.binding-label {
+  color: var(--muted);
+  font-size: 10px;
+  text-align: center;
+  white-space: nowrap;
+}
+.key-cap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  vertical-align: middle;
+  min-width: 30px;
+  height: 32px;
+  padding: 3px 8px 5px;
+  border: 1px solid var(--border);
+  border-bottom: 4px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  font:
+    700 13px / 1 "Segoe UI",
+    Arial,
+    sans-serif;
+  box-shadow: 0 2px 0 #0003;
+  white-space: nowrap;
+}
+.key-cap small {
+  font:
+    400 7px / 1 "Segoe UI",
+    Arial,
+    sans-serif;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.movement-keys {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+.movement-key-top,
+.movement-key-bottom {
+  display: flex;
+  gap: 3px;
+}
+.movement-keys .key-cap {
+  min-width: 23px;
+  width: 23px;
+  height: 25px;
+  padding: 3px 0;
+  border-bottom-width: 3px;
+  font-size: 11px;
+  border-radius: 4px;
+}
+.pad-face-glyph {
+  width: 56px;
+  height: 56px;
+  display: block;
+}
+.pad-button-cap {
+  min-width: 36px;
+  min-height: 28px;
+  padding: 6px 8px;
+  border: 1.5px solid currentColor;
+  border-radius: 8px 8px 12px 12px;
+  display: inline-grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 800;
+}
+.stick-glyph {
+  width: 48px;
+  height: 48px;
+  display: block;
+}
+.touch-button-glyph {
+  font-size: 10px;
+  font-weight: 700;
+  border: 1px solid currentColor;
+  border-radius: 12px;
+  padding: 10px 6px;
+}
+.control-guide-compact {
+  display: flex;
+  flex: 1 1 390px;
+  gap: 16px;
+  align-items: center;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+}
+.control-guide-compact .control-guide-heading {
+  flex-shrink: 0;
+  margin: 0;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 9px;
+}
+.control-guide-compact .device-icon {
+  width: 25px;
+  height: 20px;
+}
+.control-guide-compact .control-bindings {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.control-guide-compact .control-binding {
+  gap: 3px;
+}
+.control-guide-compact .binding-graphic {
+  height: 34px;
+}
+.control-guide-compact .binding-label {
+  font-size: 9px;
+}
+.control-guide-compact .key-cap {
+  height: 25px;
+  min-width: 25px;
+  padding: 3px 5px;
+  border-bottom-width: 3px;
+  font-size: 11px;
+}
+.control-guide-compact .key-cap small {
+  font-size: 6px;
+}
+.control-guide-compact .movement-keys {
+  gap: 2px;
+}
+.control-guide-compact .movement-key-bottom {
+  gap: 2px;
+}
+.control-guide-compact .movement-keys .key-cap {
+  min-width: 17px;
+  width: 17px;
+  height: 17px;
+  font-size: 8px;
+  border-bottom-width: 2px;
+  border-radius: 3px;
+}
+.control-guide-compact .pad-face-glyph {
+  width: 36px;
+  height: 36px;
+}
+.control-guide-compact .stick-glyph {
+  width: 30px;
+  height: 30px;
+}
+.control-guide-compact .pad-button-cap {
+  min-width: 28px;
+  min-height: 23px;
+  font-size: 10px;
+  padding: 4px;
+}
+@media (max-width: 400px) {
+  .control-guide-compact {
+    gap: 8px;
+  }
+  .control-guide-compact .control-bindings {
+    gap: 5px;
+  }
+  .control-guide-compact .binding-label {
+    font-size: 8px;
+  }
+}

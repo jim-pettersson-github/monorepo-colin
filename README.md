@@ -18,7 +18,7 @@ Open http://localhost:4010. `npm ci` installs the local pre-commit hook; `npm te
 
 ## Alfred FC
 
-A separate React + Three.js foundation for a five-a-side football game with LEGO-style characters. The starter screen and static 3D pitch preview are implemented; matches and controls are planned. It is not deployed.
+A separate React + Three.js five-a-side football game with LEGO-style characters. Solo versus AI and local two-player matches support keyboard, touch and browser-visible gamepads. **[Play Alfred FC](https://jim-pettersson-github.github.io/monorepo-colin/alfred-fc/)**.
 
 ```sh
 cd web-game-alfred-lego-fc-pwa-react-three-js
@@ -26,4 +26,4 @@ npm ci
 npm start
 ```
 
-Open http://localhost:4012. Production preview and browser tests use 4013. Run `npm run verify` in the Alfred folder before committing; the root hook and Pages workflow continue to target Colin's game. See the [Alfred README](web-game-alfred-lego-fc-pwa-react-three-js/README.md) and [game plan](web-game-alfred-lego-fc-pwa-react-three-js/PLAN.md).
+Open http://localhost:4012. Production preview and browser tests use 4013. Run `npm run verify` in the Alfred folder before committing; the root hook checks Colin's game. The Pages workflow builds and publishes both games, keeping their existing URLs separate. See the [Alfred README](web-game-alfred-lego-fc-pwa-react-three-js/README.md) and [game plan](web-game-alfred-lego-fc-pwa-react-three-js/PLAN.md).

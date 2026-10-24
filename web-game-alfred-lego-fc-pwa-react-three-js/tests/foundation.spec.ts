@@ -1,15 +1,15 @@
 import { expect, test } from '@playwright/test';
 
-test('Alfred foundation renders and stays usable after resizing', async ({ page }, testInfo) => {
+test('Alfred menu renders and stays usable after resizing', async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto('./');
   await expect(page).toHaveTitle('Alfred FC');
-  await expect(page.getByRole('heading', { name: 'Här börjar Alfred FC.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Dags för avspark.' })).toBeVisible();
   await expect(page.locator('canvas')).toHaveAttribute('data-rendered', 'true');
-  await expect(page.getByText('Det här är en förhandsvisning. Matcherna kommer i nästa steg.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Starta snabbmatch' })).toBeVisible();
   await expect(page.locator('.render-error')).toHaveCount(0);
-  await expect(page.locator('body')).not.toContainText(/Colin|hissäventyr/i);
+  await expect(page.locator('body')).not.toContainText(/Colins hissar|hissäventyr/i);
   await page.screenshot({ path: testInfo.outputPath('foundation.png'), fullPage: true });
 
   const initial = page.viewportSize();
@@ -49,7 +49,13 @@ test('the installed foundation reloads offline', async ({ page, context }) => {
   await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
   await context.setOffline(true);
   await page.reload();
-  await expect(page.getByRole('heading', { name: 'Här börjar Alfred FC.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Dags för avspark.' })).toBeVisible();
   await expect(page.locator('canvas')).toHaveAttribute('data-rendered', 'true');
+  await page.getByRole('button', { name: 'Starta snabbmatch' }).click();
+  await expect(page.locator('.game-canvas')).toHaveAttribute('data-rendered', 'true');
+  await page.getByRole('button', { name: 'Pausa matchen' }).click();
+  await page.reload();
+  await page.getByRole('button', { name: /Fortsätt sparad solomatch/ }).click();
+  await expect(page.locator('.game-canvas')).toHaveAttribute('data-rendered', 'true');
   await context.setOffline(false);
 });

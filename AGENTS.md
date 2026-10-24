@@ -7,11 +7,11 @@ A personal elevator exploration game for an autistic child around eight years ol
 | Folder | Purpose | Local port |
 | --- | --- | --- |
 | [web-game-elevator-pwo-react-pixi-js](web-game-elevator-pwo-react-pixi-js/) | React + PixiJS game, delivered as an Android PWA | 4010 |
-| [web-game-alfred-lego-fc-pwa-react-three-js](web-game-alfred-lego-fc-pwa-react-three-js/) | Alfred FC: React + Three.js football foundation and PWA | 4012 |
+| [web-game-alfred-lego-fc-pwa-react-three-js](web-game-alfred-lego-fc-pwa-react-three-js/) | Alfred FC: React + Three.js football game and PWA | 4012 |
 
 Read each folder's CLAUDE.md and AGENTS.md before working there. This is standalone, with no backend, accounts, or external services.
 
-The elevator-specific art and gameplay guidance below applies to Colin's game. Alfred FC has its own instructions and plan in its folder. Each game is an independent npm project. Alfred uses preview port 4013; the existing Pages workflow and Git hook still target the elevator game.
+The elevator-specific art and gameplay guidance below applies to Colin's game. Alfred FC has its own instructions and plan in its folder. Each game is an independent npm project. Alfred uses preview port 4013; the Pages workflow builds both games, keeping the elevator at the site root and Alfred under `alfred-fc/`. The Git hook still targets the elevator game; run Alfred verification separately.
 
 ## Writing UI
 

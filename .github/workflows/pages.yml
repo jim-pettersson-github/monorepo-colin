@@ -5,11 +5,13 @@ on:
     branches: [main]
     paths:
       - 'web-game-elevator-pwo-react-pixi-js/**'
+      - 'web-game-alfred-lego-fc-pwa-react-three-js/**'
       - '.github/workflows/pages.yml'
   pull_request:
     branches: [main]
     paths:
       - 'web-game-elevator-pwo-react-pixi-js/**'
+      - 'web-game-alfred-lego-fc-pwa-react-three-js/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -37,10 +39,25 @@ jobs:
         with:
           node-version: '24'
           cache: npm
-          cache-dependency-path: web-game-elevator-pwo-react-pixi-js/package-lock.json
+          cache-dependency-path: |
+            web-game-elevator-pwo-react-pixi-js/package-lock.json
+            web-game-alfred-lego-fc-pwa-react-three-js/package-lock.json
       - run: npm ci
       - run: npm run check
       - run: npm run build
+      - name: Install Alfred FC
+        working-directory: web-game-alfred-lego-fc-pwa-react-three-js
+        run: npm ci
+      - name: Check Alfred FC
+        working-directory: web-game-alfred-lego-fc-pwa-react-three-js
+        run: npm run check
+      - name: Build Alfred FC
+        working-directory: web-game-alfred-lego-fc-pwa-react-three-js
+        env:
+          VITE_BASE_PATH: /${{ github.event.repository.name }}/alfred-fc/
+        run: npm run build
+      - name: Include Alfred FC in the Pages site
+        run: cp -R ../web-game-alfred-lego-fc-pwa-react-three-js/dist dist/alfred-fc
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         with:

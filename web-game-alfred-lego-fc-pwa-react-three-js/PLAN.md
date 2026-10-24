@@ -1,41 +1,46 @@
 # Alfred FC — game plan
 
-## Current foundation
+## Implemented
 
-React, TypeScript, Three.js, Vite, PWA metadata, a static pitch preview and desktop/phone foundation checks are implemented. Matches, characters, input handling and game saves are not implemented yet.
+- Quick match and Division 1 entry, with always-visible start/resume actions and a focused match-exit confirmation modal.
+- Twelve-club league: 22 home/away rounds, 132 fixtures, standings, automatic results for other games, a final champion and separate validated season saves/backups.
+- League results record once at full time. Unfinished fixtures can resume; abandoning one preserves past rounds and lets the player retry. A replacement season requires confirmation.
+- League-only options to play, watch AI versus AI at 1×/2×/5×, or simulate directly without a pitch view. All use the same fixed-step rules, auto-take penalties, save progress and record each round once.
+- A 96 x 60 pitch, twice the original length and width, with scaled goals, markings, formations and AI positioning. Character sizes and tackle/contact distances remain unchanged.
+- A smooth shared follow camera with limited automatic zoom, pitch-edge bounds and a live overview. The menu preview still shows the whole stadium.
+- Five-a-side football: four outfield players and one AI goalkeeper per team.
+- Twelve selectable clubs with distinct shirt colors, trim and crests; team selections persist through saves and rematches.
+- Procedural LEGO-style characters, animated limbs, selection rings, a patterned ball and brick-built stadium.
+- Solo versus AI or two local human players on one screen, with AI teammates.
+- Fixed-step movement, possession, directional passes, open-corner assisted shots and automatic/manual player switching.
+- Moving slide tackles with ball contact, possession transfer, opponent knockdowns and timed recovery.
+- Feet-first slides use small swept contact areas relative to both players' motion. Empty slides have no decision; any ball contact makes the tackle clean. Contact without a ball win has equal chances of a yellow card, free kick or play-on. Announcements identify the offender.
+- Free-kick decisions inside the defending penalty area become penalties, with painted spots, visible aiming, automatic AI takers and other outfield players held back until the shot.
+- Black goalkeeper kits with white gloves/rings and MV labels. Keepers stay in their own area; AI attackers steer around bodies and avoid piling into the goalmouth.
+- Goals, score, conceding-side restarts, match clock, full-time result and rematches.
+- Rebound boards instead of offsides, corners and throw-ins. Basic tackle fouls and penalties are implemented; dismissals are not.
+- 1-, 3- and 5-minute matches; Lätt, Vanlig and Svår solo difficulty. Lätt reduces AI speed, reaction rate, shot power/accuracy and keeper speed, and disables opponent slide tackles.
+- Two keyboard layouts, touch movement/actions, and up to two browser-visible USB/Bluetooth gamepads.
+- Stable explicit controller slots, dead zones, one-shot action edges, disconnect pause, per-device remapping and live input testing.
+- Landscape/portrait cameras with matching input directions and unrestricted PWA rotation.
+- Pause on focus loss/backgrounding, explicit resume and validated local saves with backup recovery and one-time position migration from the smaller pitch.
+- Offline production PWA and save-before-update behavior. No accounts or backend.
 
-## Confirmed game direction
+## Verification
 
-- European football with chunky LEGO-style 3D characters and a brick-built world.
-- Simple arcade feel inspired by 1990s console football games.
-- Five players per team: four outfield players and a goalkeeper.
-- Control one player at a time, with automatic switching and AI teammates.
-- Solo against AI and two players against each other locally on the same device.
-- Desktop keyboard, Android touch controls, and two USB/Bluetooth gamepads where exposed by the browser.
-- Landscape on desktop; both portrait and landscape on Android, following device rotation.
-- Browser play and an installable PWA. No backend, accounts or online multiplayer planned.
+Rules tests cover the full home/away season, standings, instant/watched simulation equivalence, watch speed/pause, result deduplication, backups and invalid schedules, alongside close non-contact slides, late ball wins, three-way referee decisions, difficulty, pitch boundaries, cameras, scoring, penalties, input and save validation.
 
-## Next implementation stages
+Desktop, portrait-phone and landscape-phone browser checks cover direct simulation/results, watch speed changes, saved viewing, full-time recording, league-only options and close slides without whistles, alongside menu actions, exit confirmation, season fixtures, camera scrolling, scoring, tackles, penalties, input, rotation and offline reload.
 
-1. Playable pitch, procedural characters, fixed-step match state, ball movement and camera-relative movement.
-2. Passing, shooting, tackling, goal detection, goalkeeper behavior, teammates and automatic switching.
-3. Solo and local versus setup; keyboard, multi-touch controls and stable gamepad assignments.
-4. Scoreboard, match duration, pause/resume, settings and recoverable local saves.
-5. Real-controller and Android checks, then separate hosting/install review.
+## Next review
 
-## Controls and acceptance targets
+- Play with two real controllers and verify assignment, mappings, reconnect and simultaneous actions.
+- Test Android browser/PWA portrait, landscape, multi-touch and Bluetooth/USB hardware.
+- Tune AI difficulty, movement, tackle range, shot assistance and match pace through playtesting.
+- Review minifigure detail and camera scale on physical phones.
+- Decide on sound and additional team customization if wanted.
+- Review installation and update behavior on a real phone using the GitHub Pages address.
 
-These are future acceptance checks, not implemented behavior:
+## Scope
 
-- Two connected gamepads control different teams simultaneously. Keyboard + gamepad is also supported.
-- Detect already-connected and newly connected controllers after the browser exposes them. Show device assignment and allow button/axis mapping for nonstandard devices.
-- Read gamepad state each frame, apply stick dead zones and avoid repeated actions from held buttons. Keep assignments stable when devices disconnect; pause and explain how to reconnect.
-- Do not promise every USB/Bluetooth controller works: browser, OS and device mapping determine availability. Pressing a controller button may be required before detection. Production play uses HTTPS.
-- Touch movement and actions work together without page scrolling. Controls meet a 48-pixel minimum target size and avoid phone safe areas.
-- Device rotation keeps the match intact and adapts both camera and control directions. Portrait play must remain usable.
-- Pause on focus loss or backgrounding; resume without simulating elapsed background time.
-- Updates never reload an active match automatically. Save before a user-requested update, using Alfred-specific validated storage keys.
-
-## Open tuning choices
-
-Match duration, difficulty, exact button defaults, team names and sound design can be tuned with the first playable build.
+Local single-device quick matches and a solo league are implemented. Multiple divisions, promotion/relegation, online multiplayer, full football rules, audio, replays and knockout tournaments are not implemented. Controller compatibility depends on the OS, browser and device. Universal compatibility is not promised.
