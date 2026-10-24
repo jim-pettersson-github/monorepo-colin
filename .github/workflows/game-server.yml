@@ -1,0 +1,58 @@
+name: Game server (games.charliecare.se)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'game-server/**'
+      - '.github/workflows/game-server.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: game-server-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      FTP_SERVER: ftp.cltr9p7bv.service.one
+      FTP_USERNAME: cltr9p7bv_ftp
+      FTP_DIR: webroots/0e182b4e
+      SITE: https://games.charliecare.se
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Check the PHP syntax
+        run: php -l game-server/public/api.php
+      - name: Install lftp
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq lftp
+      - name: Upload over FTPS
+        env:
+          LFTP_PASSWORD: ${{ secrets.GAMES_FTP_PASSWORD }}
+        run: |
+          lftp <<LFTP
+          set cmd:fail-exit yes
+          set net:timeout 30
+          set net:max-retries 2
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:use-sni true
+          set ssl:verify-certificate true
+          open --user "$FTP_USERNAME" --env-password "ftp://$FTP_SERVER"
+          cd "$FTP_DIR"
+          mirror --reverse --transfer-all --no-perms --exclude-glob *.sqlite* game-server/public/ ./
+          bye
+          LFTP
+      - name: Verify the live server
+        run: |
+          curl --fail --silent --show-error --max-time 30 "$SITE/api.php?a=health" | tee "$RUNNER_TEMP/health.json"
+          jq --exit-status '.ok == true' "$RUNNER_TEMP/health.json"
+          status=$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 30 "$SITE/games.sqlite")
+          echo "games.sqlite answered $status"
+          test "$status" = 403 -o "$status" = 404

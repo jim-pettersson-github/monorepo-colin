@@ -1,0 +1,6 @@
+Options -Indexes
+
+# The SQLite database lives next to the API; never serve it or its journal.
+<FilesMatch "\.(sqlite|sqlite-journal|sqlite-wal|sqlite-shm)$">
+  Require all denied
+</FilesMatch>
