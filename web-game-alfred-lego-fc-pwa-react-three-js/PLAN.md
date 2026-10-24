@@ -26,6 +26,7 @@
 - Landscape/portrait cameras with matching input directions and unrestricted PWA rotation.
 - Pause on focus loss/backgrounding, explicit resume and validated local saves with backup recovery and one-time position migration from the smaller pitch.
 - Offline production PWA and save-before-update behavior. No accounts or backend.
+- Locally synthesized kick/pass, slide/contact, save/rebound, goal and referee/finish sound effects. Saved mute/volume controls, user-gesture audio unlocking, pause/background silence and event deduplication for restored matches and Wi-Fi snapshots.
 
 ## Verification
 
@@ -40,9 +41,9 @@ Desktop, portrait-phone and landscape-phone browser checks cover direct simulati
 - Review QR scanning with real cameras and LAN discovery between physical devices on home routers; verify background, disconnect and rematch behavior.
 - Tune AI difficulty, movement, tackle range, shot assistance and match pace through playtesting.
 - Review minifigure detail and camera scale on physical phones.
-- Decide on sound and additional team customization if wanted.
+- Review sound levels and comfort on real speakers/headphones; consider additional team customization if wanted.
 - Review installation and update behavior on a real phone using the GitHub Pages address.
 
 ## Scope
 
-Local single-device quick matches, two-device LAN matches and a solo league are implemented. Multiple divisions, promotion/relegation, automatic internet matchmaking/relay, full football rules, audio, replays and knockout tournaments are not implemented. Controller compatibility depends on the OS, browser and device. Universal compatibility is not promised.
+Local single-device quick matches, two-device LAN matches and a solo league are implemented. Multiple divisions, promotion/relegation, automatic internet matchmaking/relay, full football rules, music, replays and knockout tournaments are not implemented. Controller compatibility depends on the OS, browser and device. Universal compatibility is not promised.

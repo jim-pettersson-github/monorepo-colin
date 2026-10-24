@@ -1,5 +1,5 @@
-.menu-shell {
-  padding-bottom: max(190px, calc(env(safe-area-inset-bottom) + 190px));
+.app-shell.menu-shell {
+  padding-bottom: max(220px, calc(env(safe-area-inset-bottom) + 220px));
 }
 .play-mode-tabs {
   display: grid;

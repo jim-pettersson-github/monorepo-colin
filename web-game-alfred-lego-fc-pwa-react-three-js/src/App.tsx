@@ -12,6 +12,7 @@ import type { Difficulty, MatchMode, MatchState, PlaybackSpeed, Team } from './g
 import { createMatch } from './game/model';
 import { NetworkSession } from './game/network-session';
 import { MatchSession } from './game/session';
+import { gameSound } from './game/sound';
 import { clearMatch, loadMatch, saveMatch } from './game/storage';
 import './match.css';
 
@@ -39,15 +40,22 @@ export function App() {
   useSyncExternalStore(input.subscribe, input.getSnapshot);
 
   useEffect(() => {
+    gameSound.setForeground(!document.hidden);
     let frame = 0;
     const poll = () => {
       input.poll();
       frame = requestAnimationFrame(poll);
     };
     frame = requestAnimationFrame(poll);
-    const pause = () => sessionRef.current?.setForeground(false);
+    const pause = () => {
+      gameSound.setForeground(false);
+      sessionRef.current?.setForeground(false);
+    };
     const focus = () => {
-      if (!document.hidden) sessionRef.current?.setForeground(true);
+      if (!document.hidden) {
+        gameSound.setForeground(true);
+        sessionRef.current?.setForeground(true);
+      }
     };
     const hidden = () => {
       if (document.hidden) pause();
@@ -77,6 +85,8 @@ export function App() {
         current.pause(`Handkontrollen för spelare ${(current.localTeam ?? team) + 1} kopplades från. Anslut den igen eller välj en annan kontroll.`);
     };
     window.addEventListener('keydown', input.keyDown);
+    window.addEventListener('pointerdown', gameSound.unlock, true);
+    window.addEventListener('keydown', gameSound.unlock, true);
     window.addEventListener('keyup', input.keyUp);
     window.addEventListener('keydown', pauseKey);
     window.addEventListener('blur', pause);
@@ -86,8 +96,11 @@ export function App() {
     return () => {
       cancelAnimationFrame(frame);
       input.end();
+      gameSound.dispose();
       if (sessionRef.current instanceof NetworkSession) sessionRef.current.dispose();
       window.removeEventListener('keydown', input.keyDown);
+      window.removeEventListener('pointerdown', gameSound.unlock, true);
+      window.removeEventListener('keydown', gameSound.unlock, true);
       window.removeEventListener('keyup', input.keyUp);
       window.removeEventListener('keydown', pauseKey);
       window.removeEventListener('blur', pause);

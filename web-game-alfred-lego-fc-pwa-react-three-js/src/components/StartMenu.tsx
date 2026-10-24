@@ -13,6 +13,7 @@ import { GameUpdate } from './GameUpdate';
 import { LeagueView } from './LeagueView';
 import { PitchPreview } from './PitchPreview';
 import { PlaybackSpeedSelect } from './PlaybackSpeedSelect';
+import { SoundSettings, SoundToggle } from './SoundControls';
 import { TeamSelection } from './TeamSelection';
 import './start-menu.css';
 
@@ -90,8 +91,12 @@ export function StartMenu(props: Props) {
           </span>
           ALFRED <span>FC</span>
         </a>
-        <FullscreenButton />
+        <div className='header-tools'>
+          <SoundToggle />
+          <FullscreenButton />
+        </div>
       </header>
+      <GameUpdate />
       <nav className='play-mode-tabs' aria-label='Välj spelsätt'>
         <button type='button' disabled={simulating} aria-pressed={!league} onClick={() => onScreen('quick')}>
           <strong>Snabbmatch</strong>
@@ -246,7 +251,10 @@ export function StartMenu(props: Props) {
         <span>ALFRED FC / BRICK FOOTBALL CLUB</span>
         <span>Dator · Mobil · Handkontroll</span>
       </footer>
-      <GameUpdate />
+      <details className='sound-options'>
+        <summary>Ljudinställningar</summary>
+        <SoundSettings />
+      </details>
       <section className='start-dock' aria-label='Starta spelet'>
         <div className='start-dock-summary'>
           <strong>{hub ? getClub(season.club).name : league ? 'Din nya liga' : `${getClub(clubs[0]).name} – ${getClub(clubs[1]).name}`}</strong>

@@ -9,6 +9,7 @@ import { GameCanvas } from './GameCanvas';
 import { GameUpdate } from './GameUpdate';
 import { PitchOverview } from './PitchOverview';
 import { PlaybackSpeedSelect } from './PlaybackSpeedSelect';
+import { SoundSettings, SoundToggle } from './SoundControls';
 import { TouchControls } from './TouchControls';
 
 export function MatchView({ session, onExit, onRematch }: { session: MatchSession; onExit: () => void; onRematch: () => void }) {
@@ -89,6 +90,7 @@ export function MatchView({ session, onExit, onRematch }: { session: MatchSessio
       </header>
       <div className='match-stage'>
         <GameCanvas session={session} />
+        <SoundToggle className='match-sound-toggle' />
         <div className='match-ribbon'>
           <span>ALFRED ARENA</span>
           <span>
@@ -200,6 +202,7 @@ export function MatchView({ session, onExit, onRematch }: { session: MatchSessio
             >
               Fortsätt matchen <span>▶</span>
             </button>
+            <SoundSettings />
             {network && !session.canResume && (
               <p className='control-warning' role='status'>
                 Båda behöver vara kvar i spelet med anslutna kontroller och fungerande Wi-Fi. Vid bruten anslutning: avsluta och koppla ihop igen.

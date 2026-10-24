@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createFootballWorld } from '../game/football-world';
 import type { MatchSession } from '../game/session';
+import { gameSound, MatchSoundTracker } from '../game/sound';
 
 export function GameCanvas({ session }: { session: MatchSession }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -19,6 +20,10 @@ export function GameCanvas({ session }: { session: MatchSession }) {
     let frame = 0;
     let previous = performance.now();
     let elapsed = 0;
+    const sounds = new MatchSoundTracker(session.state);
+    const stopPaused = session.subscribe(() => {
+      if (session.paused) gameSound.stop();
+    });
     const loop = (now: number) => {
       const dt = Math.min((now - previous) / 1000, 0.1);
       previous = now;
@@ -27,6 +32,7 @@ export function GameCanvas({ session }: { session: MatchSession }) {
       if (session.portrait !== portrait) session.input.clear();
       session.portrait = portrait;
       session.advance(dt);
+      gameSound.play(sounds.update(session.state, session.paused));
       frame = requestAnimationFrame(loop);
     };
     const lost = (event: Event) => {
@@ -38,6 +44,8 @@ export function GameCanvas({ session }: { session: MatchSession }) {
     frame = requestAnimationFrame(loop);
     return () => {
       cancelAnimationFrame(frame);
+      stopPaused();
+      gameSound.stop();
       canvas.removeEventListener('webglcontextlost', lost);
       world.dispose();
     };

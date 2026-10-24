@@ -20,7 +20,62 @@ import { NetworkSession, validNetworkMatch } from '../src/game/network-session';
 import { decodeSignal, encodeSignal, type PeerLink } from '../src/game/peer-link';
 import { MatchSession } from '../src/game/session';
 import { performAction, stepMatch } from '../src/game/simulation';
+import { MatchSoundTracker } from '../src/game/sound';
 import { validMatch } from '../src/game/storage';
+
+test('sound cues follow real actions once and never replay events observed while paused', () => {
+  const state = createMatch('versus');
+  state.phase = 'playing';
+  const tracker = new MatchSoundTracker(state);
+  state.ball.owner = 4;
+  performAction(state, state.players[4], { ...neutralControls(), pass: true });
+  expect(tracker.update(state, false)).toContain('pass');
+  expect(tracker.update(state, false)).toEqual([]);
+  state.players[4].kick = 0;
+  state.players[4].cooldown = 0;
+  state.ball.owner = 4;
+  tracker.update(state, false);
+  performAction(state, state.players[4], { ...neutralControls(), shoot: true });
+  expect(tracker.update(state, false)).toContain('shot');
+  state.players[4].cooldown = 0;
+  state.ball.owner = 9;
+  performAction(state, state.players[4], { ...neutralControls(), shoot: true });
+  expect(tracker.update(state, false)).toContain('slide');
+  state.players[9].fallen = 1;
+  expect(tracker.update(state, false)).toContain('tackle');
+  state.phase = 'free-kick';
+  expect(tracker.update(state, false)).toContain('whistle');
+  state.phase = 'playing';
+  state.ball.owner = 0;
+  expect(tracker.update(state, false)).toContain('save');
+  state.score[0]++;
+  state.phase = 'goal';
+  expect(tracker.update(state, true)).toEqual([]);
+  expect(tracker.update(state, false)).toEqual([]);
+  state.players[4].kick = 0.25;
+  expect(tracker.update(state, false)).toEqual([]);
+});
+
+test('goal, restart and final-whistle audio do not mutate the match or replay restored results', () => {
+  const state = createMatch('versus');
+  const tracker = new MatchSoundTracker(state);
+  state.phase = 'playing';
+  expect(tracker.update(state, false)).toEqual(['whistle']);
+  state.score[1] = 1;
+  state.phase = 'goal';
+  const unchanged = JSON.stringify(state);
+  expect(tracker.update(state, false)).toEqual(['goal']);
+  expect(JSON.stringify(state)).toBe(unchanged);
+  expect(tracker.update(state, false)).toEqual([]);
+  expect(new MatchSoundTracker(structuredClone(state)).update(state, false)).toEqual([]);
+  state.phase = 'kickoff';
+  expect(tracker.update(state, false)).toEqual([]);
+  state.phase = 'playing';
+  expect(tracker.update(state, false)).toEqual(['whistle']);
+  state.phase = 'finished';
+  expect(tracker.update(state, false)).toEqual(['full-time']);
+  expect(tracker.update(state, false)).toEqual([]);
+});
 
 test('Wi-Fi codes round-trip compact local SDP and reject foreign, truncated and oversized payloads', async () => {
   const signal = { v: 1 as const, id: '12345678-1234-1234-1234-123456789abc', type: 'offer' as const, sdp: 'v=0\r\na=ice-ufrag:local\r\n' };

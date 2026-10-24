@@ -9,6 +9,7 @@ import { decodeSignal, PeerLink } from '../game/peer-link';
 import { ControlSetup } from './ControlSetup';
 import { FullscreenButton } from './FullscreenButton';
 import { QrExchange } from './QrExchange';
+import { SoundToggle } from './SoundControls';
 import { TeamSelection } from './TeamSelection';
 import './wifi.css';
 
@@ -101,7 +102,10 @@ export function WifiLobby({ input, onBack, onLaunch }: { input: InputManager; on
         <button type='button' onClick={onBack}>
           ← Startmenyn
         </button>
-        <FullscreenButton />
+        <div className='header-tools'>
+          <SoundToggle />
+          <FullscreenButton />
+        </div>
       </header>
       <section className={`wifi-intro ${role ? 'wifi-intro-compact' : ''}`}>
         <p className='eyebrow'>TVÅ ENHETER · SAMMA WI-FI</p>

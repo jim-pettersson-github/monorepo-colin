@@ -60,6 +60,12 @@ Connect USB/Bluetooth controllers, press a button and select them in match setup
 
 Controller availability depends on browser, operating system and hardware. Production play requires HTTPS; localhost is suitable for development. Physical controllers and Android installation still need real-device review. Automated checks simulate two gamepads and simultaneous touch inputs.
 
+## Sound
+
+Procedural Web Audio effects cover passes, shots, sliding, tackle impacts, goalkeeper catches, board rebounds, goals, kickoff/referee whistles and the final whistle. Effects are generated locally and work offline. Sound starts only after a user interaction, at a default 35% volume. Use the speaker icon in the menu, Wi-Fi lobby or pitch to mute; **Ljudinställningar** in the menu and the pause panel also provide volume. Each device saves its own mute and volume settings.
+
+Effects follow observed match events in local play, match viewing and on each Wi-Fi device. They do not change simulation or network state. Pausing, backgrounding and leaving a match stop active effects; restored matches and resumed play do not replay old events. Fast match viewing keeps normal sound pitch and limits repeated effects. Direct league simulation stays silent.
+
 ## Saving and PWA
 
 Matches save locally every few seconds and when paused or backgrounded. On launch, **Fortsätt sparad match** restores the latest valid snapshot or its backup, including slides, knockdowns, yellow cards, free-kick restarts and aimed penalties. Earlier saves gain the new rules and scale their positions to the larger pitch once, without losing scores or match time. A new match replaces the previous save. Finished or explicitly abandoned matches clear it. Match saves and controller mappings use Alfred-specific localStorage keys, separate from asset caches.
@@ -98,6 +104,7 @@ For a production preview, run `npm run build` then `npm run preview` and open ht
 - `src/palette.ts`, `src/styles.css`, `src/match.css`: semantic colors and responsive layouts.
 - `src/game/peer-link.ts`, `network-session.ts`: local WebRTC signaling codes, peer lifecycle, authoritative host and guest synchronization.
 - `src/components/WifiLobby.tsx`, `QrExchange.tsx`: QR camera/image/copy pairing and per-device setup.
+- `src/game/sound.ts`, `src/components/SoundControls.tsx`: match event cues, procedural effects and saved per-device mute/volume.
 - `src/pwa.ts`: service-worker registration and requested updates.
 - [PLAN.md](PLAN.md): implemented scope and remaining review work.
 
