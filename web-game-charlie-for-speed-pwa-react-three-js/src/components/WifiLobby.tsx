@@ -267,6 +267,10 @@ export function WifiLobby<T>({
             <h2>Inställningar</h2>
             {hostSettings}
           </section>
+          <section className='wifi-panel'>
+            <h2>Din kontroll</h2>
+            {controls}
+          </section>
           <section className='wifi-panel wifi-start'>
             {summary(config)}
             <p role='status'>
@@ -346,6 +350,8 @@ export function WifiLobby<T>({
               <p>Enheterna är anslutna!</p>
               {guestConfig ? summary(guestConfig) : <p role='status'>Hämtar värdens inställningar…</p>}
               {guestConfig && guestPick?.(guestConfig, slot, (value) => links[0]?.link.send({ kind: 'lobby-pick', value }))}
+              <h3>Din kontroll</h3>
+              {controls}
               <p role='status'>{ready === receivedToken && ready ? 'Du är redo! Väntar på att värden startar.' : 'Kolla inställningarna och tryck Redo.'}</p>
               <button
                 type='button'
@@ -364,8 +370,7 @@ export function WifiLobby<T>({
 
       {error && <p role='alert'>{error}</p>}
       <details>
-        <summary>Kontroller och hur kopplingen fungerar</summary>
-        {controls}
+        <summary>Hur kopplingen fungerar</summary>
         <p>
           Alla behöver vara på samma vanliga Wi-Fi; gästnätverk kan blockera kontakt mellan enheter. Ingen spelserver används, och när spelet har laddats behövs
           inte internet. Om någon lämnar spelet eller tappar anslutningen pausas tävlingen för alla.

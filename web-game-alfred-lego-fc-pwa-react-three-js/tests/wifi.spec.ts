@@ -55,7 +55,6 @@ async function imageTransfer(from: Page, to: Page) {
   await to.locator('input[type=file]').setInputFiles({ name: 'connection.png', mimeType: 'image/png', buffer: Buffer.from(src.split(',')[1], 'base64') });
 }
 async function paste(to: Page, code: string) {
-  await to.getByText('Klistra in kod istället', { exact: true }).click();
   await to.getByRole('textbox', { name: 'Klistra in anslutningskod', exact: true }).fill(code);
   await to.getByRole('button', { name: 'Läs in koden', exact: true }).click();
 }
@@ -63,13 +62,13 @@ async function connect(host: Page, guest: Page, qr = true, league = false) {
   await enter(host, guest, league);
   if (qr) await imageTransfer(host, guest);
   else {
-    await host.getByText('Kopiera kod istället', { exact: true }).click();
+    await host.getByText('Visa koden som text', { exact: true }).click();
     await paste(guest, await host.getByRole('textbox', { name: 'Din matchkod', exact: true }).inputValue());
   }
   await expect(guest.getByRole('img', { name: 'QR-kod med svar till värden', exact: true })).toBeVisible();
   if (qr) await imageTransfer(guest, host);
   else {
-    await guest.getByText('Kopiera kod istället', { exact: true }).click();
+    await guest.getByText('Visa koden som text', { exact: true }).click();
     await paste(host, await guest.getByRole('textbox', { name: 'Din svarskod', exact: true }).inputValue());
   }
   for (const page of [host, guest]) await expect(page.getByText('Enheterna är anslutna!', { exact: true })).toBeVisible({ timeout: 15_000 });

@@ -33,7 +33,7 @@ export function CodeShow({ code, label, alt }: { code: string; label: string; al
             className='primary'
             onClick={async () => {
               try {
-                await navigator.share({ title: 'Charlie for Speed', text: code });
+                await navigator.share({ title: document.title, text: code });
                 setNotice('Koden är delad.');
               } catch {
                 // Closing the share sheet is not an error.
@@ -215,7 +215,7 @@ export function InviteSteps({ code, onAnswer, player }: { code: string; onAnswer
         <h3>
           <span className='step-number'>1</span> Visa koden för spelare {player}
         </h3>
-        <p>Kompisen väljer Jag går med och skannar bilden. Funkar inte kameran? Dela koden via SMS eller chatt.</p>
+        <p>Kompisen väljer att gå med och skannar bilden. Funkar inte kameran? Dela koden via SMS eller chatt.</p>
         <CodeShow code={code} label='Din matchkod' alt='QR-kod för matchen' />
       </section>
       <section className='wifi-step'>
@@ -226,5 +226,32 @@ export function InviteSteps({ code, onAnswer, player }: { code: string; onAnswer
         <CodeRead onCode={onAnswer} placeholder='Klistra in kompisens svarskod här' />
       </section>
     </div>
+  );
+}
+
+// Two-device pairing in one component: the host shows its code and reads the reply; the guest reads the host's code, then shows its reply.
+export function QrExchange({ code, role, onCode }: { code: string; role: 'host' | 'guest'; onCode: (value: string) => Promise<void> }) {
+  if (role === 'host') return <InviteSteps code={code} onAnswer={onCode} player={2} />;
+  return (
+    <section className='wifi-step'>
+      {code ? (
+        <>
+          <h3>
+            <span className='step-number'>2</span> Visa ditt svar för värden
+          </h3>
+          <p>Låt värden skanna bilden, eller dela svarskoden tillbaka via SMS eller chatt.</p>
+          <CodeShow code={code} label='Din svarskod' alt='QR-kod med svar till värden' />
+          <p role='status'>Väntar på att värden läser in ditt svar…</p>
+        </>
+      ) : (
+        <>
+          <h3>
+            <span className='step-number'>1</span> Läs in värdens kod
+          </h3>
+          <p>Skanna QR-bilden på värdens skärm, eller klistra in koden om värden skickade den i ett meddelande.</p>
+          <CodeRead onCode={onCode} placeholder='Klistra in värdens kod här' />
+        </>
+      )}
+    </section>
   );
 }
