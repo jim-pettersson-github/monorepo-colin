@@ -80,10 +80,13 @@ export function drawScene(c: C, w: number, h: number, state: GameState | null, t
     (state
       ? state.runners.slice(0, state.settings.players).reduce((s, r) => s + (r.launched && field ? r.x + r.flightX : r.x), 0) / state.settings.players
       : t * 6) / worldScale;
-  const span = state && state.settings.players === 2 ? Math.abs(state.runners[0].x - state.runners[1].x) / worldScale : 0;
-  const ppm = w / Math.max(36, span + 22);
-  const camera = Math.max(0, focus - 8);
-  const x = (meters: number, lane = 0) => (meters / worldScale - camera) * ppm + w * 0.12 + lane * 52;
+  const positions = state ? state.runners.slice(0, state.settings.players).map((r) => (field && r.launched ? r.x + r.flightX : r.x) / worldScale) : [0];
+  const span = Math.max(...positions) - Math.min(...positions);
+  const shared = state && state.settings.players > 1;
+  const laneOffset = shared ? Math.min(52, w * 0.08) : 52;
+  const ppm = (shared ? w * 0.88 - laneOffset * 3 : w) / Math.max(36, span + 22);
+  const camera = Math.max(0, (shared ? Math.min(...positions) : focus) - 8);
+  const x = (meters: number, lane = 0) => (meters / worldScale - camera) * ppm + w * 0.12 + lane * laneOffset;
   const rowH = h * 0.115;
   const first = h * 0.53;
   for (let lane = 0; lane < 4; lane++) {
@@ -166,8 +169,9 @@ export function drawScene(c: C, w: number, h: number, state: GameState | null, t
     }
     const label = r.human === null ? character(r.character).name : `P${r.human + 1}`;
     const labelWidth = Math.max(32, label.length * 6.3);
-    rect(c, rx - labelWidth / 2 - 6, y - 100 * scale - 24, labelWidth + 12, 20, r.human === null ? '#3a3159' : colors[i]);
-    text(c, label, rx, y - 100 * scale - 10, 10, r.human === null ? '#fff4db' : '#30264b', 'center');
+    const labelY = y - jumping * 15 * scale - 120 * scale;
+    rect(c, rx - labelWidth / 2 - 6, labelY - 24, labelWidth + 12, 20, r.human === null ? '#3a3159' : colors[i]);
+    text(c, label, rx, labelY - 10, 10, r.human === null ? '#fff4db' : '#30264b', 'center');
     if (r.launched && state && !jumpEvent(state.event)) {
       const fx = x((stationaryEvent(state.event) ? 0 : 18) + r.flightX, i);
       const fy = y - r.flightY * 8 * scale;

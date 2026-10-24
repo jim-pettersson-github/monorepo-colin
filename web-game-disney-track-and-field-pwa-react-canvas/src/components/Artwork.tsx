@@ -3,16 +3,49 @@ import { drawCharacter } from '../game/characters';
 import { drawScene } from '../game/drawing';
 import type { CharacterId } from '../game/model';
 import type { Session } from '../game/session';
-export function Portrait({ id }: { id: CharacterId }) {
+export function Portrait({ id, animated = false }: { id: CharacterId; animated?: boolean }) {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
-    const c = ref.current?.getContext('2d');
-    if (c) {
+    const canvas = ref.current;
+    const c = canvas?.getContext('2d');
+    if (!canvas || !c) return;
+    let frame = 0;
+    let visible = false;
+    const reduced = matchMedia('(prefers-reduced-motion: reduce)');
+    const draw = (time: number) => {
+      c.setTransform(2, 0, 0, 2, 0, 0);
       c.clearRect(0, 0, 128, 128);
-      drawCharacter(c, id, 64, 118, 1.05, 0, true);
-    }
-  }, [id]);
-  return <canvas ref={ref} width={128} height={128} className='portrait' tabIndex={-1} aria-hidden='true' />;
+      c.fillStyle = '#34334d20';
+      c.beginPath();
+      c.ellipse(64, 120, 24, 4, 0, 0, Math.PI * 2);
+      c.fill();
+      drawCharacter(c, id, 64, 117, 0.96, animated && !reduced.matches ? time / 145 : 0.7);
+    };
+    const tick = (time: number) => {
+      draw(time);
+      frame = requestAnimationFrame(tick);
+    };
+    const update = () => {
+      cancelAnimationFrame(frame);
+      draw(0);
+      if (animated && visible && !document.hidden && !reduced.matches) frame = requestAnimationFrame(tick);
+    };
+    const observer = new IntersectionObserver(([entry]) => {
+      visible = entry.isIntersecting;
+      update();
+    });
+    observer.observe(canvas);
+    document.addEventListener('visibilitychange', update);
+    reduced.addEventListener('change', update);
+    draw(0);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      document.removeEventListener('visibilitychange', update);
+      reduced.removeEventListener('change', update);
+    };
+  }, [id, animated]);
+  return <canvas ref={ref} width={256} height={256} className='portrait' tabIndex={-1} aria-hidden='true' />;
 }
 export function Stadium({ session, cast }: { session?: Session; cast?: CharacterId[] }) {
   const ref = useRef<HTMLCanvasElement>(null);

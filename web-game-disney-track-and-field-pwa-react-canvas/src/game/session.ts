@@ -1,10 +1,12 @@
 import { gameAudio } from './audio';
 import type { GameInput } from './input';
-import type { GameState } from './model';
+import type { Commands, GameState, Source } from './model';
 import { nextAttempt, nextEvent } from './model';
 import { STEP, step } from './simulation';
 import { recordResults, saveGame } from './storage';
 export class Session {
+  networkRole: 'host' | 'guest' | null = null;
+  localSlot = 0;
   paused = false;
   foreground = true;
   reason = '';
@@ -17,8 +19,9 @@ export class Session {
   constructor(
     public state: GameState,
     public input: GameInput,
+    protected options: { source?: Source; persistent?: boolean } = {},
   ) {
-    this.input.start(state.settings.sources, state.settings.players);
+    this.startInput();
     this.save();
   }
   subscribe = (listener: () => void) => {
@@ -28,12 +31,27 @@ export class Session {
     };
   };
   getSnapshot = () => this.revision;
-  private publish() {
+  protected publish() {
     this.revision++;
     for (const listener of this.listeners) listener();
   }
   get canResume() {
-    return this.foreground && this.state.settings.sources.slice(0, this.state.settings.players).every((s) => this.input.available(s));
+    return this.foreground && this.localPlayers.every((player) => this.input.available(this.controlSource(player)));
+  }
+  get localPlayers() {
+    return this.options.source ? [this.localSlot] : Array.from({ length: this.state.settings.players }, (_, i) => i);
+  }
+  controlSource(player: number) {
+    return this.options.source ?? this.state.settings.sources[player];
+  }
+  inputPlayer(player: number) {
+    return this.options.source ? 0 : player;
+  }
+  protected startInput() {
+    this.input.start(this.options.source ? [this.options.source] : this.state.settings.sources, this.options.source ? 1 : this.state.settings.players);
+  }
+  protected commands(): Commands[] {
+    return this.input.consume();
   }
   pause = (reason = 'Loppet väntar på dig.') => {
     this.paused = true;
@@ -48,7 +66,7 @@ export class Session {
     if (!this.canResume) return;
     this.paused = false;
     this.accumulator = 0;
-    this.input.start(this.state.settings.sources, this.state.settings.players);
+    this.startInput();
     this.publish();
   };
   setForeground(value: boolean) {
@@ -62,7 +80,7 @@ export class Session {
     while (this.accumulator >= STEP) {
       const phase = this.state.phase;
       const countdown = Math.ceil(this.state.countdown);
-      const commands = this.input.consume();
+      const commands = this.commands();
       if (commands.some((c) => c.action)) gameAudio.play('jump');
       step(this.state, commands);
       this.accumulator -= STEP;
@@ -98,11 +116,12 @@ export class Session {
     if (this.state.phase === 'attempt-result') nextAttempt(this.state);
     else nextEvent(this.state);
     this.accumulator = 0;
-    this.input.start(this.state.settings.sources, this.state.settings.players);
+    this.startInput();
     this.save();
     this.publish();
   };
   save = () => {
+    if (this.options.persistent === false) return;
     recordResults(this.state);
     saveGame(this.state);
   };

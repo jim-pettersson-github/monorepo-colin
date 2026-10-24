@@ -1,5 +1,5 @@
 import type { EventId, GameState, Settings } from './model';
-import { championshipEvents, characters, events } from './model';
+import { championshipEvents, characters, defaultSettings, events, separateControls } from './model';
 export const SAVE_KEY = 'sagospelen-event-v1';
 const validId = (id: unknown) => characters.some((c) => c.id === id);
 const validEvent = (id: unknown) => events.some((e) => e.id === id);
@@ -9,18 +9,28 @@ export function validSettings(value: unknown): value is Settings {
   return (
     validEvent(s.event) &&
     typeof s.championship === 'boolean' &&
-    [1, 2].includes(s.players) &&
+    [1, 2, 3, 4].includes(s.players) &&
     Array.isArray(s.characters) &&
-    s.characters.length === 2 &&
+    s.characters.length >= Math.max(2, s.players) &&
+    s.characters.length <= 4 &&
     s.characters.every(validId) &&
-    s.characters[0] !== s.characters[1] &&
+    new Set(s.characters).size === s.characters.length &&
     Array.isArray(s.sources) &&
-    s.sources.length === 2 &&
-    s.sources.every((s) => typeof s === 'string' && /^(keyboard[12]|touch|pad:\d{1,2})$/.test(s)) &&
-    (s.players === 1 || s.sources[0] !== s.sources[1] || s.sources[0] === 'touch') &&
+    s.sources.length >= Math.max(2, s.players) &&
+    s.sources.length <= 4 &&
+    s.sources.every((s) => typeof s === 'string' && /^(keyboard[1234]|touch|pad:\d{1,2})$/.test(s)) &&
+    separateControls(s.sources, s.players) &&
     ['easy', 'normal', 'hard'].includes(s.difficulty) &&
     typeof s.assist === 'boolean'
   );
+}
+function expandSettings(settings: Settings): Settings {
+  const ids = [...settings.characters];
+  for (const c of characters) if (ids.length < 4 && !ids.includes(c.id)) ids.push(c.id);
+  const sources = [...settings.sources];
+  const defaults = defaultSettings().sources;
+  while (sources.length < 4) sources.push(defaults[sources.length]);
+  return { ...settings, characters: ids, sources };
 }
 const bounded = (n: unknown, a: number, b: number): n is number => typeof n === 'number' && Number.isFinite(n) && n >= a && n <= b;
 export function validGame(value: unknown): value is GameState {
@@ -90,7 +100,7 @@ function read(key: string): unknown {
 export function loadGame(): GameState | null {
   for (const key of [SAVE_KEY, `${SAVE_KEY}-backup`]) {
     const value = read(key);
-    if (validGame(value)) return value;
+    if (validGame(value)) return { ...value, settings: expandSettings(value.settings) };
   }
   return null;
 }
@@ -114,7 +124,7 @@ export function clearGame() {
 }
 export function loadSettings(): Settings | null {
   const s = read('sagospelen-settings-v1');
-  return validSettings(s) ? s : null;
+  return validSettings(s) ? expandSettings(s) : null;
 }
 export function saveSettings(s: Settings) {
   try {

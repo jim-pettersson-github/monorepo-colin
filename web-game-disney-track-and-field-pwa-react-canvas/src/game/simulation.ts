@@ -48,7 +48,7 @@ function finishField(state: GameState, r: Runner) {
   r.done = true;
   r.result = r.foul ? null : verticalEvent(state.event) ? barHeight(state.event, state.attempt) : Math.round(r.flightX * 100) / 100;
 }
-export function step(state: GameState, input: [Commands, Commands], dt = STEP) {
+export function step(state: GameState, input: Commands[], dt = STEP) {
   if (state.phase === 'countdown') {
     state.countdown = Math.max(0, state.countdown - dt);
     if (state.countdown === 0) state.phase = 'playing';
@@ -61,7 +61,7 @@ export function step(state: GameState, input: [Commands, Commands], dt = STEP) {
   for (const [lane, r] of state.runners.entries()) {
     if (r.done) continue;
     const ai = r.human === null;
-    let command = ai ? neutral() : input[r.human as 0 | 1];
+    let command = r.human === null ? neutral() : (input[r.human] ?? neutral());
     const aiSpeed = (state.settings.difficulty === 'easy' ? 7 : state.settings.difficulty === 'normal' ? 8.7 : 10.1) + lane * 0.13;
     if (ai) {
       command = { feet: [], hold: state.time >= r.aiNext, action: false };

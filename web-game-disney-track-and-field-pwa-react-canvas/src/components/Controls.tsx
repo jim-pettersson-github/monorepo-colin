@@ -1,8 +1,8 @@
 import { useSyncExternalStore } from 'react';
 import type { GameInput, Mapping } from '../game/input';
-import { sourceLabel } from '../game/input';
+import { keyboardControls, sourceLabel } from '../game/input';
 import type { EventId, Settings, Source } from '../game/model';
-import { character, eventInfo, jumpEvent } from '../game/model';
+import { character, eventInfo, jumpEvent, separateControls } from '../game/model';
 import { Key, PadFace } from './Icons';
 export function controlsReady(settings: Settings, input: GameInput) {
   return (
@@ -13,15 +13,14 @@ export function controlsReady(settings: Settings, input: GameInput) {
       const m = input.mapping(index);
       const d = input.devices.find((d) => d.index === index);
       return !!d && [m.left, m.right, m.action].every((n) => n < d.buttons) && new Set([m.left, m.right, m.action]).size === 3;
-    }) &&
-    (settings.players === 1 || settings.sources[0] !== settings.sources[1] || settings.sources[0] === 'touch')
+    }) && separateControls(settings.sources, settings.players)
   );
 }
 export function ControlLegend({ source, input, player, assist }: { source: Source; input: GameInput; player: number; assist: boolean }) {
   const pad = source.startsWith('pad:');
   const m = pad ? input.mapping(Number(source.slice(4))) : null;
   const touch = source === 'touch';
-  const second = source === 'keyboard2';
+  const keys = source in keyboardControls ? keyboardControls[source as keyof typeof keyboardControls].labels : keyboardControls.keyboard1.labels;
   return (
     <section className='control-legend' aria-label={`Knappar spelare ${player + 1}`}>
       <span className='control-pair'>
@@ -37,14 +36,14 @@ export function ControlLegend({ source, input, player, assist }: { source: Sourc
           </>
         ) : (
           <>
-            <Key>{second ? '←' : 'A'}</Key>
-            <Key>{second ? '→' : 'D'}</Key>
+            <Key>{keys[0]}</Key>
+            <Key>{keys[1]}</Key>
           </>
         )}
         <small>{assist ? 'Håll = spring' : 'Växla = spring'}</small>
       </span>
       <span className='control-pair'>
-        {pad && m ? <PadFace index={m.action} /> : touch ? <span className='touch-key'>★</span> : <Key>{second ? 'Enter' : 'Space'}</Key>}
+        {pad && m ? <PadFace index={m.action} /> : touch ? <span className='touch-key'>★</span> : <Key>{keys[2]}</Key>}
         <small>Hoppa / kasta</small>
       </span>
     </section>
@@ -52,7 +51,7 @@ export function ControlLegend({ source, input, player, assist }: { source: Sourc
 }
 export function ControlSetup({ settings, input, onChange }: { settings: Settings; input: GameInput; onChange: (s: Settings) => void }) {
   useSyncExternalStore(input.subscribe, input.getSnapshot);
-  const options: Source[] = ['keyboard1', 'keyboard2', 'touch', ...input.devices.map((d) => `pad:${d.index}` as const)];
+  const options: Source[] = ['keyboard1', 'keyboard2', 'keyboard3', 'keyboard4', 'touch', ...input.devices.map((d) => `pad:${d.index}` as const)];
   for (const s of settings.sources) if (!options.includes(s)) options.push(s);
   return (
     <section className='controls-setup' aria-label='Spelkontroller'>
@@ -68,7 +67,7 @@ export function ControlSetup({ settings, input, onChange }: { settings: Settings
               aria-label={`Kontroll spelare ${i + 1}`}
               value={settings.sources[i]}
               onChange={(e) => {
-                const sources: [Source, Source] = [...settings.sources];
+                const sources = [...settings.sources];
                 sources[i] = e.target.value as Source;
                 onChange({ ...settings, sources });
               }}
@@ -85,7 +84,7 @@ export function ControlSetup({ settings, input, onChange }: { settings: Settings
       ))}
       {!controlsReady(settings, input) && (
         <p className='warning' role='status'>
-          Välj en ansluten kontroll per spelare. På samma tangentbord: välj A / D och ← / →. Handkontroller behöver tre olika knappar.
+          Välj olika anslutna kontroller eller tangentgrupper för spelarna. Pekskärmen kan delas. Handkontroller behöver tre olika knappar.
         </p>
       )}
       {input.devices.map((d) => (
@@ -113,18 +112,19 @@ export function ControlSetup({ settings, input, onChange }: { settings: Settings
         </details>
       ))}
       <p className='small muted'>Anslut USB eller Bluetooth och tryck på en knapp för att hitta handkontrollen.</p>
+      {settings.players > 2 && <p className='small muted'>Vissa tangentbord klarar få samtidiga tryck. Använd gärna handkontroller när ni är flera.</p>}
     </section>
   );
 }
-export function TouchControls({ input, player, event }: { input: GameInput; player: number; event: EventId }) {
+export function TouchControls({ input, player, labelPlayer = player, event }: { input: GameInput; player: number; labelPlayer?: number; event: EventId }) {
   return (
-    <section className={`touch-controls player-${player}`} aria-label={`Pekkontroller spelare ${player + 1}`}>
-      <span className='touch-player'>P{player + 1}</span>
+    <section className={`touch-controls player-${player}`} aria-label={`Pekkontroller spelare ${labelPlayer + 1}`}>
+      <span className='touch-player'>P{labelPlayer + 1}</span>
       {(eventInfo(event).mechanic === 'run' || event === 'raceWalk' ? [0, 1] : [0, 1, 2]).map((button) => (
         <button
           type='button'
           key={button}
-          aria-label={`Spelare ${player + 1} ${button === 0 ? 'vänster steg' : button === 1 ? 'höger steg' : eventInfo(event).type === 'run' || jumpEvent(event) ? 'hoppa' : 'kasta'}`}
+          aria-label={`Spelare ${labelPlayer + 1} ${button === 0 ? 'vänster steg' : button === 1 ? 'höger steg' : eventInfo(event).type === 'run' || jumpEvent(event) ? 'hoppa' : 'kasta'}`}
           className={button === 2 ? 'action-touch' : ''}
           onPointerDown={(e) => {
             e.preventDefault();

@@ -7,6 +7,18 @@ export const characters = [
   { id: 'simba', name: 'Simba', film: 'Lejonkungen', color: '#e7ac3b', ink: '#bb6c29' },
   { id: 'moana', name: 'Vaiana', film: 'Vaiana', color: '#e57a52', ink: '#55332d' },
   { id: 'rapunzel', name: 'Rapunzel', film: 'Trassel', color: '#a577c6', ink: '#e9bc50' },
+  { id: 'goofy', name: 'Långben', film: 'Musse & vänner', color: '#d58a39', ink: '#43483b' },
+  { id: 'daisy', name: 'Kajsa Anka', film: 'Kalle Anka', color: '#bd82c9', ink: '#694179' },
+  { id: 'anna', name: 'Anna', film: 'Frost', color: '#608c77', ink: '#a45e3e' },
+  { id: 'olaf', name: 'Olof', film: 'Frost', color: '#91cbd6', ink: '#486c88' },
+  { id: 'aladdin', name: 'Aladdin', film: 'Aladdin', color: '#a789ca', ink: '#603a6d' },
+  { id: 'jasmine', name: 'Jasmine', film: 'Aladdin', color: '#41b5b3', ink: '#263f56' },
+  { id: 'mulan', name: 'Mulan', film: 'Mulan', color: '#8fa970', ink: '#414e3a' },
+  { id: 'belle', name: 'Belle', film: 'Skönheten & odjuret', color: '#e8be51', ink: '#9c7135' },
+  { id: 'ariel', name: 'Ariel', film: 'Den lilla sjöjungfrun', color: '#68bfa1', ink: '#b54446' },
+  { id: 'woody', name: 'Woody', film: 'Toy Story', color: '#d9a748', ink: '#875536' },
+  { id: 'buzz', name: 'Buzz Lightyear', film: 'Toy Story', color: '#8ebe6c', ink: '#7956a3' },
+  { id: 'baymax', name: 'Baymax', film: 'Big Hero 6', color: '#bbd1dc', ink: '#557387' },
 ] as const;
 export type CharacterId = (typeof characters)[number]['id'];
 export const character = (id: CharacterId) => characters.find((c) => c.id === id) ?? characters[0];
@@ -263,13 +275,17 @@ export const barHeight = (id: EventId, attempt: number) => (id === 'poleVault' ?
 export const jumpEvent = (id: EventId) => eventInfo(id).icon === 'jump';
 export type EventId = (typeof events)[number]['id'];
 export const eventInfo = (id: EventId) => events.find((e) => e.id === id) ?? events[0];
-export type Source = 'keyboard1' | 'keyboard2' | 'touch' | `pad:${number}`;
+export type Source = 'keyboard1' | 'keyboard2' | 'keyboard3' | 'keyboard4' | 'touch' | `pad:${number}`;
+export function separateControls(sources: Source[], players: number) {
+  const physical = sources.slice(0, players).filter((source) => source !== 'touch');
+  return sources.length >= players && new Set(physical).size === physical.length;
+}
 export interface Settings {
   event: EventId;
   championship: boolean;
-  players: 1 | 2;
-  characters: [CharacterId, CharacterId];
-  sources: [Source, Source];
+  players: 1 | 2 | 3 | 4;
+  characters: CharacterId[];
+  sources: Source[];
   difficulty: 'easy' | 'normal' | 'hard';
   assist: boolean;
 }
@@ -277,14 +293,14 @@ export const defaultSettings = (): Settings => ({
   event: 'sprint100',
   championship: false,
   players: 1,
-  characters: ['mickey', 'stitch'],
-  sources: ['keyboard1', 'keyboard2'],
+  characters: ['mickey', 'stitch', 'elsa', 'simba'],
+  sources: ['keyboard1', 'keyboard2', 'keyboard3', 'keyboard4'],
   difficulty: 'easy',
   assist: true,
 });
 export interface Runner {
   character: CharacterId;
-  human: 0 | 1 | null;
+  human: 0 | 1 | 2 | 3 | null;
   x: number;
   speed: number;
   rhythm: number;
@@ -334,12 +350,11 @@ export const angle = (time: number) => 43 + Math.sin(time * 2.3) * 13;
 export const formatResult = (value: number | null, event: EventId) =>
   value === null ? (eventInfo(event).type === 'run' ? 'Ej i mål' : 'Övertramp') : `${value.toFixed(2).replace('.', ',')} ${eventInfo(event).unit}`;
 function runners(settings: Settings): Runner[] {
-  const ids: CharacterId[] = [settings.characters[0]];
-  if (settings.players === 2) ids.push(settings.characters[1]);
+  const ids = settings.characters.slice(0, settings.players);
   for (const c of characters) if (!ids.includes(c.id) && ids.length < 4) ids.push(c.id);
   return ids.map((id, lane) => ({
     character: id,
-    human: lane < settings.players ? (lane as 0 | 1) : null,
+    human: lane < settings.players ? (lane as 0 | 1 | 2 | 3) : null,
     x: 0,
     speed: 0,
     rhythm: 0,

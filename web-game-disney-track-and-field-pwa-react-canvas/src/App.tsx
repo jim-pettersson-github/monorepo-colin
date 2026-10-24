@@ -4,9 +4,10 @@ import { ControlLegend, ControlSetup, controlsReady, TouchControls } from './com
 import { FullscreenButton } from './components/FullscreenButton';
 import { GameUpdate } from './components/GameUpdate';
 import { SportIcon } from './components/Icons';
+import { WifiLobby } from './components/WifiLobby';
 import { gameAudio } from './game/audio';
 import { GameInput } from './game/input';
-import type { CharacterId, GameState, Settings } from './game/model';
+import type { CharacterId, GameState, Settings, Source } from './game/model';
 import {
   angle,
   barHeight,
@@ -25,6 +26,7 @@ import {
   stationaryEvent,
   verticalEvent,
 } from './game/model';
+import { NetworkSession, validNetworkSettings, validNetworkState } from './game/network-session';
 import { Session } from './game/session';
 import { clearGame, loadGame, loadRecords, loadSettings, recordKey, saveSettings } from './game/storage';
 import './styles.css';
@@ -59,16 +61,29 @@ function Logo() {
   );
 }
 function CharacterPicker({ player, settings, onChange }: { player: number; settings: Settings; onChange: (s: Settings) => void }) {
+  const selected = character(settings.characters[player]);
   return (
     <section className='character-selection' aria-label={`Välj figur spelare ${player + 1}`}>
       <div className='section-title'>
         <h3>
           <span className={`player-dot player-${player}`}>P{player + 1}</span> {character(settings.characters[player]).name}
         </h3>
-        <span>Välj din favorit</span>
+        <span>{characters.length} figurer · välj din favorit</span>
+      </div>
+      <div className='character-spotlight' style={{ '--character': selected.color } as React.CSSProperties}>
+        <div className='character-stage'>
+          <Portrait id={selected.id} animated />
+        </div>
+        <div className='character-intro'>
+          <span className='character-eyebrow'>DIN DELTAGARE · P{player + 1}</span>
+          <h4>{selected.name}</h4>
+          <p>{selected.film}</p>
+          <small>Alla figurer har samma fart. Välj den du gillar mest!</small>
+        </div>
+        <SportIcon kind='star' />
       </div>
       <div className='character-grid'>
-        {characters.map((c) => (
+        {characters.map((c, index) => (
           <button
             type='button'
             key={c.id}
@@ -76,13 +91,16 @@ function CharacterPicker({ player, settings, onChange }: { player: number; setti
             aria-pressed={settings.characters[player] === c.id}
             style={{ '--character': c.color } as React.CSSProperties}
             onClick={() => {
-              const ids: [CharacterId, CharacterId] = [...settings.characters];
-              const other = player === 0 ? 1 : 0;
-              if (ids[other] === c.id) ids[other] = ids[player];
+              const ids = [...settings.characters];
+              const other = ids.indexOf(c.id);
+              if (other >= 0 && other !== player) ids[other] = ids[player];
               ids[player] = c.id;
               onChange({ ...settings, characters: ids });
             }}
           >
+            <span className='character-choice' aria-hidden='true'>
+              {selected.id === c.id ? '✓' : String(index + 1).padStart(2, '0')}
+            </span>
             <Portrait id={c.id} />
             <strong>{c.name}</strong>
             <small>{c.film}</small>
@@ -99,6 +117,7 @@ function Menu({
   saved,
   onStart,
   onResume,
+  onWifi,
 }: {
   input: GameInput;
   settings: Settings;
@@ -106,6 +125,7 @@ function Menu({
   saved: GameState | null;
   onStart: () => void;
   onResume: () => void;
+  onWifi: () => void;
 }) {
   useSyncExternalStore(input.subscribe, input.getSnapshot);
   const event = eventInfo(settings.event);
@@ -139,7 +159,7 @@ function Menu({
           <p className='intro-copy'>Små steg. Stora språng. Dina favoriter möts på löparbanan.</p>
           <div className='feature-pills'>
             <span>20 individuella grenar</span>
-            <span>1–2 spelare</span>
+            <span>1–4 spelare</span>
             <span>Spela offline</span>
           </div>
         </div>
@@ -214,8 +234,12 @@ function Menu({
           <span className='eyebrow'>KLAR PÅ STARTLINJEN?</span>
           <h2>{settings.championship ? 'Dags för sexkamp.' : `${event.name}. Nu kör vi.`}</h2>
           <p>
-            {settings.players === 1 ? 'Du och tre datorfigurer' : 'Ni två och två datorfigurer'} ·{' '}
-            {settings.assist ? 'Håll för att springa' : 'Klassisk knapprytm'}
+            {settings.players === 1
+              ? 'Du och tre datorfigurer'
+              : settings.players === 4
+                ? 'Ni fyra spelar mot varandra'
+                : `${settings.players} spelare och ${4 - settings.players} datorfigurer`}{' '}
+            · {settings.assist ? 'Håll för att springa' : 'Klassisk knapprytm'}
           </p>
         </div>
         <div className='start-actions'>
@@ -230,19 +254,22 @@ function Menu({
         </div>
       </section>
       <section className='setup-section'>
+        <button type='button' className='wifi-entry' onClick={onWifi}>
+          Spela via Wi-Fi · 2–4 enheter
+        </button>
         <div className='section-title'>
           <h2>Vilka är med?</h2>
           <fieldset className='segmented' aria-label='Antal spelare'>
-            <button type='button' aria-pressed={settings.players === 1} onClick={() => onChange({ ...settings, players: 1 })}>
-              En spelare
-            </button>
-            <button type='button' aria-pressed={settings.players === 2} onClick={() => onChange({ ...settings, players: 2 })}>
-              Två spelare
-            </button>
+            {([1, 2, 3, 4] as const).map((players) => (
+              <button key={players} type='button' aria-pressed={settings.players === players} onClick={() => onChange({ ...settings, players })}>
+                {['En spelare', 'Två spelare', 'Tre spelare', 'Fyra spelare'][players - 1]}
+              </button>
+            ))}
           </fieldset>
         </div>
-        <CharacterPicker player={0} settings={settings} onChange={onChange} />
-        {settings.players === 2 && <CharacterPicker player={1} settings={settings} onChange={onChange} />}
+        {([0, 1, 2, 3] as const).slice(0, settings.players).map((player) => (
+          <CharacterPicker key={player} player={player} settings={settings} onChange={onChange} />
+        ))}
         <div className='settings-grid'>
           <section className='settings-card'>
             <h3>Spela på ditt sätt</h3>
@@ -308,6 +335,7 @@ function Match({ session, onMenu, onReplay }: { session: Session; onMenu: () => 
   const dialog = useRef<HTMLDialogElement>(null);
   const results = s.phase === 'results' || s.phase === 'attempt-result';
   const modal = session.paused || results;
+  const localRunner = s.runners[session.localPlayers[0]];
   useEffect(() => {
     if (modal && !dialog.current?.open) dialog.current?.showModal();
     else if (!modal) {
@@ -321,6 +349,7 @@ function Match({ session, onMenu, onReplay }: { session: Session; onMenu: () => 
     <main className='game-shell'>
       <header className='race-header'>
         <Logo />
+        {session.networkRole && <span className='network-player'>WI-FI · DU ÄR P{session.localSlot + 1}</span>}
         <div className='event-heading'>
           <span>
             {s.settings.championship ? `SEXKAMP · GREN ${s.round + 1}/6` : 'SNABB GREN'}
@@ -358,13 +387,13 @@ function Match({ session, onMenu, onReplay }: { session: Session; onMenu: () => 
           <div className='angle-meter'>
             <span>{jumpEvent(s.event) ? 'AVSTAMP' : `KASTVINKEL · ${Math.round(angle(s.time))}°`}</span>
             <div>
-              <i style={{ left: `${jumpEvent(s.event) ? Math.min(100, (s.runners[0].x / 18) * 100) : ((angle(s.time) - 30) / 26) * 100}%` }} />
+              <i style={{ left: `${jumpEvent(s.event) ? Math.min(100, (localRunner.x / 18) * 100) : ((angle(s.time) - 30) / 26) * 100}%` }} />
             </div>
             <small>
               {jumpEvent(s.event)
-                ? s.runners[0].landingWindow > 0
+                ? localRunner.landingWindow > 0
                   ? 'TRYCK IGEN FÖR NÄSTA STEG'
-                  : `${Math.max(0, 18 - s.runners[0].x).toFixed(1)} m till avstamp`
+                  : `${Math.max(0, 18 - localRunner.x).toFixed(1)} m till avstamp`
                 : 'Den gula zonen ger en bra vinkel'}
             </small>
           </div>
@@ -387,14 +416,14 @@ function Match({ session, onMenu, onReplay }: { session: Session; onMenu: () => 
           </div>
         ))}
       </section>
-      <footer className='race-controls'>
-        {Array.from({ length: s.settings.players }, (_, i) =>
-          s.settings.sources[i] === 'touch' ? (
-            <TouchControls key={s.settings.characters[i]} input={session.input} player={i} event={s.event} />
+      <footer className={`race-controls ${session.localPlayers.length > 2 ? 'many-players' : ''}`}>
+        {session.localPlayers.map((i) =>
+          session.controlSource(i) === 'touch' ? (
+            <TouchControls key={s.settings.characters[i]} input={session.input} player={session.inputPlayer(i)} labelPlayer={i} event={s.event} />
           ) : (
             <div className='keyboard-controls' key={s.settings.characters[i]}>
               <strong className={`player-dot player-${i}`}>P{i + 1}</strong>
-              <ControlLegend player={i} input={session.input} source={s.settings.sources[i]} assist={s.settings.assist} />
+              <ControlLegend player={i} input={session.input} source={session.controlSource(i)} assist={s.settings.assist} />
             </div>
           ),
         )}
@@ -413,9 +442,13 @@ function Match({ session, onMenu, onReplay }: { session: Session; onMenu: () => 
           <>
             <span className='eyebrow'>TILL STARTMENYN</span>
             <h2 id='dialog-title'>Pausa här och gå tillbaka?</h2>
-            <p>Din gren och sexkamp sparas. Du kan fortsätta från startmenyn.</p>
+            <p>
+              {session.networkRole
+                ? 'Wi-Fi-kopplingen avslutas för alla. Dina lokala sparade tävlingar behålls.'
+                : 'Din gren och sexkamp sparas. Du kan fortsätta från startmenyn.'}
+            </p>
             <button type='button' className='primary' onClick={onMenu}>
-              Spara och gå till menyn
+              {session.networkRole ? 'Lämna Wi-Fi-tävlingen' : 'Spara och gå till menyn'}
             </button>
             <button type='button' onClick={() => setExit(false)}>
               Stanna här
@@ -466,7 +499,9 @@ function Match({ session, onMenu, onReplay }: { session: Session; onMenu: () => 
               ))}
             </div>
             {s.settings.championship && <p className='small muted'>Placering ger 5, 3, 2 eller 1 poäng. Delad placering ger samma poäng.</p>}
-            {!final ? (
+            {session.networkRole === 'guest' ? (
+              <p role='status'>Väntar på att värden fortsätter tävlingen.</p>
+            ) : !final ? (
               <button type='button' className='primary' onClick={session.next}>
                 {s.phase === 'attempt-result' ? 'Nästa försök' : `Nästa gren · ${eventInfo(championshipEvents[s.round + 1]).name}`} →
               </button>
@@ -491,6 +526,10 @@ export function App() {
     if (!loadSettings() && matchMedia('(pointer:coarse)').matches) s.sources[0] = 'touch';
     return s;
   });
+  const [wifi, setWifi] = useState(false);
+  const [wifiSource, setWifiSource] = useState<Source>(() => settings.sources[0]);
+  const [wifiSettings, setWifiSettings] = useState<Settings>(() => ({ ...settings, players: 2, sources: defaultSettings().sources }));
+  useSyncExternalStore(input.subscribe, input.getSnapshot);
   const [session, setSession] = useState<Session | null>(null);
   const current = useRef(session);
   current.current = session;
@@ -560,16 +599,105 @@ export function App() {
         session={session}
         onMenu={menu}
         onReplay={() => {
+          if (session instanceof NetworkSession) {
+            session.rematch();
+            return;
+          }
           clearGame();
           launch(createGame(session.state.settings));
         }}
       />
     );
+  if (wifi) {
+    const local = { ...wifiSettings, players: 1 as const, sources: [wifiSource] };
+    return (
+      <WifiLobby
+        name='Sagospelen'
+        maxPlayers={4}
+        config={wifiSettings}
+        configure={(c, count) => ({ ...c, players: count as Settings['players'] })}
+        validConfig={validNetworkSettings}
+        validStart={validNetworkState}
+        summary={(c) => (
+          <p>
+            {c.championship ? 'Sexkamp' : eventInfo(c.event).name} · {c.players} spelare ·{' '}
+            {c.characters
+              .slice(0, c.players)
+              .map((id) => character(id).name)
+              .join(' / ')}
+          </p>
+        )}
+        available={controlsReady(local, input)}
+        controls={<ControlSetup input={input} settings={local} onChange={(s) => setWifiSource(s.sources[0])} />}
+        hostSettings={
+          <>
+            <label>
+              Tävling
+              <select
+                aria-label='Tävling'
+                value={wifiSettings.championship ? 'championship' : wifiSettings.event}
+                onChange={(e) =>
+                  setWifiSettings({
+                    ...wifiSettings,
+                    championship: e.target.value === 'championship',
+                    event: e.target.value === 'championship' ? wifiSettings.event : (e.target.value as Settings['event']),
+                  })
+                }
+              >
+                <option value='championship'>Sexkamp</option>
+                {events.map((event) => (
+                  <option key={event.id} value={event.id}>
+                    {event.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Löpstil
+              <select value={wifiSettings.assist ? 'hold' : 'rhythm'} onChange={(e) => setWifiSettings({ ...wifiSettings, assist: e.target.value === 'hold' })}>
+                <option value='hold'>Håll för att springa</option>
+                <option value='rhythm'>Växla knappar · arkad</option>
+              </select>
+            </label>
+            {([0, 1, 2, 3] as const).map((player) => (
+              <label key={player}>
+                Figur spelare {player + 1}
+                <select
+                  value={wifiSettings.characters[player]}
+                  onChange={(e) => {
+                    const ids = [...wifiSettings.characters];
+                    const id = e.target.value as CharacterId;
+                    const other = ids.indexOf(id);
+                    if (other >= 0) ids[other] = ids[player];
+                    ids[player] = id;
+                    setWifiSettings({ ...wifiSettings, characters: ids });
+                  }}
+                >
+                  {characters.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ))}
+          </>
+        }
+        onBack={() => setWifi(false)}
+        onLaunch={(connections, config, state) => {
+          const slot = state ? connections[0].slot : 0;
+          setSession(new NetworkSession((state as GameState) ?? createGame(config), input, wifiSource, connections, slot));
+          setWifi(false);
+        }}
+      />
+    );
+  }
   return (
     <Menu
       input={input}
       settings={settings}
       onChange={setSettings}
+      onWifi={() => setWifi(true)}
       saved={saved}
       onStart={() => {
         clearGame();
