@@ -468,7 +468,8 @@ export function createFootballWorld(canvas: HTMLCanvasElement) {
     },
     dispose() {
       const geometries = new Set<Mesh['geometry']>([cube, roundedCube]);
-      for (const root of [scene, actors])
+      // The stadium and the figures stay off-scene as sources for their instanced copies.
+      for (const root of [scene, stadium, actors])
         root.traverse((object) => {
           if (object instanceof Mesh) geometries.add(object.geometry);
         });
