@@ -6,6 +6,7 @@ const key = 'sagospelen-event-v1';
 test('four keyboard players choose separate characters, run independently and resume their saved race', async ({ page }) => {
   await page.clock.install();
   await page.goto('./');
+  await page.getByRole('combobox', { name: 'Löpstil', exact: true }).selectOption('hold');
   await page.getByRole('button', { name: 'Tre spelare', exact: true }).click();
   await expect(page.getByRole('combobox', { name: /Kontroll spelare/ })).toHaveCount(3);
   await page.getByRole('button', { name: 'Fyra spelare', exact: true }).click();
@@ -57,14 +58,14 @@ test('four-player touch controls fit the screen with usable buttons', async ({ p
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: info.outputPath('four-player-touch.png') });
 });
-test('twenty events, mixed Disney cast and normal-flow start controls stay usable', async ({ page }, info) => {
+test('varied events, mixed Disney cast and normal-flow start controls stay usable', async ({ page }, info) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto('./');
   await expect(page).toHaveTitle('Sagospelen');
   await expect(page.locator('.preview-canvas')).toHaveAttribute('data-rendered', 'true');
-  await page.getByRole('button', { name: 'Alla · 20', exact: true }).click();
-  await expect(page.locator('.event-card')).toHaveCount(20);
+  await page.getByRole('button', { name: 'Alla · 16', exact: true }).click();
+  await expect(page.locator('.event-card')).toHaveCount(16);
   await page.getByRole('button', { name: 'Hopp · 4', exact: true }).click();
   await expect(page.locator('.event-card')).toHaveCount(4);
   await page.getByRole('button', { name: 'Välj Stavhopp', exact: true }).click();
@@ -129,6 +130,7 @@ test('twenty illustrated characters render without clipping and new choices surv
 test('two keyboard runners move independently, save on pause and restore after reload', async ({ page }, info) => {
   await page.clock.install();
   await page.goto('./');
+  await page.getByRole('combobox', { name: 'Löpstil', exact: true }).selectOption('hold');
   await page.getByRole('button', { name: 'Två spelare', exact: true }).click();
   await page.getByRole('combobox', { name: 'Kontroll spelare 1', exact: true }).selectOption('keyboard1');
   await page.getByRole('combobox', { name: 'Kontroll spelare 2', exact: true }).selectOption('keyboard2');
@@ -158,6 +160,7 @@ test('two keyboard runners move independently, save on pause and restore after r
 test('touch holds run, jumps work, and backgrounding pauses without time catch-up', async ({ page }, info) => {
   await page.clock.install();
   await page.goto('./');
+  await page.getByRole('combobox', { name: 'Löpstil', exact: true }).selectOption('hold');
   await page.getByRole('button', { name: 'Välj 110 m häck', exact: true }).click();
   await page.getByRole('combobox', { name: 'Kontroll spelare 1' }).selectOption('touch');
   await page.getByRole('button', { name: /^Starta grenen/ }).click();
@@ -207,6 +210,7 @@ test('manifest, art and saves work offline inside the configured game scope', as
   if (!href || !baseURL) throw new Error('No manifest');
   const manifest = await (await request.get(new URL(href, baseURL).href)).json();
   expect(manifest.scope).toBe(new URL(baseURL).pathname);
+  await expect(page.getByRole('link', { name: '← Alla spel' })).toHaveAttribute('href', `${new URL(baseURL).pathname}../`);
   await context.setOffline(true);
   await page.reload();
   const artBytes = await page.evaluate(async () => {
@@ -221,4 +225,101 @@ test('manifest, art and saves work offline inside the configured game scope', as
   await page.reload();
   await page.getByRole('button', { name: /Fortsätt sparad gren/ }).click();
   await expect(page.locator('.game-canvas')).toHaveAttribute('data-rendered', 'true');
+});
+
+for (const [event, name] of [
+  ['archery', 'Bågskytte'],
+  ['diving', 'Simhopp'],
+  ['weightlifting', 'Tyngdlyftning'],
+] as const) {
+  test(`${name} has its own controls, saves the attempt and renders four simultaneous players`, async ({ page }, info) => {
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.clock.install();
+    await page.goto('./');
+    await expect(page.locator('.event-card')).toHaveCount(16);
+    await page.getByRole('button', { name: 'Löpning · 5', exact: true }).click();
+    await expect(page.locator('.event-card')).toHaveCount(5);
+    await page.getByRole('button', { name: 'Andra sporter · 3', exact: true }).click();
+    await page.getByRole('button', { name: `Välj ${name}`, exact: true }).click();
+    await page.getByRole('button', { name: 'Fyra spelare', exact: true }).click();
+    for (let i = 1; i <= 4; i++) await page.getByRole('combobox', { name: `Kontroll spelare ${i}`, exact: true }).selectOption('touch');
+    await page.getByRole('button', { name: /^Starta grenen/ }).click();
+    await page.clock.runFor(3400);
+    await expect(page.locator('.game-canvas')).toHaveAttribute('data-rendered', 'true');
+    await expect(page.locator('.touch-controls')).toHaveCount(4);
+    const action = page.getByRole('button', {
+      name: `Spelare 1 ${event === 'archery' ? 'skjut' : event === 'diving' ? 'hoppa eller sträck' : 'lyft eller lås'}`,
+      exact: true,
+    });
+    const right = page.getByRole('button', {
+      name: `Spelare 1 ${event === 'archery' ? 'höger' : event === 'diving' ? 'rotera höger' : 'balansera vänster'}`,
+      exact: true,
+    });
+    if (event === 'diving') {
+      await action.click();
+      await page.clock.runFor(50);
+    }
+    if (event === 'weightlifting') {
+      const actionBounds = await action.boundingBox();
+      if (!actionBounds) throw new Error('Missing lift button');
+      await page.mouse.move(actionBounds.x + actionBounds.width / 2, actionBounds.y + actionBounds.height / 2);
+      for (let i = 0; i < 80; i++) {
+        const time = Number((await page.getByRole('timer').textContent())?.replace(',', '.'));
+        if ((Math.sin(time * 2.1) + 1) / 2 > 0.92) break;
+        await page.clock.runFor(50);
+      }
+      await page.mouse.down();
+      await page.clock.runFor(50);
+      await page.mouse.up();
+    }
+    const bounds = await right.boundingBox();
+    if (!bounds) throw new Error('Missing directional control');
+    await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+    await page.mouse.down();
+    await page.clock.runFor(event === 'weightlifting' ? 150 : 450);
+    await page.mouse.up();
+    await page.screenshot({ path: info.outputPath(`${event}.png`) });
+    for (const button of await page.locator('.touch-controls button').all()) await expect(button).toBeInViewport({ ratio: 1 });
+    await page.getByRole('button', { name: 'Pausa tävlingen' }).click();
+    const saved = await page.evaluate((key) => JSON.parse(localStorage.getItem(key) || '{}'), key);
+    expect(saved.event).toBe(event);
+    const own = saved.runners[0].skill,
+      other = saved.runners[1].skill;
+    if (event === 'archery') {
+      expect(own.aim).toBeGreaterThan(other.aim + 0.2);
+      expect(own.stage).toBe('ready');
+    } else {
+      expect(own.stage, JSON.stringify(own)).toBe('active');
+      expect(other.stage).toBe('ready');
+    }
+    await page.reload();
+    await page.getByRole('button', { name: /Fortsätt sparad gren/ }).click();
+    await page.getByRole('button', { name: 'Pausa tävlingen' }).click();
+    const restored = await page.evaluate((key) => JSON.parse(localStorage.getItem(key) || '{}'), key);
+    expect(restored.runners[0].skill.aim).toBeCloseTo(own.aim, 2);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    expect(errors).toEqual([]);
+  });
+}
+
+test('arcade is the default and faster alternating keyboard taps move a player further', async ({ page }) => {
+  await page.clock.install();
+  await page.goto('./');
+  await expect(page.getByRole('combobox', { name: 'Löpstil', exact: true })).toHaveValue('rhythm');
+  await page.getByRole('button', { name: 'Två spelare', exact: true }).click();
+  await page.getByRole('combobox', { name: 'Kontroll spelare 1', exact: true }).selectOption('keyboard1');
+  await page.getByRole('combobox', { name: 'Kontroll spelare 2', exact: true }).selectOption('keyboard2');
+  await page.getByRole('button', { name: /^Starta grenen/ }).click();
+  await page.clock.runFor(3300);
+  for (let beat = 0; beat < 40; beat++) {
+    await page.keyboard.press(beat % 2 ? 'd' : 'a');
+    if (beat % 4 === 0) await page.keyboard.press((beat / 4) % 2 ? 'ArrowRight' : 'ArrowLeft');
+    await page.clock.runFor(100);
+  }
+  await page.getByRole('button', { name: 'Pausa tävlingen' }).click();
+  const saved = await page.evaluate((key) => JSON.parse(localStorage.getItem(key) || '{}'), key);
+  expect(saved.settings.assist).toBe(false);
+  expect(saved.runners[0].x).toBeGreaterThan(saved.runners[1].x + 10);
+  expect(saved.runners[0].speed).toBeGreaterThan(saved.runners[1].speed + 2);
 });

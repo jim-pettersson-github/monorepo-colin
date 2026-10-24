@@ -10,11 +10,23 @@ export function validNetworkSettings(value: unknown): value is Settings {
 export function validNetworkState(value: unknown): value is GameState {
   return validGame(value) && validNetworkSettings(value.settings);
 }
-const merge = (a: Commands, b: Commands): Commands => ({ hold: b.hold, action: a.action || b.action, feet: [...a.feet, ...b.feet].slice(0, 8) });
+const merge = (a: Commands, b: Commands): Commands => ({
+  steer: b.steer,
+  hold: b.hold,
+  action: a.action || b.action,
+  feet: [...a.feet, ...b.feet].slice(0, 8),
+});
 function validCommands(value: unknown): value is Commands {
   if (!value || typeof value !== 'object') return false;
   const c = value as Commands;
-  return typeof c.hold === 'boolean' && typeof c.action === 'boolean' && Array.isArray(c.feet) && c.feet.length <= 8 && c.feet.every((f) => f === 0 || f === 1);
+  return (
+    (c.steer === undefined || [-1, 0, 1].includes(c.steer)) &&
+    typeof c.hold === 'boolean' &&
+    typeof c.action === 'boolean' &&
+    Array.isArray(c.feet) &&
+    c.feet.length <= 8 &&
+    c.feet.every((f) => f === 0 || f === 1)
+  );
 }
 export class NetworkSession extends Session {
   readonly wire: NetworkPlay<GameState, Commands>;
@@ -30,7 +42,7 @@ export class NetworkSession extends Session {
       validCommand: validCommands,
       neutral,
       merge,
-      afterConsume: (c) => ({ ...neutral(), hold: c.hold }),
+      afterConsume: (c) => ({ ...neutral(), hold: c.hold, steer: c.steer }),
       apply: (state) => {
         this.state = state;
       },

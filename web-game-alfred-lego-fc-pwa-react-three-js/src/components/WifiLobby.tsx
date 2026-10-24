@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { type ReactNode, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { MatchClubs } from '../game/clubs';
 import { defaultClubs, getClub, validClub } from '../game/clubs';
 import { cupName } from '../game/cups';
@@ -7,9 +7,11 @@ import type { CupKind, MatchState } from '../game/model';
 import { createMatch } from '../game/model';
 import { validNetworkMatch } from '../game/network-session';
 import { decodeSignal, PeerLink } from '../game/peer-link';
+import { ONLINE_ICE, Room, roomServer } from '../game/room-server';
 import { ControlSetup } from './ControlSetup';
 import { FullscreenButton } from './FullscreenButton';
 import { QrExchange } from './QrExchange';
+import { RoomCodeCard, RoomInvite, RoomJoin } from './RoomPairing';
 import { SoundToggle } from './SoundControls';
 import { TeamSelection } from './TeamSelection';
 import './wifi.css';
@@ -25,6 +27,17 @@ const statusText = {
   closed: 'Anslutningen är stängd.',
   error: 'Anslutningen kunde inte fortsätta.',
 };
+
+// With a room code, QR pairing is the fallback for devices without internet.
+function QrFallback({ folded, children }: { folded: boolean; children: ReactNode }) {
+  if (!folded) return children;
+  return (
+    <details className='wifi-help'>
+      <summary>Samma Wi-Fi utan internet? Para ihop med QR-kod</summary>
+      {children}
+    </details>
+  );
+}
 
 export function WifiLobby({
   input,
@@ -47,6 +60,10 @@ export function WifiLobby({
   const [guestReady, setGuestReady] = useState(false);
   const [ready, setReady] = useState(false);
   const owned = useRef<PeerLink | null>(null);
+  const [room, setRoom] = useState<Room | null>(null);
+  const [viaRoom, setViaRoom] = useState(false);
+  const ownedRoom = useRef<Room | null>(null);
+  const online = !!roomServer();
   const transferred = useRef(false);
   const launch = useRef(onLaunch);
   launch.current = onLaunch;
@@ -57,6 +74,8 @@ export function WifiLobby({
   const supported = window.isSecureContext && typeof RTCPeerConnection !== 'undefined';
   useEffect(
     () => () => {
+      // The room is only for pairing; a started match needs no more invitations.
+      ownedRoom.current?.close();
       if (!transferred.current) owned.current?.close();
     },
     [],
@@ -105,6 +124,10 @@ export function WifiLobby({
   const reset = () => {
     owned.current?.close();
     owned.current = null;
+    ownedRoom.current?.close();
+    ownedRoom.current = null;
+    setRoom(null);
+    setViaRoom(false);
     setLink(null);
     setRole(null);
     setError('');
@@ -125,7 +148,7 @@ export function WifiLobby({
         </div>
       </header>
       <section className={`wifi-intro ${role ? 'wifi-intro-compact' : ''}`}>
-        <p className='eyebrow'>TVÅ ENHETER · SAMMA WI-FI</p>
+        <p className='eyebrow'>TVÅ ENHETER · {online ? 'WI-FI ELLER INTERNET' : 'SAMMA WI-FI'}</p>
         {role ? (
           <h1>{cupMatch ? `${cupName(cupMatch)} via Wi-Fi.` : leagueMatch ? 'Ligamatch via Wi-Fi.' : 'Wi-Fi-match.'}</h1>
         ) : (
@@ -170,8 +193,19 @@ export function WifiLobby({
             onClick={async () => {
               setRole('host');
               setError('');
+              let open: Room | null = null;
+              let problem = '';
+              if (online)
+                try {
+                  open = await Room.open();
+                  ownedRoom.current = open;
+                  setRoom(open);
+                } catch (e) {
+                  problem = `${e instanceof Error ? e.message : 'Spelservern svarar inte.'} Para ihop med QR-koden istället.`;
+                }
               try {
-                await keep(new PeerLink('host')).createOffer();
+                await keep(new PeerLink('host', open ? ONLINE_ICE : [])).createOffer();
+                if (problem) setError(problem);
               } catch (e) {
                 setError(e instanceof Error ? e.message : 'Matchkoden kunde inte skapas.');
               }
@@ -183,7 +217,7 @@ export function WifiLobby({
           {!fixture && (
             <button type='button' disabled={!supported} onClick={() => setRole('guest')}>
               <strong>Anslut</strong>
-              <span>Läs kompisens kod · Spelare 2</span>
+              <span>{online ? 'Skriv rumskoden eller läs QR-koden · Spelare 2' : 'Läs kompisens kod · Spelare 2'}</span>
             </button>
           )}
         </div>
@@ -232,28 +266,48 @@ export function WifiLobby({
               </label>
             </details>
           )}
-          {!connected && link?.status !== 'error' && link?.status !== 'closed' && (
-            <QrExchange
-              role={role}
-              code={link?.code || ''}
-              onCode={async (value) => {
-                if (role === 'host') {
-                  if (!link?.code) throw new Error('Vänta tills din matchkod är klar.');
-                  await link.acceptAnswer(value);
-                } else {
-                  const signal = await decodeSignal(value);
-                  if (signal.type !== 'offer') throw new Error('Börja med att läsa värdens matchkod.');
-                  const next = keep(new PeerLink('guest'));
-                  try {
-                    await next.createAnswer(value);
-                  } catch (e) {
-                    next.close();
-                    setLink(null);
-                    throw e;
+          {role === 'host' && room && !connected && link?.status !== 'error' && link?.status !== 'closed' && (
+            <section className='wifi-connection-state' aria-label='Rumskod'>
+              <RoomCodeCard room={room} />
+              {link && <RoomInvite room={room} link={link} onError={setError} />}
+            </section>
+          )}
+          {role === 'guest' && online && !link && !viaRoom && (
+            <section className='wifi-connection-state' aria-label='Rumskod'>
+              <strong>Skriv kompisens rumskod</strong>
+              <p>Koden står på värdens skärm. Ni kan vara på samma Wi-Fi eller på olika ställen.</p>
+              <RoomJoin
+                onLink={(next) => {
+                  setViaRoom(true);
+                  keep(next);
+                }}
+              />
+            </section>
+          )}
+          {!connected && !viaRoom && link?.status !== 'error' && link?.status !== 'closed' && (
+            <QrFallback folded={role === 'host' ? !!room : online && !link}>
+              <QrExchange
+                role={role}
+                code={link?.code || ''}
+                onCode={async (value) => {
+                  if (role === 'host') {
+                    if (!link?.code) throw new Error('Vänta tills din matchkod är klar.');
+                    await link.acceptAnswer(value);
+                  } else {
+                    const signal = await decodeSignal(value);
+                    if (signal.type !== 'offer') throw new Error('Börja med att läsa värdens matchkod.');
+                    const next = keep(new PeerLink('guest'));
+                    try {
+                      await next.createAnswer(value);
+                    } catch (e) {
+                      next.close();
+                      setLink(null);
+                      throw e;
+                    }
                   }
-                }
-              }}
-            />
+                }}
+              />
+            </QrFallback>
           )}
           <ControlSetup
             input={input}

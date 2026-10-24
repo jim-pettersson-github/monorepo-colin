@@ -2,27 +2,33 @@ import { expect, test } from '@playwright/test';
 import { GameInput } from '../src/game/input';
 import type { Commands, EventId, GameState } from '../src/game/model';
 import {
+  allEvents,
   championshipEvents,
   createGame,
   defaultSettings,
   events,
   jumpEvent,
+  legacyChampionshipEvents,
   neutral,
   nextAttempt,
   nextEvent,
   obstacleCount,
   obstaclePosition,
   raceScale,
+  skillEvent,
   stationaryEvent,
 } from '../src/game/model';
 import { Session } from '../src/game/session';
 import { step } from '../src/game/simulation';
-import { loadGame, recordResults, SAVE_KEY, saveGame, validGame, validSettings } from '../src/game/storage';
+import { skillAI } from '../src/game/skill-sports';
+import { loadGame, loadSettings, recordResults, SAVE_KEY, saveGame, saveSettings, validGame, validSettings } from '../src/game/storage';
 
+const assistedSettings = () => ({ ...defaultSettings(), assist: true });
 function auto(s: GameState): Commands {
   const r = s.runners[0];
+  if (skillEvent(s.event)) return skillAI(s, r, 0);
   const count = obstacleCount(s.event);
-  if (events.find((e) => e.id === s.event)?.type === 'run' && !count) return { ...neutral(), hold: true };
+  if (allEvents.find((e) => e.id === s.event)?.type === 'run' && !count) return { ...neutral(), hold: true };
   return {
     feet: [],
     hold: true,
@@ -42,7 +48,7 @@ function complete(s: GameState) {
 }
 for (const event of events)
   test(`${event.name} completes with valid scores and a usable human result`, () => {
-    const s = createGame({ ...defaultSettings(), event: event.id });
+    const s = createGame({ ...assistedSettings(), event: event.id });
     for (let attempt = 0; attempt < (event.type === 'run' ? 1 : 3); attempt++) {
       complete(s);
       expect(s.runners[0].result, `${event.id} attempt ${attempt}`).not.toBeNull();
@@ -55,14 +61,15 @@ for (const event of events)
     step(s, [auto(s), neutral()]);
     expect(s).toEqual(before);
   });
-test('the catalogue contains twenty individual events and no relays', () => {
-  expect(events).toHaveLength(20);
-  expect(new Set(events.map((e) => e.id)).size).toBe(20);
-  expect(events.filter((e) => e.type === 'run')).toHaveLength(12);
+test('the catalogue has exactly five running events and three distinct additional sports', () => {
+  expect(events).toHaveLength(16);
+  expect(new Set(events.map((e) => e.id)).size).toBe(16);
+  expect(events.filter((e) => e.type === 'run')).toHaveLength(5);
+  expect(events.filter((e) => e.type === 'skill').map((e) => e.id)).toEqual(['archery', 'diving', 'weightlifting']);
 });
 test('alternating steps accelerate, repeated same-foot taps do not, and holding works only in assist mode', () => {
   const run = (assist: boolean, pattern: 'repeat' | 'alternate' | 'hold') => {
-    const s = createGame({ ...defaultSettings(), assist });
+    const s = createGame({ ...assistedSettings(), assist });
     s.phase = 'playing';
     for (let i = 0; i < 300; i++)
       step(s, [
@@ -77,7 +84,7 @@ test('alternating steps accelerate, repeated same-foot taps do not, and holding 
 });
 test('a missed hurdle slows the runner while a timed jump clears it', () => {
   const run = (jump: boolean) => {
-    const s = createGame({ ...defaultSettings(), event: 'hurdles' });
+    const s = createGame({ ...assistedSettings(), event: 'hurdles' });
     s.phase = 'playing';
     s.runners[0].x = 10;
     s.runners[0].speed = 10;
@@ -88,18 +95,18 @@ test('a missed hurdle slows the runner while a timed jump clears it', () => {
   expect(run(true).stumble).toBe(0);
 });
 test('field events detect overrunning the line and tresteg rewards the two extra landing actions', () => {
-  const foul = createGame({ ...defaultSettings(), event: 'javelin' });
+  const foul = createGame({ ...assistedSettings(), event: 'javelin' });
   foul.phase = 'playing';
   for (let i = 0; i < 240; i++) step(foul, [{ ...neutral(), hold: true }, neutral()]);
   expect(foul.runners[0].foul).toBe(true);
   expect(foul.runners[0].result).toBeNull();
-  const triple = createGame({ ...defaultSettings(), event: 'tripleJump' });
+  const triple = createGame({ ...assistedSettings(), event: 'tripleJump' });
   complete(triple);
   expect(triple.runners[0].hops).toBe(3);
   expect(triple.runners[0].result).toBeGreaterThan(18);
 });
 test('the six-event individual championship preserves points across events and cannot award twice', () => {
-  const s = createGame({ ...defaultSettings(), championship: true });
+  const s = createGame({ ...assistedSettings(), championship: true });
   for (const event of championshipEvents) {
     expect(s.event).toBe(event);
     for (let trial = 0; trial < 3 && s.phase !== 'results'; trial++) {
@@ -119,19 +126,19 @@ test('the six-event individual championship preserves points across events and c
   expect(validGame(s)).toBe(true);
 });
 test('abandoned input times out safely and long races finish in less than a minute of arcade time', () => {
-  const stopped = createGame(defaultSettings());
+  const stopped = createGame(assistedSettings());
   for (let i = 0; i < 5000 && stopped.phase !== 'results'; i++) step(stopped, [neutral(), neutral()]);
   expect(stopped.runners[0].result).toBeNull();
   for (const event of ['marathon', 'raceWalk', 'distance10000'] as EventId[]) {
-    const s = createGame({ ...defaultSettings(), event });
+    const s = createGame({ ...assistedSettings(), event });
     complete(s);
     expect(s.time).toBeLessThan(65);
-    expect(s.runners[0].x).toBeCloseTo(events.find((e) => e.id === event)?.distance ?? 0);
+    expect(s.runners[0].x).toBeCloseTo(allEvents.find((e) => e.id === event)?.distance ?? 0);
   }
 });
 test('pause and foreground loss freeze time without catching up', () => {
   const input = { start() {}, stop() {}, available: () => true, consume: () => [{ ...neutral(), hold: true }, neutral()] } as unknown as GameInput;
-  const s = new Session(createGame(defaultSettings()), input);
+  const s = new Session(createGame(assistedSettings()), input);
   s.state.phase = 'playing';
   s.advance(0.1);
   s.setForeground(false);
@@ -153,7 +160,7 @@ test('saves recover their backup, reject corrupt snapshots and keep separate ass
     value: { getItem: (k: string) => entries.get(k) ?? null, setItem: (k: string, v: string) => entries.set(k, v) },
   });
   try {
-    const s = createGame(defaultSettings());
+    const s = createGame(assistedSettings());
     saveGame(s);
     saveGame(s);
     entries.set(SAVE_KEY, 'bad');
@@ -229,7 +236,7 @@ test('two touch runners hold and release their own steps independently', () => {
 
 test('three and four humans have independent lanes and complete with no unintended AI', () => {
   for (const players of [3, 4] as const) {
-    const s = createGame({ ...defaultSettings(), players });
+    const s = createGame({ ...assistedSettings(), players });
     s.phase = 'playing';
     expect(s.runners.map((r) => r.human)).toEqual(players === 3 ? [0, 1, 2, null] : [0, 1, 2, 3]);
     for (let i = 0; i < 60; i++) step(s, [neutral(), neutral(), { ...neutral(), hold: true }, neutral()]);
@@ -263,7 +270,7 @@ test('four-player input keeps touches and their releases separate', () => {
 });
 
 test('four-player settings reject shared physical controls and duplicate characters but accept shared touch', () => {
-  const s = { ...defaultSettings(), players: 4 as const };
+  const s = { ...assistedSettings(), players: 4 as const };
   expect(validSettings(s)).toBe(true);
   expect(validSettings({ ...s, sources: ['keyboard1', 'keyboard2', 'keyboard3', 'keyboard1'] })).toBe(false);
   expect(validSettings({ ...s, sources: ['pad:0', 'pad:1', 'pad:2', 'pad:0'] })).toBe(false);
@@ -274,7 +281,7 @@ test('four-player settings reject shared physical controls and duplicate charact
 
 test('legacy two-slot saves restore and gain slots for players three and four', () => {
   const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
-  const legacy = createGame({ ...defaultSettings(), players: 2, characters: ['mickey', 'stitch'], sources: ['keyboard1', 'keyboard2'] });
+  const legacy = createGame({ ...assistedSettings(), players: 2, characters: ['mickey', 'stitch'], sources: ['keyboard1', 'keyboard2'] });
   legacy.phase = 'playing';
   legacy.runners[1].x = 12;
   Object.defineProperty(globalThis, 'localStorage', {
@@ -370,4 +377,162 @@ test('network controls keep edge actions once, pause all peers and reject stale 
   expect(host.consume(1).action).toBe(false);
   host.close();
   guest.close();
+});
+
+test('archery rewards a centred shot, totals three arrows and never scores the same shot twice', () => {
+  const shoot = (aim: number) => {
+    const s = createGame({ ...assistedSettings(), event: 'archery' });
+    s.phase = 'playing';
+    s.time = Math.PI / (2 * 1.7) - 1 / 60;
+    if (!s.runners[0].skill) throw new Error('No skill state');
+    s.runners[0].skill.aim = aim;
+    step(s, [{ ...neutral(), action: true }]);
+    for (let i = 0; i < 55; i++) step(s, [neutral()]);
+    return s;
+  };
+  expect(shoot(0).runners[0].result).toBe(10);
+  expect(shoot(1).runners[0].result).toBe(2);
+  const s = createGame({ ...assistedSettings(), event: 'archery' });
+  for (let i = 0; i < 3; i++) {
+    complete(s);
+    if (s.phase === 'attempt-result') nextAttempt(s);
+  }
+  expect(s.runners[0].result).toBe(s.runners[0].attempts.reduce<number>((sum, n) => sum + (n ?? 0), 0));
+  const before = structuredClone(s);
+  step(s, [{ ...neutral(), action: true }]);
+  expect(s).toEqual(before);
+});
+
+test('diving needs a jump, rotation and a straightened entry; weightlifting needs timing, balance and a lock', () => {
+  const good = createGame({ ...assistedSettings(), event: 'diving', difficulty: 'hard' });
+  complete(good);
+  expect(good.runners[0].result).toBeGreaterThan(8);
+  const tucked = createGame({ ...assistedSettings(), event: 'diving' });
+  tucked.phase = 'playing';
+  step(tucked, [{ ...neutral(), action: true }]);
+  for (let i = 0; i < 170; i++) step(tucked, [{ ...neutral(), steer: 1 }]);
+  expect(tucked.runners[0].result).toBe(1);
+  const early = createGame({ ...assistedSettings(), event: 'weightlifting' });
+  early.phase = 'playing';
+  step(early, [{ ...neutral(), action: true }]);
+  expect(early.runners[0].foul).toBe(true);
+  const lifted = createGame({ ...assistedSettings(), event: 'weightlifting' });
+  complete(lifted);
+  expect(lifted.runners[0].result).toBe(40);
+  const unbalanced = createGame({ ...assistedSettings(), event: 'weightlifting' });
+  unbalanced.phase = 'playing';
+  unbalanced.time = 0.8;
+  step(unbalanced, [{ ...neutral(), action: true }]);
+  for (let i = 0; i < 200; i++) step(unbalanced, [{ ...neutral(), steer: 1 }]);
+  expect(unbalanced.runners[0].foul).toBe(true);
+});
+
+test('retired running events and old championship programmes still resume without losing progress', () => {
+  for (const event of ['marathon', 'middle800', 'raceWalk'] as const) {
+    const s = createGame({ ...assistedSettings(), event });
+    delete s.programme;
+    for (const r of s.runners) delete r.skill;
+    expect(validGame(s)).toBe(true);
+    complete(s);
+    expect(s.runners[0].result).not.toBeNull();
+  }
+  const s = createGame({ ...assistedSettings(), championship: true });
+  delete s.programme;
+  s.round = 1;
+  s.event = 'sprint200';
+  s.points = [5, 3, 2, 1];
+  expect(validGame(s)).toBe(true);
+  for (const event of legacyChampionshipEvents.slice(1)) {
+    expect(s.event).toBe(event);
+    for (let i = 0; i < 3 && s.phase !== 'results'; i++) {
+      complete(s);
+      if (s.phase === 'attempt-result') nextAttempt(s);
+    }
+    nextEvent(s);
+  }
+  expect(s.phase).toBe('results');
+  expect(s.round).toBe(5);
+  expect(validGame(s)).toBe(true);
+});
+
+test('held aim and balance directions remain independent for four touch players and clear on release', () => {
+  const input = new GameInput();
+  input.start(['touch', 'touch', 'touch', 'touch'], 4);
+  input.press(0, 1, true);
+  input.press(1, 0, true);
+  for (let i = 0; i < 3; i++) {
+    const commands = input.consume();
+    expect(commands.map((c) => c.steer)).toEqual([1, -1, 0, 0]);
+  }
+  input.press(0, 0, true);
+  expect(input.consume()[0].steer).toBe(0);
+  input.press(1, 0, false);
+  expect(input.consume()[1].steer).toBe(0);
+  input.stop();
+  expect(input.consume().every((c) => !c.steer)).toBe(true);
+});
+
+test('arcade speed follows alternating cadence instead of saturating at every tapping pace', () => {
+  expect(defaultSettings().assist).toBe(false);
+  const race = (rate: number, kind: 'alternate' | 'repeat' | 'both' | 'hold' = 'alternate') => {
+    const s = createGame(defaultSettings());
+    s.phase = 'playing';
+    let last = -1;
+    for (let i = 0; i < 480; i++) {
+      const beat = Math.floor((i * rate) / 60),
+        tap = beat !== last;
+      last = beat;
+      const feet: (0 | 1)[] = tap && kind !== 'hold' ? (kind === 'both' ? [0, 1] : [kind === 'repeat' ? 0 : ((beat % 2) as 0 | 1)]) : [];
+      step(s, [{ feet, hold: true, action: false }]);
+    }
+    return s;
+  };
+  const slow = race(2),
+    medium = race(4),
+    fast = race(6),
+    sprint = race(8);
+  expect(medium.runners[0].speed).toBeGreaterThan(slow.runners[0].speed + 1);
+  expect(fast.runners[0].speed).toBeGreaterThan(medium.runners[0].speed + 1);
+  expect(sprint.runners[0].speed).toBeGreaterThan(fast.runners[0].speed + 1);
+  expect(sprint.runners[0].speed).toBeLessThanOrEqual(10.6);
+  expect(race(8, 'hold').runners[0].x).toBe(0);
+  expect(race(8, 'repeat').runners[0].x).toBeLessThan(1);
+  expect(race(8, 'both').runners[0].x).toBe(0);
+  for (let i = 0; i < 180; i++) step(sprint, [neutral()]);
+  expect(sprint.runners[0].speed).toBeLessThan(0.1);
+});
+
+test('two arcade players race at their own cadence with identical character limits', () => {
+  const s = createGame({ ...defaultSettings(), players: 2 });
+  s.phase = 'playing';
+  for (let i = 0; i < 420; i++)
+    step(s, [
+      { feet: i % 8 === 0 ? [((i / 8) % 2) as 0 | 1] : [], hold: false, action: false },
+      { feet: i % 20 === 0 ? [((i / 20) % 2) as 0 | 1] : [], hold: false, action: false },
+    ]);
+  expect(s.runners[0].x).toBeGreaterThan(s.runners[1].x + 20);
+  expect(validGame(s)).toBe(true);
+});
+
+test('new menus use cadence by default, explicit assistance persists and saved races retain their chosen style', () => {
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  const entries = new Map<string, string>();
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    value: { getItem: (key: string) => entries.get(key) ?? null, setItem: (key: string, value: string) => entries.set(key, value) },
+  });
+  try {
+    const old = { ...assistedSettings() };
+    delete old.runningStyleVersion;
+    entries.set('sagospelen-settings-v1', JSON.stringify(old));
+    expect(loadSettings()?.assist).toBe(false);
+    saveSettings({ ...defaultSettings(), assist: true });
+    expect(loadSettings()?.assist).toBe(true);
+    const saved = createGame(old);
+    saveGame(saved);
+    expect(loadGame()?.settings.assist).toBe(true);
+  } finally {
+    if (descriptor) Object.defineProperty(globalThis, 'localStorage', descriptor);
+    else Reflect.deleteProperty(globalThis, 'localStorage');
+  }
 });

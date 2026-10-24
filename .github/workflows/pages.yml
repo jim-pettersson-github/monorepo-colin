@@ -39,6 +39,8 @@ jobs:
         working-directory: web-game-elevator-pwo-react-pixi-js
     env:
       VITE_BASE_PATH: /${{ github.event.repository.name }}/colin-elevator/
+      # Room codes for online multiplayer; see game-server/.
+      VITE_ROOM_SERVER: https://games.charliecare.se/api.php
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:

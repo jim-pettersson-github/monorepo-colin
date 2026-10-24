@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react';
 import type { GameInput, Mapping } from '../game/input';
 import { keyboardControls, sourceLabel } from '../game/input';
 import type { EventId, Settings, Source } from '../game/model';
-import { character, eventInfo, jumpEvent, separateControls } from '../game/model';
+import { character, controlLabels, eventInfo, separateControls, skillEvent } from '../game/model';
 import { Key, PadFace } from './Icons';
 export function controlsReady(settings: Settings, input: GameInput) {
   return (
@@ -16,7 +16,19 @@ export function controlsReady(settings: Settings, input: GameInput) {
     }) && separateControls(settings.sources, settings.players)
   );
 }
-export function ControlLegend({ source, input, player, assist }: { source: Source; input: GameInput; player: number; assist: boolean }) {
+export function ControlLegend({
+  source,
+  input,
+  player,
+  assist,
+  event = 'sprint100',
+}: {
+  source: Source;
+  input: GameInput;
+  player: number;
+  assist: boolean;
+  event?: EventId;
+}) {
   const pad = source.startsWith('pad:');
   const m = pad ? input.mapping(Number(source.slice(4))) : null;
   const touch = source === 'touch';
@@ -40,11 +52,11 @@ export function ControlLegend({ source, input, player, assist }: { source: Sourc
             <Key>{keys[1]}</Key>
           </>
         )}
-        <small>{assist ? 'Håll = spring' : 'Växla = spring'}</small>
+        <small>{controlLabels(event, assist)[0]}</small>
       </span>
       <span className='control-pair'>
         {pad && m ? <PadFace index={m.action} /> : touch ? <span className='touch-key'>★</span> : <Key>{keys[2]}</Key>}
-        <small>Hoppa / kasta</small>
+        <small>{controlLabels(event, assist)[1]}</small>
       </span>
     </section>
   );
@@ -79,7 +91,7 @@ export function ControlSetup({ settings, input, onChange }: { settings: Settings
               ))}
             </select>
           </label>
-          <ControlLegend source={settings.sources[i]} input={input} player={i} assist={settings.assist} />
+          <ControlLegend source={settings.sources[i]} input={input} player={i} assist={settings.assist} event={settings.event} />
         </div>
       ))}
       {!controlsReady(settings, input) && (
@@ -124,7 +136,7 @@ export function TouchControls({ input, player, labelPlayer = player, event }: { 
         <button
           type='button'
           key={button}
-          aria-label={`Spelare ${labelPlayer + 1} ${button === 0 ? 'vänster steg' : button === 1 ? 'höger steg' : eventInfo(event).type === 'run' || jumpEvent(event) ? 'hoppa' : 'kasta'}`}
+          aria-label={`Spelare ${labelPlayer + 1} ${controlLabels(event, true)[button + 2]}`}
           className={button === 2 ? 'action-touch' : ''}
           onPointerDown={(e) => {
             e.preventDefault();
@@ -140,15 +152,19 @@ export function TouchControls({ input, player, labelPlayer = player, event }: { 
         >
           {button === 2 ? (
             <>
-              <span>↑</span>
-              <small>{eventInfo(event).type === 'run' || jumpEvent(event) ? 'Hoppa' : 'Kasta'}</small>
+              <span>{event === 'archery' ? '◎' : event === 'weightlifting' ? '↥' : '↑'}</span>
+              <small>{controlLabels(event, true)[1]}</small>
             </>
           ) : (
             <>
-              <svg viewBox='0 0 40 40' aria-hidden='true'>
-                <ellipse cx={button === 0 ? 15 : 25} cy='12' rx='6' ry='10' fill='currentColor' />
-                <path d={button === 0 ? 'M11 22q-4 11 2 12h7q5-3-1-11Z' : 'M21 22q-4 11 2 12h7q5-3-1-11Z'} fill='currentColor' />
-              </svg>
+              {skillEvent(event) ? (
+                <span>{button === 0 ? '←' : '→'}</span>
+              ) : (
+                <svg viewBox='0 0 40 40' aria-hidden='true'>
+                  <ellipse cx={button === 0 ? 15 : 25} cy='12' rx='6' ry='10' fill='currentColor' />
+                  <path d={button === 0 ? 'M11 22q-4 11 2 12h7q5-3-1-11Z' : 'M21 22q-4 11 2 12h7q5-3-1-11Z'} fill='currentColor' />
+                </svg>
+              )}
               <small>{button === 0 ? 'Vänster' : 'Höger'}</small>
             </>
           )}

@@ -8,6 +8,7 @@ import type { LeagueAction, Season } from '../game/league';
 import { nextFixture, opponentClub } from '../game/league';
 import type { CupKind, Difficulty, MatchMode, MatchState, PlaybackSpeed, Team } from '../game/model';
 import { difficultyNames } from '../game/model';
+import { roomServer } from '../game/room-server';
 import { ControlSetup, controlsReady } from './ControlSetup';
 import { CupPanel } from './CupPanel';
 import { FullscreenButton } from './FullscreenButton';
@@ -105,6 +106,9 @@ export function StartMenu(props: Props) {
           ALFRED <span>FC</span>
         </a>
         <div className='header-tools'>
+          <a className='all-games-link' href={`${import.meta.env.BASE_URL}../`}>
+            ← Alla spel
+          </a>
           <SoundToggle />
           <FullscreenButton />
         </div>
@@ -191,8 +195,8 @@ export function StartMenu(props: Props) {
             {needsControls && !controlsReady(input, activeMode) && <p className='control-warning'>Välj olika, anslutna kontroller under Spelkontroller.</p>}
           </section>
           <button type='button' className='wifi-entry' disabled={simulating} onClick={props.onWifi}>
-            <strong>Spela via Wi-Fi</strong>
-            <span>Två enheter · Koppla ihop med QR-koder ↗</span>
+            <strong>{roomServer() ? 'Spela online' : 'Spela via Wi-Fi'}</strong>
+            <span>{roomServer() ? 'Två enheter · rumskod, eller QR på samma Wi-Fi ↗' : 'Två enheter · Koppla ihop med QR-koder ↗'}</span>
           </button>
           {hub ? (
             <>

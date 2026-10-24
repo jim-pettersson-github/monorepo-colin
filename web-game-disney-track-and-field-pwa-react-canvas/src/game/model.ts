@@ -22,7 +22,7 @@ export const characters = [
 ] as const;
 export type CharacterId = (typeof characters)[number]['id'];
 export const character = (id: CharacterId) => characters.find((c) => c.id === id) ?? characters[0];
-export const events = [
+const originalEvents = [
   {
     id: 'sprint100',
     name: '100 meter',
@@ -264,7 +264,66 @@ export const events = [
     mechanic: 'javelin',
   },
 ] as const;
-export const championshipEvents = ['sprint100', 'sprint200', 'hurdles', 'longJump', 'javelin', 'shotPut'] as const;
+const runningIds = ['sprint100', 'sprint200', 'sprint400', 'hurdles', 'steeplechase'];
+export const legacyEvents = originalEvents.filter((e) => e.type === 'run' && !runningIds.includes(e.id));
+const skillEvents = [
+  {
+    id: 'archery',
+    name: 'Bågskytte',
+    type: 'skill',
+    distance: 0,
+    unit: 'p',
+    label: 'SIKTA & SKJUT',
+    description: 'Flytta siktet med vänster och höger. Tajma höjden och skjut mot mitten. Tre pilar, totalpoäng.',
+    icon: 'archery',
+    record: 25,
+    mechanic: 'archery',
+  },
+  {
+    id: 'diving',
+    name: 'Simhopp',
+    type: 'skill',
+    distance: 0,
+    unit: 'p',
+    label: 'ROTERA & STRÄCK',
+    description: 'Hoppa från trampolinen. Rotera med vänster eller höger, sträck ut och landa rakt med huvudet först. Bäst av tre.',
+    icon: 'diving',
+    record: 8,
+    mechanic: 'diving',
+  },
+  {
+    id: 'weightlifting',
+    name: 'Tyngdlyftning',
+    type: 'skill',
+    distance: 0,
+    unit: 'kg',
+    label: 'LYFT · BALANSERA · LÅS',
+    description: 'Lyft i den gröna kraftzonen. Balansera med vänster och höger. Lås lyftet när stången är uppe. Tre tyngre försök.',
+    icon: 'weightlifting',
+    record: 60,
+    mechanic: 'weightlifting',
+  },
+] as const;
+export const events = [...originalEvents.filter((e) => e.type !== 'run' || runningIds.includes(e.id)), ...skillEvents];
+export const allEvents = [...originalEvents, ...skillEvents];
+export const legacyChampionshipEvents = ['sprint100', 'sprint200', 'hurdles', 'longJump', 'javelin', 'shotPut'] as const;
+export const championshipEvents = ['sprint100', 'archery', 'longJump', 'weightlifting', 'diving', 'javelin'] as const;
+export const programme = (state: GameState): readonly EventId[] => state.programme ?? legacyChampionshipEvents;
+export const skillEvent = (id: EventId) => eventInfo(id).type === 'skill';
+export const controlLabels = (id: EventId, assist: boolean) =>
+  id === 'archery'
+    ? ['Sikta', 'Skjut', 'vänster', 'höger', 'skjut']
+    : id === 'diving'
+      ? ['Rotera', 'Hoppa / sträck', 'rotera vänster', 'rotera höger', 'hoppa eller sträck']
+      : id === 'weightlifting'
+        ? ['Balansera', 'Lyft / lås', 'balansera vänster', 'balansera höger', 'lyft eller lås']
+        : [
+            assist ? 'Hjälpläge · håll' : 'Snabbare växling = mer fart',
+            eventInfo(id).type === 'run' || jumpEvent(id) ? 'Hoppa' : 'Kasta',
+            'vänster steg',
+            'höger steg',
+            eventInfo(id).type === 'run' || jumpEvent(id) ? 'hoppa' : 'kasta',
+          ];
 export const raceScale = (id: EventId) => Math.max(1, eventInfo(id).distance / 280);
 export const obstacleCount = (id: EventId) => (eventInfo(id).mechanic === 'steeple' ? 12 : eventInfo(id).mechanic === 'hurdle' ? 10 : 0);
 export const obstaclePosition = (id: EventId, index: number) =>
@@ -273,14 +332,15 @@ export const stationaryEvent = (id: EventId) => eventInfo(id).type === 'field' &
 export const verticalEvent = (id: EventId) => ['high', 'pole'].includes(eventInfo(id).mechanic);
 export const barHeight = (id: EventId, attempt: number) => (id === 'poleVault' ? [3, 4, 5] : [1.2, 1.55, 1.9])[attempt];
 export const jumpEvent = (id: EventId) => eventInfo(id).icon === 'jump';
-export type EventId = (typeof events)[number]['id'];
-export const eventInfo = (id: EventId) => events.find((e) => e.id === id) ?? events[0];
+export type EventId = (typeof allEvents)[number]['id'];
+export const eventInfo = (id: EventId) => allEvents.find((e) => e.id === id) ?? events[0];
 export type Source = 'keyboard1' | 'keyboard2' | 'keyboard3' | 'keyboard4' | 'touch' | `pad:${number}`;
 export function separateControls(sources: Source[], players: number) {
   const physical = sources.slice(0, players).filter((source) => source !== 'touch');
   return sources.length >= players && new Set(physical).size === physical.length;
 }
 export interface Settings {
+  runningStyleVersion?: 2;
   event: EventId;
   championship: boolean;
   players: 1 | 2 | 3 | 4;
@@ -290,15 +350,27 @@ export interface Settings {
   assist: boolean;
 }
 export const defaultSettings = (): Settings => ({
+  runningStyleVersion: 2,
   event: 'sprint100',
   championship: false,
   players: 1,
   characters: ['mickey', 'stitch', 'elsa', 'simba'],
   sources: ['keyboard1', 'keyboard2', 'keyboard3', 'keyboard4'],
   difficulty: 'easy',
-  assist: true,
+  assist: false,
 });
+export interface SkillState {
+  stage: 'ready' | 'active' | 'released' | 'done';
+  aim: number;
+  progress: number;
+  balance: number;
+  score: number;
+  target: number;
+  elapsed: number;
+}
+export const newSkill = (): SkillState => ({ stage: 'ready', aim: -0.65, progress: 0, balance: 0, score: 0, target: 0, elapsed: 0 });
 export interface Runner {
+  skill?: SkillState;
   character: CharacterId;
   human: 0 | 1 | 2 | 3 | null;
   x: number;
@@ -328,6 +400,7 @@ export interface Runner {
 }
 export interface GameState {
   version: 1;
+  programme?: EventId[];
   settings: Settings;
   event: EventId;
   round: number;
@@ -343,16 +416,24 @@ export interface Commands {
   feet: (0 | 1)[];
   hold: boolean;
   action: boolean;
+  steer?: -1 | 0 | 1;
 }
 export const neutral = (): Commands => ({ feet: [], hold: false, action: false });
 export const clamp = (x: number, a: number, b: number) => Math.max(a, Math.min(b, x));
 export const angle = (time: number) => 43 + Math.sin(time * 2.3) * 13;
 export const formatResult = (value: number | null, event: EventId) =>
-  value === null ? (eventInfo(event).type === 'run' ? 'Ej i mål' : 'Övertramp') : `${value.toFixed(2).replace('.', ',')} ${eventInfo(event).unit}`;
+  value === null
+    ? eventInfo(event).type === 'run'
+      ? 'Ej i mål'
+      : skillEvent(event)
+        ? 'Ej godkänt'
+        : 'Övertramp'
+    : `${value.toFixed(2).replace('.', ',')} ${eventInfo(event).unit}`;
 function runners(settings: Settings): Runner[] {
   const ids = settings.characters.slice(0, settings.players);
   for (const c of characters) if (!ids.includes(c.id) && ids.length < 4) ids.push(c.id);
   return ids.map((id, lane) => ({
+    skill: newSkill(),
     character: id,
     human: lane < settings.players ? (lane as 0 | 1 | 2 | 3) : null,
     x: 0,
@@ -384,6 +465,7 @@ function runners(settings: Settings): Runner[] {
 export function createGame(settings: Settings): GameState {
   return {
     version: 1,
+    programme: [...championshipEvents],
     settings: structuredClone(settings),
     event: settings.championship ? championshipEvents[0] : settings.event,
     round: 0,
@@ -419,9 +501,9 @@ export function nextAttempt(state: GameState) {
   state.phase = 'countdown';
 }
 export function nextEvent(state: GameState) {
-  if (state.phase !== 'results' || !state.settings.championship || state.round >= championshipEvents.length - 1) return;
+  if (state.phase !== 'results' || !state.settings.championship || state.round >= programme(state).length - 1) return;
   state.round++;
-  state.event = championshipEvents[state.round];
+  state.event = programme(state)[state.round];
   state.attempt = 0;
   state.time = 0;
   state.countdown = 3;

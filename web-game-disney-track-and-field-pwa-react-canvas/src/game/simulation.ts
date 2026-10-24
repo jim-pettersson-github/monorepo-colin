@@ -13,6 +13,7 @@ import {
   stationaryEvent,
   verticalEvent,
 } from './model';
+import { skillAI, stepSkill } from './skill-sports';
 export const STEP = 1 / 60;
 function launch(state: GameState, r: Runner) {
   r.launched = true;
@@ -63,6 +64,11 @@ export function step(state: GameState, input: Commands[], dt = STEP) {
     const ai = r.human === null;
     let command = r.human === null ? neutral() : (input[r.human] ?? neutral());
     const aiSpeed = (state.settings.difficulty === 'easy' ? 7 : state.settings.difficulty === 'normal' ? 8.7 : 10.1) + lane * 0.13;
+    if (info.type === 'skill') {
+      if (ai) command = skillAI(state, r, lane);
+      stepSkill(state, r, lane, command, dt);
+      continue;
+    }
     if (ai) {
       command = { feet: [], hold: state.time >= r.aiNext, action: false };
       const obstacle = obstacleCount(state.event);
@@ -71,14 +77,19 @@ export function step(state: GameState, input: Commands[], dt = STEP) {
       if (info.mechanic === 'triple' && r.landingWindow > 0) command.action = true;
     }
     r.stumble = Math.max(0, r.stumble - dt);
-    for (const foot of command.feet) {
-      if (foot !== r.lastFoot && state.time - r.lastStep >= 0.045) {
-        r.rhythm = clamp(r.rhythm + 0.22, 0, 1);
+    // Cadence determines effort, rather than accumulating taps until every pace reaches the cap.
+    for (const foot of new Set(command.feet).size > 1 ? [] : command.feet) {
+      const gap = state.time - r.lastStep;
+      if (foot !== r.lastFoot && gap >= 0.075) {
+        const cadence = r.lastFoot === -1 ? 0.15 : clamp(0.2 + 0.1 / gap, 0, 1);
+        r.rhythm += (cadence - r.rhythm) * 0.65;
         r.lastFoot = foot;
         r.lastStep = state.time;
       }
     }
-    r.rhythm = Math.max(0, r.rhythm - dt * 0.42);
+    const silence = state.time - r.lastStep;
+    r.rhythm = Math.min(r.rhythm, clamp(0.2 + 0.1 / Math.max(silence, 0.075), 0, 1));
+    if (silence > 0.65) r.rhythm = Math.max(0, r.rhythm - dt * 1.5);
     const effort = command.hold && (state.settings.assist || ai) ? 1 : r.rhythm;
     const walk = info.mechanic === 'walk';
     const target = r.stumble > 0 ? 2.3 : (ai ? aiSpeed : 10.6) * (walk ? 0.65 : 1) * effort;
@@ -146,7 +157,7 @@ export function step(state: GameState, input: Commands[], dt = STEP) {
     }
   }
   if (!state.runners.every((r) => r.done)) return;
-  if (info.type === 'field') {
+  if (info.type !== 'run') {
     for (const r of state.runners) r.attempts.push(r.result);
     if (state.attempt < 2) {
       state.phase = 'attempt-result';
@@ -154,7 +165,7 @@ export function step(state: GameState, input: Commands[], dt = STEP) {
     }
     for (const r of state.runners) {
       const valid = r.attempts.filter((n): n is number => n !== null);
-      r.result = valid.length ? Math.max(...valid) : null;
+      r.result = valid.length ? (state.event === 'archery' ? valid.reduce((sum, n) => sum + n, 0) : Math.max(...valid)) : null;
     }
   }
   state.phase = 'results';

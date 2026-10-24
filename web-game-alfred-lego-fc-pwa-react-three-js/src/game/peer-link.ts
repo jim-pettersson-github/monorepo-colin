@@ -172,14 +172,19 @@ export class PeerLink {
   code = '';
   error = '';
   private id: string = crypto.randomUUID();
-  private peer = new RTCPeerConnection({ iceServers: [] });
+  private peer: RTCPeerConnection;
   private channel?: RTCDataChannel;
   private listeners = new Set<() => void>();
   private messages = new Set<(message: unknown) => void>();
   private revision = 0;
   private timer?: ReturnType<typeof setTimeout>;
   private disposed = false;
-  constructor(public readonly role: PeerRole) {
+  // Wi-Fi pairing needs no ICE servers; internet pairing passes STUN servers.
+  constructor(
+    public readonly role: PeerRole,
+    iceServers: RTCIceServer[] = [],
+  ) {
+    this.peer = new RTCPeerConnection({ iceServers });
     this.peer.onconnectionstatechange = () => {
       if (['failed', 'disconnected'].includes(this.peer.connectionState)) this.fail('Anslutningen bröts. Koppla ihop enheterna igen för en ny match.');
     };
@@ -266,9 +271,11 @@ export class PeerLink {
             resolve();
           }
         };
+        // An unreachable STUN server can stall gathering; the addresses found so far are often enough.
         const timer = setTimeout(() => {
           done();
-          reject(new Error('Nätverksadresserna kunde inte hämtas. Försök igen.'));
+          if (this.peer.localDescription?.sdp.includes('a=candidate:')) resolve();
+          else reject(new Error('Nätverksadresserna kunde inte hämtas. Försök igen.'));
         }, 10_000);
         this.peer.addEventListener('icegatheringstatechange', check);
         this.peer.addEventListener('signalingstatechange', check);

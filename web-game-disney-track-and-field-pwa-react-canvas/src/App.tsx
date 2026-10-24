@@ -11,7 +11,6 @@ import type { CharacterId, GameState, Settings, Source } from './game/model';
 import {
   angle,
   barHeight,
-  championshipEvents,
   character,
   characters,
   createGame,
@@ -21,12 +20,15 @@ import {
   formatResult,
   jumpEvent,
   obstacleCount,
+  programme,
   raceScale,
   ranking,
+  skillEvent,
   stationaryEvent,
   verticalEvent,
 } from './game/model';
 import { NetworkSession, validNetworkSettings, validNetworkState } from './game/network-session';
+import { roomServer } from './game/room-server';
 import { Session } from './game/session';
 import { clearGame, loadGame, loadRecords, loadSettings, recordKey, saveSettings } from './game/storage';
 import './styles.css';
@@ -131,9 +133,11 @@ function Menu({
   const event = eventInfo(settings.event);
   const records = loadRecords();
   const best = records[recordKey(settings.event, settings.assist)];
-  const [category, setCategory] = useState<'all' | 'run' | 'jump' | 'throw'>('run');
+  const [category, setCategory] = useState<'all' | 'run' | 'jump' | 'throw' | 'skill'>('all');
   const visibleEvents = events.filter(
-    (e) => category === 'all' || (category === 'run' ? e.type === 'run' : category === 'jump' ? e.icon === 'jump' : e.icon === 'throw'),
+    (e) =>
+      category === 'all' ||
+      (category === 'run' ? e.type === 'run' : category === 'jump' ? e.icon === 'jump' : category === 'throw' ? e.icon === 'throw' : e.type === 'skill'),
   );
   const preview = useRef<CharacterId[]>(['mickey', 'stitch', 'elsa']);
   return (
@@ -141,6 +145,9 @@ function Menu({
       <header className='app-header'>
         <Logo />
         <div className='header-tools'>
+          <a className='all-games-link' href={`${import.meta.env.BASE_URL}../`}>
+            ← Alla spel
+          </a>
           <SoundToggle />
           <FullscreenButton />
         </div>
@@ -156,9 +163,9 @@ function Menu({
             <br />
             <em>Magi.</em>
           </h1>
-          <p className='intro-copy'>Små steg. Stora språng. Dina favoriter möts på löparbanan.</p>
+          <p className='intro-copy'>Små steg. Stora språng. Dina favoriter möts i helt olika sporter.</p>
           <div className='feature-pills'>
-            <span>20 individuella grenar</span>
+            <span>{events.length} individuella grenar</span>
             <span>1–4 spelare</span>
             <span>Spela offline</span>
           </div>
@@ -193,9 +200,17 @@ function Menu({
           </fieldset>
         </div>
         <fieldset className='event-filters' aria-label='Grentyp'>
-          {(['run', 'jump', 'throw', 'all'] as const).map((c) => (
+          {(['all', 'run', 'jump', 'throw', 'skill'] as const).map((c) => (
             <button type='button' key={c} aria-pressed={category === c} onClick={() => setCategory(c)}>
-              {{ run: 'Löpning & gång · 12', jump: 'Hopp · 4', throw: 'Kast · 4', all: 'Alla · 20' }[c]}
+              {
+                {
+                  run: `Löpning · ${events.filter((e) => e.type === 'run').length}`,
+                  jump: 'Hopp · 4',
+                  throw: 'Kast · 4',
+                  skill: 'Andra sporter · 3',
+                  all: `Alla · ${events.length}`,
+                }[c]
+              }
             </button>
           ))}
         </fieldset>
@@ -212,7 +227,9 @@ function Menu({
               <span className='event-number'>{String(events.findIndex((event) => event.id === e.id) + 1).padStart(2, '0')}</span>
               <SportIcon kind={e.icon} />
               <strong>{e.name}</strong>
-              <small>{e.type === 'run' ? 'LÖPNING' : 'BÄST AV TRE'}</small>
+              <small>
+                {e.type === 'run' ? 'LÖPNING' : e.id === 'archery' ? 'TRE PILAR · TOTALPOÄNG' : e.id === 'weightlifting' ? 'LYFT & BALANS' : 'BÄST AV TRE'}
+              </small>
             </button>
           ))}
         </div>
@@ -220,11 +237,15 @@ function Menu({
           <div>
             <span className='eyebrow'>{settings.championship ? 'SEX GRENAR · EN POKAL' : event.label}</span>
             <h3>{settings.championship ? 'Hela arenan är din.' : event.name}</h3>
-            <p>{settings.championship ? '100 m, 200 m, häck, längdhopp, spjut och kula. Poäng efter varje gren. Flest poäng vinner!' : event.description}</p>
+            <p>
+              {settings.championship
+                ? '100 m, bågskytte, längdhopp, tyngdlyftning, simhopp och spjut. Sex olika utmaningar. Flest poäng vinner!'
+                : event.description}
+            </p>
           </div>
           <span className='record-badge'>
             <SportIcon kind='star' />
-            <small>DITT REKORD · {settings.assist ? 'HÅLL' : 'RYTM'}</small>
+            <small>DITT REKORD · {skillEvent(settings.event) ? 'SPORT' : settings.assist ? 'HÅLL' : 'RYTM'}</small>
             <strong>{best ? formatResult(best.value, settings.event) : 'Ditt första väntar'}</strong>
           </span>
         </div>
@@ -239,7 +260,7 @@ function Menu({
               : settings.players === 4
                 ? 'Ni fyra spelar mot varandra'
                 : `${settings.players} spelare och ${4 - settings.players} datorfigurer`}{' '}
-            · {settings.assist ? 'Håll för att springa' : 'Klassisk knapprytm'}
+            · {settings.assist ? 'Hjälpläge · håll för jämn fart' : 'Klassisk knapprytm'}
           </p>
         </div>
         <div className='start-actions'>
@@ -255,7 +276,7 @@ function Menu({
       </section>
       <section className='setup-section'>
         <button type='button' className='wifi-entry' onClick={onWifi}>
-          Spela via Wi-Fi · 2–4 enheter
+          {roomServer() ? 'Spela online · 2–4 enheter' : 'Spela via Wi-Fi · 2–4 enheter'}
         </button>
         <div className='section-title'>
           <h2>Vilka är med?</h2>
@@ -285,15 +306,15 @@ function Menu({
               <label>
                 Löpstil
                 <select value={settings.assist ? 'hold' : 'rhythm'} onChange={(e) => onChange({ ...settings, assist: e.target.value === 'hold' })}>
-                  <option value='hold'>Håll för att springa</option>
-                  <option value='rhythm'>Växla knappar · arkad</option>
+                  <option value='hold'>Hjälpläge · håll för jämn fart</option>
+                  <option value='rhythm'>Arkad · snabbare tryck ger mer fart</option>
                 </select>
               </label>
             </div>
             <p className='small muted'>
               {settings.assist
-                ? 'Håll en av stegknapparna för att springa. Hoppa eller kasta med stjärnknappen.'
-                : 'Tryck vänster–höger–vänster–höger för att bygga fart. Håll inte knapparna intryckta.'}
+                ? 'Hjälpläge ger jämn fart när du håller en stegknapp. Alla får samma maxfart.'
+                : 'Tryck vänster–höger–vänster–höger. Snabbare växling ger högre fart. Samma knapp eller att hålla räknas inte.'}
             </p>
             <p className='small muted'>Figurerna är lika snabba. Välj den du gillar bäst.</p>
           </section>
@@ -312,6 +333,9 @@ function Menu({
   );
 }
 function EventHint({ state }: { state: GameState }) {
+  if (state.event === 'archery') return <>Vänster/höger siktar. Skjut när siktet är i mitten. Tre pilar räknas ihop.</>;
+  if (state.event === 'diving') return <>Hoppa · Håll vänster/höger för volt · Sträck ut och landa med huvudet först.</>;
+  if (state.event === 'weightlifting') return <>Lyft i grönt · Balansera med vänster/höger · Lås när stången är uppe.</>;
   if (obstacleCount(state.event)) return <>Hoppa strax före hindret. Fortsätt springa!</>;
   if (state.event === 'raceWalk') return <>Håll en jämn gångrytm. Hoppa inte.</>;
   if (state.event === 'tripleJump') return <>Hoppa före plankan. Tryck igen vid varje landning.</>;
@@ -321,7 +345,7 @@ function EventHint({ state }: { state: GameState }) {
   if (stationaryEvent(state.event)) return <>Bygg kraft med stegknapparna · Tryck Kasta.</>;
   return (
     <>
-      {state.settings.assist ? 'Håll en stegknapp hela vägen till mål.' : 'Växla vänster och höger för att bygga fart.'}
+      {state.settings.assist ? 'Hjälpläge: håll en stegknapp för jämn fart.' : 'Växla vänster–höger. Snabbare rena tryck ger högre fart.'}
       {raceScale(state.event) > 1 ? ' Kort arkadversion.' : ''}
     </>
   );
@@ -346,14 +370,14 @@ function Match({ session, onMenu, onReplay }: { session: Session; onMenu: () => 
   const final = s.phase === 'results' && (!s.settings.championship || s.round === 5);
   const order = s.settings.championship && s.round === 5 && s.phase === 'results' ? [0, 1, 2, 3].sort((a, b) => s.points[b] - s.points[a]) : ranking(s);
   return (
-    <main className='game-shell'>
+    <main className={`game-shell ${skillEvent(s.event) ? 'skill-game' : ''}`}>
       <header className='race-header'>
         <Logo />
         {session.networkRole && <span className='network-player'>WI-FI · DU ÄR P{session.localSlot + 1}</span>}
         <div className='event-heading'>
           <span>
             {s.settings.championship ? `SEXKAMP · GREN ${s.round + 1}/6` : 'SNABB GREN'}
-            {info.type === 'field' ? ` · FÖRSÖK ${s.attempt + 1}/3` : ''}
+            {info.type !== 'run' ? ` · FÖRSÖK ${s.attempt + 1}/3` : ''}
           </span>
           <h1>{info.name}</h1>
         </div>
@@ -380,7 +404,9 @@ function Match({ session, onMenu, onReplay }: { session: Session; onMenu: () => 
           <div className='countdown' role='status'>
             <span>{s.countdown > 2 ? 'PÅ ERA PLATSER' : s.countdown > 1 ? 'KLARA' : 'FÄRDIGA'}</span>
             <strong>{Math.ceil(s.countdown)}</strong>
-            <small>{s.settings.assist ? 'Håll en stegknapp när starten går' : 'Hitta rytmen när starten går'}</small>
+            <small>
+              {skillEvent(s.event) ? 'Gör dig redo för din sport' : s.settings.assist ? 'Håll en stegknapp när starten går' : 'Hitta rytmen när starten går'}
+            </small>
           </div>
         )}
         {info.type === 'field' && s.phase === 'playing' && (
@@ -399,7 +425,7 @@ function Match({ session, onMenu, onReplay }: { session: Session; onMenu: () => 
           </div>
         )}
       </section>
-      <section className='runner-status' aria-label='Löparnas läge'>
+      <section className='runner-status' aria-label='Deltagarnas läge'>
         {s.runners.map((r, i) => (
           <div key={r.character} className={`status-player player-${i}`}>
             <span className='lane-number'>{i + 1}</span>
@@ -408,10 +434,26 @@ function Match({ session, onMenu, onReplay }: { session: Session; onMenu: () => 
                 {character(r.character).name}
                 <small>{r.human === null ? 'DATOR' : `SPELARE ${r.human + 1}`}</small>
               </strong>
-              <progress aria-label={`Fart ${character(r.character).name}`} max={11} value={r.speed} />
+              <progress
+                aria-label={`${skillEvent(s.event) ? 'Läge' : 'Fart'} ${character(r.character).name}`}
+                max={skillEvent(s.event) ? 1 : 11}
+                value={skillEvent(s.event) ? (r.skill?.progress ?? 0) : r.speed}
+              />
             </div>
             <span>
-              {r.done ? formatResult(r.result, s.event) : info.type === 'run' ? `${Math.floor(r.x)} m` : r.foul ? 'Övertramp' : `${r.speed.toFixed(1)} m/s`}
+              {r.done
+                ? formatResult(r.result, s.event)
+                : skillEvent(s.event)
+                  ? r.skill?.stage === 'ready'
+                    ? 'Redo'
+                    : r.skill?.stage === 'released'
+                      ? 'På väg'
+                      : 'Pågår'
+                  : info.type === 'run'
+                    ? `${Math.floor(r.x)} m`
+                    : r.foul
+                      ? 'Övertramp'
+                      : `${r.speed.toFixed(1)} m/s`}
             </span>
           </div>
         ))}
@@ -423,7 +465,7 @@ function Match({ session, onMenu, onReplay }: { session: Session; onMenu: () => 
           ) : (
             <div className='keyboard-controls' key={s.settings.characters[i]}>
               <strong className={`player-dot player-${i}`}>P{i + 1}</strong>
-              <ControlLegend player={i} input={session.input} source={session.controlSource(i)} assist={s.settings.assist} />
+              <ControlLegend player={i} input={session.input} source={session.controlSource(i)} assist={s.settings.assist} event={s.event} />
             </div>
           ),
         )}
@@ -503,7 +545,7 @@ function Match({ session, onMenu, onReplay }: { session: Session; onMenu: () => 
               <p role='status'>Väntar på att värden fortsätter tävlingen.</p>
             ) : !final ? (
               <button type='button' className='primary' onClick={session.next}>
-                {s.phase === 'attempt-result' ? 'Nästa försök' : `Nästa gren · ${eventInfo(championshipEvents[s.round + 1]).name}`} →
+                {s.phase === 'attempt-result' ? 'Nästa försök' : `Nästa gren · ${eventInfo(programme(s)[s.round + 1]).name}`} →
               </button>
             ) : (
               <button type='button' className='primary' onClick={onReplay}>
@@ -616,6 +658,7 @@ export function App() {
         maxPlayers={4}
         config={wifiSettings}
         configure={(c, count) => ({ ...c, players: count as Settings['players'] })}
+        readyKey={(c) => JSON.stringify({ ...c, players: 0 })}
         validConfig={validNetworkSettings}
         validStart={validNetworkState}
         summary={(c) => (
@@ -655,8 +698,8 @@ export function App() {
             <label>
               Löpstil
               <select value={wifiSettings.assist ? 'hold' : 'rhythm'} onChange={(e) => setWifiSettings({ ...wifiSettings, assist: e.target.value === 'hold' })}>
-                <option value='hold'>Håll för att springa</option>
-                <option value='rhythm'>Växla knappar · arkad</option>
+                <option value='hold'>Hjälpläge · håll för jämn fart</option>
+                <option value='rhythm'>Arkad · snabbare tryck ger mer fart</option>
               </select>
             </label>
             {([0, 1, 2, 3] as const).map((player) => (
@@ -684,7 +727,9 @@ export function App() {
           </>
         }
         onBack={() => setWifi(false)}
-        onLaunch={(connections, config, state) => {
+        onLaunch={(connections, config, state, room) => {
+          // The room is only for pairing; the event keeps the players it started with.
+          room?.close();
           const slot = state ? connections[0].slot : 0;
           setSession(new NetworkSession((state as GameState) ?? createGame(config), input, wifiSource, connections, slot));
           setWifi(false);

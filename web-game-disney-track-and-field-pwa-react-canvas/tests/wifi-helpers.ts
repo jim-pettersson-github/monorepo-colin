@@ -31,23 +31,28 @@ export async function imageTransfer(from: Page, to: Page) {
   await to.locator('input[type=file]').setInputFiles({ name: 'pair.png', mimeType: 'image/png', buffer: Buffer.from(src.split(',')[1], 'base64') });
 }
 export async function paste(to: Page, code: string) {
-  await to.getByText('Klistra in kod istället', { exact: true }).click();
   await to.getByRole('textbox', { name: 'Klistra in anslutningskod', exact: true }).fill(code);
   await to.getByRole('button', { name: 'Läs in koden', exact: true }).click();
 }
 export async function connect(host: Page, guest: Page, manual = false) {
   await guest.getByRole('button', { name: /^Spela via Wi-Fi/ }).click();
-  await guest.getByRole('button', { name: 'Anslut', exact: true }).click();
+  await guest.getByRole('button', { name: /^Jag går med/ }).click();
   await expect(host.locator('.connection-qr')).toBeVisible();
   if (manual) {
-    await host.getByText('Kopiera kod istället', { exact: true }).click();
-    await paste(guest, await host.getByRole('textbox', { name: 'Din matchkod', exact: true }).inputValue());
+    await paste(guest, await codeOf(host, 'Din matchkod'));
   } else await imageTransfer(host, guest);
   await expect(guest.locator('.connection-qr')).toBeVisible();
   if (manual) {
-    await guest.getByText('Kopiera kod istället', { exact: true }).click();
-    await paste(host, await guest.getByRole('textbox', { name: 'Din svarskod', exact: true }).inputValue());
+    await paste(host, await codeOf(guest, 'Din svarskod'));
   } else await imageTransfer(guest, host);
   await expect(guest.getByText(/Enheterna är anslutna!/)).toBeVisible({ timeout: 15000 });
   await expect(guest.getByRole('button', { name: 'Jag är redo', exact: true })).toBeEnabled();
+}
+
+// Reads a device's pairing code from the text shown under its QR image.
+export async function codeOf(page: Page, name: 'Din matchkod' | 'Din svarskod') {
+  await page.getByText('Visa koden som text', { exact: true }).click();
+  const box = page.getByRole('textbox', { name, exact: true });
+  await expect(box).not.toHaveValue('');
+  return box.inputValue();
 }

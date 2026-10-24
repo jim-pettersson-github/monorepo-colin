@@ -174,7 +174,10 @@ export class GameInput {
   }
   consume(): Commands[] {
     const result = this.queued;
-    for (let i = 0; i < 4; i++) result[i].hold = this.held[i].has(0) || this.held[i].has(1);
+    for (let i = 0; i < 4; i++) {
+      result[i].hold = this.held[i].has(0) || this.held[i].has(1);
+      result[i].steer = ((this.held[i].has(1) ? 1 : 0) - (this.held[i].has(0) ? 1 : 0)) as -1 | 0 | 1;
+    }
     this.queued = Array.from({ length: 4 }, neutral);
     return result;
   }

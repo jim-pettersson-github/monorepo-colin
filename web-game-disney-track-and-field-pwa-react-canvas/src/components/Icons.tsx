@@ -1,7 +1,24 @@
-export function SportIcon({ kind }: { kind: 'run' | 'hurdles' | 'jump' | 'throw' | 'star' | 'sound' | 'mute' }) {
+export function SportIcon({ kind }: { kind: 'run' | 'hurdles' | 'jump' | 'throw' | 'archery' | 'diving' | 'weightlifting' | 'star' | 'sound' | 'mute' }) {
   return (
     <svg viewBox='0 0 48 48' fill='none' stroke='currentColor' strokeWidth='3' strokeLinecap='round' strokeLinejoin='round' aria-hidden='true'>
-      {kind === 'star' ? (
+      {kind === 'archery' ? (
+        <>
+          <circle cx='23' cy='25' r='17' />
+          <circle cx='23' cy='25' r='10' />
+          <circle cx='23' cy='25' r='3' />
+          <path d='m23 25 19-20m-7 0h7v7' />
+        </>
+      ) : kind === 'diving' ? (
+        <>
+          <path d='M5 38q5-5 10 0t10 0t10 0t10 0M5 45q5-5 10 0t10 0t10 0t10 0M3 18h14m-5 0v14M22 14l8 7 8 2M30 21l-6 8 8 5M22 14l-4-8m4 8 8-7' />
+          <circle cx='36' cy='9' r='4' />
+        </>
+      ) : kind === 'weightlifting' ? (
+        <>
+          <path d='M4 17h40M7 10v14m5-17v20m24-20v20m5-17v14M24 22v12m0 0-10 9m10-9 10 9M15 17l3 11h12l3-11' />
+          <circle cx='24' cy='11' r='4' />
+        </>
+      ) : kind === 'star' ? (
         <path d='m24 5 6 12 13 2-10 9 3 14-12-7-12 7 3-14-10-9 13-2Z' />
       ) : kind === 'sound' || kind === 'mute' ? (
         <>

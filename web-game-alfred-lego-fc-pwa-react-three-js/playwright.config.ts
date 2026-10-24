@@ -1,3 +1,5 @@
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { defineConfig, devices } from '@playwright/test';
 
 const baseURL = `http://127.0.0.1:4013${process.env.VITE_BASE_PATH || '/'}`;
@@ -18,9 +20,19 @@ export default defineConfig({
     { name: 'phone-portrait', testIgnore: '**/rules.spec.ts', use: { ...devices['Pixel 7'] } },
     { name: 'phone-landscape', testIgnore: '**/rules.spec.ts', use: { ...devices['Pixel 7'], viewport: { width: 915, height: 412 } } },
   ],
-  webServer: {
-    command: 'npm run build && npm run preview',
-    url: baseURL,
-    reuseExistingServer: false,
-  },
+  webServer: [
+    {
+      command: 'npm run build && npm run preview',
+      url: baseURL,
+      reuseExistingServer: false,
+    },
+    // The shared room server, for the room-code pairing test.
+    {
+      command: 'php -S 127.0.0.1:4020 -t ../game-server/public',
+      url: 'http://127.0.0.1:4020/api.php?a=health',
+      reuseExistingServer: false,
+      stderr: 'ignore',
+      env: { GAME_DB: join(tmpdir(), 'alfred-room-test.sqlite') },
+    },
+  ],
 });

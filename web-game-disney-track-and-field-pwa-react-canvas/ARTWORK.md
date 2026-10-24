@@ -9,3 +9,5 @@ Prompt: Original premium 2.5D hand-painted family athletics stadium; rich textur
 The requested character sprite-sheet generation was rejected by the image tool. No generated character sprites are used.
 
 Run node scripts/capture-characters.mjs with the dev server on port 4016 to save a twenty-character contact sheet in ignored test-results/. Character selection includes a larger running preview, paused offscreen/backgrounded and static when reduced motion is requested.
+
+Archery targets, the diving pool and lifting platform are local Canvas illustrations in src/game/skill-drawing.ts; no additional generated artwork is downloaded.

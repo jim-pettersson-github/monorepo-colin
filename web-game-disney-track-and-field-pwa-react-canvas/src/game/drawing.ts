@@ -1,6 +1,7 @@
 import { drawCharacter } from './characters';
 import type { CharacterId, GameState } from './model';
 import { barHeight, character, eventInfo, jumpEvent, obstacleCount, obstaclePosition, raceScale, stationaryEvent, verticalEvent } from './model';
+import { drawSkillScene } from './skill-drawing';
 
 type C = CanvasRenderingContext2D;
 let stadium: HTMLImageElement | null = null;
@@ -72,6 +73,10 @@ export function drawStadium(c: C, w: number, h: number, t: number) {
   rect(c, 0, h * 0.44, w, h * 0.56, '#c36966');
 }
 export function drawScene(c: C, w: number, h: number, state: GameState | null, t: number, cast: CharacterId[] = ['mickey', 'stitch', 'elsa']) {
+  if (state && eventInfo(state.event).type === 'skill') {
+    drawSkillScene(c, w, h, state, t);
+    return;
+  }
   drawStadium(c, w, h, t);
   const info = state ? eventInfo(state.event) : null;
   const field = info?.type === 'field';

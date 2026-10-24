@@ -1,12 +1,13 @@
 import type { EventId, GameState, Settings } from './model';
-import { championshipEvents, characters, defaultSettings, events, separateControls } from './model';
+import { allEvents, characters, defaultSettings, events, programme, separateControls, skillEvent } from './model';
 export const SAVE_KEY = 'sagospelen-event-v1';
 const validId = (id: unknown) => characters.some((c) => c.id === id);
-const validEvent = (id: unknown) => events.some((e) => e.id === id);
+const validEvent = (id: unknown) => allEvents.some((e) => e.id === id);
 export function validSettings(value: unknown): value is Settings {
   if (!value || typeof value !== 'object') return false;
   const s = value as Settings;
   return (
+    (s.runningStyleVersion === undefined || s.runningStyleVersion === 2) &&
     validEvent(s.event) &&
     typeof s.championship === 'boolean' &&
     [1, 2, 3, 4].includes(s.players) &&
@@ -37,12 +38,17 @@ export function validGame(value: unknown): value is GameState {
   if (!value || typeof value !== 'object') return false;
   const s = value as GameState;
   if (
+    s.programme !== undefined &&
+    (!Array.isArray(s.programme) || s.programme.length !== 6 || new Set(s.programme).size !== 6 || !s.programme.every(validEvent))
+  )
+    return false;
+  if (
     s.version !== 1 ||
     !validSettings(s.settings) ||
     !validEvent(s.event) ||
     !Number.isInteger(s.round) ||
     !bounded(s.round, 0, 5) ||
-    s.event !== (s.settings.championship ? championshipEvents[s.round] : s.settings.event) ||
+    s.event !== (s.settings.championship ? programme(s)[s.round] : s.settings.event) ||
     !Number.isInteger(s.attempt) ||
     !bounded(s.attempt, 0, 2) ||
     !['countdown', 'playing', 'attempt-result', 'results'].includes(s.phase) ||
@@ -53,12 +59,21 @@ export function validGame(value: unknown): value is GameState {
     return false;
   if (!Array.isArray(s.points) || s.points.length !== 4 || !s.points.every((p) => Number.isInteger(p) && bounded(p, 0, 30))) return false;
   if (!Array.isArray(s.runners) || s.runners.length !== 4 || new Set(s.runners.map((r) => r?.character)).size !== 4) return false;
-  const run = events.find((e) => e.id === s.event)?.type === 'run';
+  const run = allEvents.find((e) => e.id === s.event)?.type === 'run';
   if ((run && (s.attempt !== 0 || s.phase === 'attempt-result')) || (s.phase === 'results') !== s.awarded) return false;
   return s.runners.every(
     (r, i) =>
       r &&
       validId(r.character) &&
+      ((!r.skill && !skillEvent(s.event)) ||
+        (!!r.skill &&
+          ['ready', 'active', 'released', 'done'].includes(r.skill.stage) &&
+          bounded(r.skill.aim, -50, 50) &&
+          bounded(r.skill.progress, 0, 1) &&
+          bounded(r.skill.balance, -2, 2) &&
+          bounded(r.skill.score, 0, 100) &&
+          bounded(r.skill.target, 0, 100) &&
+          bounded(r.skill.elapsed, 0, 26))) &&
       r.human === (i < s.settings.players ? i : null) &&
       (i >= s.settings.players || r.character === s.settings.characters[i]) &&
       [r.done, r.launched, r.foul].every((b) => typeof b === 'boolean') &&
@@ -124,11 +139,18 @@ export function clearGame() {
 }
 export function loadSettings(): Settings | null {
   const s = read('sagospelen-settings-v1');
-  return validSettings(s) ? expandSettings(s) : null;
+  return validSettings(s)
+    ? expandSettings({
+        ...s,
+        runningStyleVersion: 2,
+        assist: s.runningStyleVersion === 2 ? s.assist : false,
+        event: events.some((e) => e.id === s.event) ? s.event : 'sprint100',
+      })
+    : null;
 }
 export function saveSettings(s: Settings) {
   try {
-    if (validSettings(s)) localStorage.setItem('sagospelen-settings-v1', JSON.stringify(s));
+    if (validSettings(s)) localStorage.setItem('sagospelen-settings-v1', JSON.stringify({ ...s, runningStyleVersion: 2 }));
   } catch {
     /* Storage is optional. */
   }
@@ -140,16 +162,22 @@ export function loadRecords(): Records {
   if (raw && typeof raw === 'object')
     for (const [key, value] of Object.entries(raw)) {
       const v = value as { value: number; character: string };
-      if (events.some((e) => key === `${e.id}:hold` || key === `${e.id}:rhythm`) && v && bounded(v.value, 0, 20000) && validId(v.character)) result[key] = v;
+      if (
+        allEvents.some((e) => key === `${e.id}:hold` || key === `${e.id}:rhythm` || (e.type === 'skill' && key === `${e.id}:skill`)) &&
+        v &&
+        bounded(v.value, 0, 20000) &&
+        validId(v.character)
+      )
+        result[key] = v;
     }
   return result;
 }
-export const recordKey = (event: EventId, assist: boolean) => `${event}:${assist ? 'hold' : 'rhythm'}`;
+export const recordKey = (event: EventId, assist: boolean) => `${event}:${skillEvent(event) ? 'skill' : assist ? 'hold' : 'rhythm'}`;
 export function recordResults(s: GameState) {
   if (s.phase !== 'results') return;
   const records = loadRecords();
   const key = recordKey(s.event, s.settings.assist);
-  const run = events.find((e) => e.id === s.event)?.type === 'run';
+  const run = allEvents.find((e) => e.id === s.event)?.type === 'run';
   for (const r of s.runners) {
     if (r.human === null || r.result === null) continue;
     const old = records[key];

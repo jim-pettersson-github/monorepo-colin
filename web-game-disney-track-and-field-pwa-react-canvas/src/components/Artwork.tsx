@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { drawCharacter } from '../game/characters';
 import { drawScene } from '../game/drawing';
-import type { CharacterId } from '../game/model';
+import { type CharacterId, skillEvent } from '../game/model';
 import type { Session } from '../game/session';
 export function Portrait({ id, animated = false }: { id: CharacterId; animated?: boolean }) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -88,7 +88,9 @@ export function Stadium({ session, cast }: { session?: Session; cast?: Character
     <canvas
       ref={ref}
       className={session ? 'stadium game-canvas' : 'stadium preview-canvas'}
-      aria-label={session ? 'Friidrottsarenan med fyra löpare' : 'Disney-figurer på löparbanan'}
+      aria-label={
+        session ? (skillEvent(session.state.event) ? 'Sportarenan med fyra deltagare' : 'Friidrottsarenan med fyra löpare') : 'Disney-figurer på löparbanan'
+      }
     />
   );
 }
