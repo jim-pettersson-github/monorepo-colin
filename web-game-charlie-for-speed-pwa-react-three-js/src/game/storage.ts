@@ -1,4 +1,5 @@
 import type { CameraMode } from '../render/race-renderer';
+import type { Career } from './career';
 import { cars } from './cars';
 import type { RaceSettings } from './race';
 import { trackDefs } from './tracks';
@@ -61,4 +62,25 @@ export function saveLapRecord(trackId: string, time: number, carId: string) {
   records[trackId] = { time, carId };
   write(RECORDS_KEY, records);
   return true;
+}
+
+const CAREER_KEY = 'charlie-for-speed:career';
+
+export function loadCareer(): Career | undefined {
+  try {
+    const raw = localStorage.getItem(CAREER_KEY);
+    const career = raw ? (JSON.parse(raw) as Career) : undefined;
+    return career?.version === 1 ? career : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export function saveCareer(career: Career | undefined) {
+  try {
+    if (career) localStorage.setItem(CAREER_KEY, JSON.stringify(career));
+    else localStorage.removeItem(CAREER_KEY);
+  } catch {
+    // Without storage the career still works for this session.
+  }
 }

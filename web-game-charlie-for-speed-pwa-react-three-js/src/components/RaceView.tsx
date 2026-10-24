@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { RaceAudio } from '../game/audio';
+import { POINTS } from '../game/career';
 import { carName } from '../game/cars';
 import { DriverInput, type InputAction, type TouchState } from '../game/input';
 import { shift } from '../game/physics';
-import { createRace, formatTime, type Race, type ResultRow, raceResults, resetRacer, STEP, stepRace } from '../game/race';
+import { createRace, type Entrant, formatTime, type Race, type ResultRow, raceResults, resetRacer, STEP, stepRace } from '../game/race';
 import { type Settings, saveLapRecord } from '../game/storage';
 import { cameraModes, RaceRenderer } from '../render/race-renderer';
 import { Hud, type HudController } from './Hud';
@@ -13,15 +14,17 @@ type Props = {
   settings: Settings;
   onSettings: (settings: Settings) => void;
   onExit: (screen: 'title' | 'garage') => void;
+  // Career races use a prepared field and hand the results back instead of offering a rematch.
+  career?: { title: string; field: Entrant[]; onFinish: (rows: ResultRow[]) => void; onQuit: () => void };
 };
 
 type Outcome = { rows: ResultRow[]; bestLap: number; record: boolean };
 
 const cameraNames = { chase: 'Jakt', far: 'Lång jakt', bumper: 'Stötfångare' };
 
-export function RaceView({ settings, onSettings, onExit }: Props) {
+export function RaceView({ settings, onSettings, onExit, career }: Props) {
   const [attempt, setAttempt] = useState(0);
-  const [race, setRace] = useState<Race>(() => createRace(settings));
+  const [race, setRace] = useState<Race>(() => createRace(settings, undefined, career?.field));
   const [paused, setPaused] = useState(false);
   const [outcome, setOutcome] = useState<Outcome>();
   const [renderError, setRenderError] = useState(false);
@@ -160,7 +163,7 @@ export function RaceView({ settings, onSettings, onExit }: Props) {
     setOutcome(undefined);
     setPausedState(false);
     setAttempt((value) => value + 1);
-    setRace(createRace(settingsRef.current));
+    setRace(createRace(settingsRef.current, undefined, career?.field));
   };
 
   const player = race.player;
@@ -222,7 +225,7 @@ export function RaceView({ settings, onSettings, onExit }: Props) {
             >
               Ljud: {settings.sound ? 'På' : 'Av'}
             </button>
-            <button type='button' onClick={() => onExit('title')}>
+            <button type='button' onClick={() => (career ? career.onQuit() : onExit('title'))}>
               Avsluta racet
             </button>
           </section>
@@ -234,6 +237,7 @@ export function RaceView({ settings, onSettings, onExit }: Props) {
           <section className='panel results-panel' aria-labelledby='results-title'>
             <h2 id='results-title'>{outcome.rows.find((row) => row.isPlayer)?.position === 1 ? 'Seger!' : 'Resultat'}</h2>
             <p className='results-sub'>
+              {career ? `${career.title} · ` : ''}
               {race.track.name} · {race.settings.laps} varv
               {outcome.record && <strong className='record'> · Nytt banrekord {formatTime(outcome.bestLap)}!</strong>}
             </p>
@@ -245,6 +249,7 @@ export function RaceView({ settings, onSettings, onExit }: Props) {
                   <th>Bil</th>
                   <th>Tid</th>
                   <th>Bästa varv</th>
+                  {career && <th>Poäng</th>}
                 </tr>
               </thead>
               <tbody>
@@ -258,21 +263,30 @@ export function RaceView({ settings, onSettings, onExit }: Props) {
                       {formatTime(row.time)}
                     </td>
                     <td>{formatTime(row.bestLap)}</td>
+                    {career && <td>{POINTS[row.position - 1] ?? 0}</td>}
                   </tr>
                 ))}
               </tbody>
             </table>
-            <div className='panel-actions'>
-              <button type='button' className='primary' onClick={restart}>
-                Kör igen
-              </button>
-              <button type='button' onClick={() => onExit('garage')}>
-                Byt bil
-              </button>
-              <button type='button' onClick={() => onExit('title')}>
-                Huvudmeny
-              </button>
-            </div>
+            {career ? (
+              <div className='panel-actions'>
+                <button type='button' className='primary' onClick={() => career.onFinish(outcome.rows)}>
+                  Fortsätt
+                </button>
+              </div>
+            ) : (
+              <div className='panel-actions'>
+                <button type='button' className='primary' onClick={restart}>
+                  Kör igen
+                </button>
+                <button type='button' onClick={() => onExit('garage')}>
+                  Byt bil
+                </button>
+                <button type='button' onClick={() => onExit('title')}>
+                  Huvudmeny
+                </button>
+              </div>
+            )}
           </section>
         </div>
       )}

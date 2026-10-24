@@ -2,7 +2,8 @@
 
 ## Done
 
-- Two closed circuits (Växjö, Germany) with themed scenery, tunnels and banner gantries.
+- Six tracks: two circuits, two city tracks and two country roads.
+- Career mode with cups, prize money, car classes, upgrades and rivals who upgrade too.
 - Fourteen fictional 80s/90s supercar lookalikes with distinct stats and silhouettes.
 - Tyre smoke, grass dust, barrier sparks and lens flare.
 - Published on GitHub Pages under /charlie-fs/.
@@ -15,5 +16,5 @@
 - Reverse and mirrored track variants.
 - Time trial with a ghost car.
 - Night or rain versions of the tracks.
-- Car colour choice and a championship across both tracks.
+- Car colour choice and selling cars.
 - Physical phone and gamepad checks.

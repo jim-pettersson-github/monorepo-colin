@@ -4,8 +4,10 @@ An arcade sports-car racer in a late-1990s style, built with React, Three.js and
 
 ## Implemented
 
-- **Two circuits:** Växjö Motorring (3.0 km, evening sun, pine and birch forest, lake, red cottages, water tower) and Rheinland-Ring (3.5 km, long main straight, concrete walls, village, castle on the hill, wind turbines). Each has a lit tunnel, overhead banner gantries and a footbridge.
+- **Six tracks:** two circuits (Växjö Motorring, Rheinland-Ring), two city tracks (Stockholm City at blue hour, Hamburg Hafen with warehouses and cranes) and two country roads (Smålandsslingan through fields and farms, Schwarzwaldpass with hairpins and a castle). Each has a lit tunnel.
 - **Fourteen fictional lookalikes of 80s and 90s supercars**, including a Countach-style Torrone Contaccio, a Diablo-style Furia SV, F355- and 550-style Ferros, a CLK-GTR-style Hessen CL-R and a Lister-style Tempest GT. Each has its own silhouette with wheel arches, signature details (air boxes, NACA ducts, intakes, louvres, hood bulges, wings), painted late-90s-style texture maps (door lines, pre-lit shading, light clusters, number plates, spoked rims), light glows, glossy reflective paint and its own top speed, acceleration, grip and brakes.
+- **Career:** start with 25 000 kr, buy a car, enter six cups across classes C, B and A, earn points and prize money, and upgrade engine, tyres and brakes in three steps. Seven rivals earn money too and buy upgrades after every cup, so winners get faster. Progress is saved on the device.
+- **Car classes:** C (about 255–265 km/h), B (290–300) and A (305–345). Quick races pick rivals from your car's class.
 - **Races** against seven AI drivers: 1, 2, 3 or 5 laps, three difficulty levels, automatic or manual gearbox, countdown with start lights, lap and best-lap times, positions, wrong-way warning and a results table. Best laps are saved per track.
 - **Driving model:** fixed-step arcade physics with a gearbox, grip-limited steering, handbrake slides, grass slowdown, barrier scrapes and car-to-car contact.
 - **HUD:** analog tachometer with redline, digital speed, gear, position, lap, timers and a live track map.

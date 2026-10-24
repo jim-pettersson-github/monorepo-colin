@@ -61,33 +61,47 @@ const PLAYER_GRID_SLOT = 5;
 const names = ['Sanna', 'Klaus', 'Lotta', 'Henrik', 'Greta', 'Jürgen', 'Maja', 'Otto', 'Elin'];
 const skills: Record<Difficulty, number> = { easy: 0.84, normal: 0.93, hard: 1.0 };
 
-export function createRace(settings: RaceSettings, seed = Date.now()): Race {
-  const track = trackById(settings.trackId);
+export type Entrant = { driverName: string; spec: CarSpec; skill: number; isPlayer?: boolean };
+
+// Quick races fill the grid with rivals from the player's class, repeating models when the class is small.
+function quickField(settings: RaceSettings, next: () => number): Entrant[] {
   const playerSpec = carById(settings.carId);
+  const sameClass = cars.filter((car) => car.id !== playerSpec.id && car.carClass === playerSpec.carClass).sort(() => next() - 0.5);
+  const driverNames = [...names].sort(() => next() - 0.5);
+  const field: Entrant[] = [];
+  for (let slot = 0; slot <= OPPONENTS; slot++) {
+    if (slot === PLAYER_GRID_SLOT) field.push({ driverName: 'Du', spec: playerSpec, skill: 1, isPlayer: true });
+    else {
+      const index = field.filter((entrant) => !entrant.isPlayer).length;
+      field.push({
+        driverName: driverNames[index % driverNames.length],
+        spec: sameClass[index % sameClass.length],
+        skill: skills[settings.difficulty] + (next() - 0.5) * 0.05,
+      });
+    }
+  }
+  return field;
+}
+
+export function createRace(settings: RaceSettings, seed = Date.now(), field?: Entrant[]): Race {
+  const track = trackById(settings.trackId);
   let random = seed % 2147483647 || 1;
   const next = () => {
     random = (random * 16807) % 2147483647;
     return random / 2147483647;
   };
 
-  const rivals = cars.filter((car) => car.id !== playerSpec.id).sort(() => next() - 0.5);
-  const driverNames = [...names].sort(() => next() - 0.5);
-  const racers: Racer[] = [];
-
-  for (let slot = 0; slot <= OPPONENTS; slot++) {
-    const isPlayer = slot === PLAYER_GRID_SLOT;
-    const spec = isPlayer ? playerSpec : rivals[racers.filter((racer) => !racer.isPlayer).length % rivals.length];
+  const entrants = field ?? quickField(settings, next);
+  const racers: Racer[] = entrants.map((entrant, slot) => {
     const row = Math.floor(slot / 2);
     const side = slot % 2 === 0 ? -1 : 1;
-    const lane = side * 3.4;
-    const state = placeCar(track, -12 - row * 15 - (slot % 2) * 7, lane);
-    racers.push({
+    return {
       id: slot,
-      driverName: isPlayer ? 'Du' : driverNames[racers.length % driverNames.length],
-      spec,
-      isPlayer,
-      state,
-      driver: { lane: side * (0.8 + next() * 1.6), avoid: 0, skill: skills[settings.difficulty] + (next() - 0.5) * 0.05, stuck: 0 },
+      driverName: entrant.driverName,
+      spec: entrant.spec,
+      isPlayer: !!entrant.isPlayer,
+      state: placeCar(track, -12 - row * 15 - (slot % 2) * 7, side * 3.4),
+      driver: { lane: side * (0.8 + next() * 1.6), avoid: 0, skill: entrant.skill, stuck: 0 },
       lap: -1,
       lapStart: 0,
       lastLap: 0,
@@ -95,10 +109,10 @@ export function createRace(settings: RaceSettings, seed = Date.now()): Race {
       finishTime: 0,
       position: slot + 1,
       slowTimer: 0,
-    });
-  }
+    };
+  });
 
-  const player = racers[PLAYER_GRID_SLOT];
+  const player = racers.find((racer) => racer.isPlayer) ?? racers[0];
   return { settings, track, racers, player, phase: 'countdown', countdown: COUNTDOWN, time: 0, wrongWay: 0, banner: undefined, finishedAt: 0 };
 }
 

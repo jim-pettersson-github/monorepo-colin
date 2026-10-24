@@ -1,7 +1,20 @@
 import { expect, test } from '@playwright/test';
-import { cars } from '../src/game/cars';
+import {
+  abandonCup,
+  buyCar,
+  buyUpgrade,
+  cupById,
+  cupField,
+  currentTrack,
+  entryProblem,
+  newCareer,
+  recordRace,
+  START_MONEY,
+  startCup,
+} from '../src/game/career';
+import { applyUpgrades, carById, cars } from '../src/game/cars';
 import { type CarState, forwardSpeed, placeCar, stepCar } from '../src/game/physics';
-import { createRace, formatTime, raceDistance, STEP, stepRace } from '../src/game/race';
+import { createRace, formatTime, raceDistance, raceResults, STEP, stepRace } from '../src/game/race';
 import { trackById, trackDefs } from '../src/game/tracks';
 
 const idle = { throttle: 0, brake: 0, steer: 0, handbrake: false };
@@ -49,5 +62,58 @@ test('race distance and positions start from the grid behind the line', () => {
   expect(race.phase).toBe('countdown');
   for (const racer of race.racers) expect(raceDistance(race, racer)).toBeLessThan(0);
   expect(race.player.spec.id).toBe('skarv');
-  expect(new Set(race.racers.map((racer) => racer.spec.id)).size).toBe(8);
+  for (const racer of race.racers) expect(racer.spec.carClass).toBe('A');
+});
+
+test('career: buy a car, upgrade it and respect cup entry rules', () => {
+  let career = newCareer(11);
+  expect(career.money).toBe(START_MONEY);
+  expect(entryProblem(career, cupById('klubb'))).toMatch(/Köp en bil/);
+
+  career = buyCar(career, 'skarv');
+  expect(career.garage).toHaveLength(0);
+  career = buyCar(career, 'arrow');
+  expect(career.money).toBe(START_MONEY - carById('arrow').price);
+  expect(entryProblem(career, cupById('klubb'))).toBeUndefined();
+  expect(entryProblem(career, cupById('mastare'))).toMatch(/Supercupen/);
+
+  career = buyUpgrade(career, 'arrow', 'engine');
+  const tuned = applyUpgrades(carById('arrow'), career.garage[0].upgrades);
+  expect(career.garage[0].upgrades.engine).toBe(1);
+  expect(tuned.topKmh).toBeGreaterThan(carById('arrow').topKmh);
+  expect(tuned.zeroTo100).toBeLessThan(carById('arrow').zeroTo100);
+  const broke = buyUpgrade(buyUpgrade(career, 'arrow', 'engine'), 'arrow', 'engine');
+  expect(broke.money).toBeGreaterThanOrEqual(0);
+
+  career = startCup(career, 'klubb');
+  expect(cupField(career)).toHaveLength(8);
+  expect(cupField(career).filter((entrant) => entrant.isPlayer)).toHaveLength(1);
+  expect(abandonCup(career).run).toBeUndefined();
+});
+
+test('career: a full cup pays prizes, crowns a winner and rivals spend their winnings', () => {
+  let career = startCup(buyCar(newCareer(5), 'nxr'), 'klubb');
+  const before = career.money;
+  const cup = cupById('klubb');
+  for (let round = 0; round < cup.tracks.length; round++) {
+    const trackId = currentTrack(career);
+    expect(trackId).toBe(cup.tracks[round]);
+    const race = createRace(
+      { trackId: trackId ?? '', carId: career.activeCarId, laps: 1, difficulty: 'normal', transmission: 'auto' },
+      round + 1,
+      cupField(career),
+    );
+    race.player.isPlayer = false;
+    for (let i = 0; i < 120 * 200 && race.racers.some((racer) => !racer.finishTime); i++) stepRace(race, { throttle: 0, brake: 0, steer: 0, handbrake: false });
+    race.player.isPlayer = true;
+    career = recordRace(career, raceResults(race));
+  }
+  expect(career.run).toBeUndefined();
+  expect(career.lastCup?.standings).toHaveLength(8);
+  expect(career.money).toBeGreaterThan(before);
+  const rivalMoney = career.rivals.reduce((sum, rival) => sum + rival.money, 0);
+  const rivalUpgrades = career.rivals.reduce((sum, rival) => sum + rival.upgrades.C.engine + rival.upgrades.C.tyres + rival.upgrades.C.brakes, 0);
+  console.log('after Klubbcupen: player', career.money, 'winner', career.lastCup?.winner, 'rival upgrades', rivalUpgrades, 'rival cash', rivalMoney);
+  console.log(career.news.join(' | '));
+  expect(rivalUpgrades).toBeGreaterThan(0);
 });

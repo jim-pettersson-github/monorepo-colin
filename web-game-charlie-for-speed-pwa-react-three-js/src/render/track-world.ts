@@ -5,7 +5,18 @@ import type { Track, TrackTheme } from '../game/tracks';
 import { batchStatic } from './batch';
 import { buildLensFlare } from './effects';
 import { buildScenery } from './scenery';
-import { asphaltTexture, barrierTexture, checkerTexture, cloudTexture, curbTexture, glowTexture, grassTexture, ridgeTexture, seeded } from './textures';
+import {
+  asphaltTexture,
+  barrierTexture,
+  checkerTexture,
+  cloudTexture,
+  curbTexture,
+  glowTexture,
+  grassTexture,
+  pavingTexture,
+  ridgeTexture,
+  seeded,
+} from './textures';
 
 export type ThemeLook = {
   skyTop: string;
@@ -22,10 +33,13 @@ export type ThemeLook = {
   terrainTint: [string, string];
   farRidge: string;
   nearRidge: string;
-  barrier: 'armco' | 'concrete';
+  barrier: 'armco' | 'concrete' | 'wood';
   lineColor: string;
   hills: number;
   headlights: boolean;
+  water: string;
+  // Lit windows and street lamps glow on evening city tracks.
+  litWindows: number;
 };
 
 export const looks: Record<TrackTheme, ThemeLook> = {
@@ -48,6 +62,8 @@ export const looks: Record<TrackTheme, ThemeLook> = {
     lineColor: '#f2f2ee',
     hills: 1,
     headlights: true,
+    water: '#3f6f9a',
+    litWindows: 0.2,
   },
   germany: {
     skyTop: '#2a6ad0',
@@ -68,6 +84,96 @@ export const looks: Record<TrackTheme, ThemeLook> = {
     lineColor: '#f4f4f0',
     hills: 1.6,
     headlights: false,
+    water: '#3f6f9a',
+    litWindows: 0,
+  },
+  stockholm: {
+    skyTop: '#182a5c',
+    skyHorizon: '#ef9a62',
+    fog: '#5f6684',
+    fogNear: 180,
+    fogFar: 1100,
+    sunColor: '#ffb27a',
+    sun: new THREE.Vector3(-0.8, 0.12, 0.58).normalize(),
+    hemiSky: '#8d9ccc',
+    hemiGround: '#3a3c48',
+    grass: '#6b6d72',
+    grassShades: ['#626469', '#74767b', '#5c5e63', '#7a7c80'],
+    terrainTint: ['#8a8c90', '#6c6e73'],
+    farRidge: '#3a4468',
+    nearRidge: '#262c44',
+    barrier: 'concrete',
+    lineColor: '#f2f2ee',
+    hills: 0.15,
+    headlights: true,
+    water: '#2c4a78',
+    litWindows: 0.55,
+  },
+  hamburg: {
+    skyTop: '#7d8ea6',
+    skyHorizon: '#cfd6df',
+    fog: '#b5bdc7',
+    fogNear: 160,
+    fogFar: 1000,
+    sunColor: '#f4efe4',
+    sun: new THREE.Vector3(0.3, 0.45, -0.85).normalize(),
+    hemiSky: '#dfe5ee',
+    hemiGround: '#55585c',
+    grass: '#707274',
+    grassShades: ['#67696b', '#797b7d', '#5f6163', '#828486'],
+    terrainTint: ['#8d8f92', '#707275'],
+    farRidge: '#8d99ab',
+    nearRidge: '#5c6470',
+    barrier: 'concrete',
+    lineColor: '#f4f4f0',
+    hills: 0.1,
+    headlights: false,
+    water: '#4d6273',
+    litWindows: 0.1,
+  },
+  smaland: {
+    skyTop: '#2470d8',
+    skyHorizon: '#d4eaff',
+    fog: '#cfe2f4',
+    fogNear: 300,
+    fogFar: 1700,
+    sunColor: '#fff6de',
+    sun: new THREE.Vector3(-0.4, 0.35, -0.85).normalize(),
+    hemiSky: '#dceaff',
+    hemiGround: '#5a7a30',
+    grass: '#62982f',
+    grassShades: ['#578a28', '#6ea83a', '#4f7f24', '#79b244'],
+    terrainTint: ['#74a83c', '#558a2a'],
+    farRidge: '#7c97c0',
+    nearRidge: '#35603a',
+    barrier: 'wood',
+    lineColor: '#f4f4f0',
+    hills: 1.3,
+    headlights: false,
+    water: '#3d74a8',
+    litWindows: 0,
+  },
+  schwarzwald: {
+    skyTop: '#6a8ab6',
+    skyHorizon: '#e4e8e2',
+    fog: '#c9d1cc',
+    fogNear: 110,
+    fogFar: 850,
+    sunColor: '#fff0d0',
+    sun: new THREE.Vector3(0.6, 0.25, 0.75).normalize(),
+    hemiSky: '#dfe6e6',
+    hemiGround: '#3e5232',
+    grass: '#4f7a33',
+    grassShades: ['#466e2c', '#5a873a', '#3f6427', '#628f40'],
+    terrainTint: ['#5d8a3a', '#3f6829'],
+    farRidge: '#8e9ea8',
+    nearRidge: '#2e4a32',
+    barrier: 'armco',
+    lineColor: '#f2f2ee',
+    hills: 2.6,
+    headlights: false,
+    water: '#3f6f9a',
+    litWindows: 0,
   },
 };
 
@@ -157,18 +263,9 @@ function wallGeometry(path: TrackPath, lateral: number, height: number) {
   return geometry;
 }
 
-function lakeFor(theme: TrackTheme) {
-  return theme === 'vaxjo' ? { x: 380, z: 175, rx: 120, rz: 78 } : undefined;
-}
-
-function hillsFor(theme: TrackTheme) {
-  return theme === 'germany' ? [{ x: 180, z: 860, radius: 190, height: 70 }] : [{ x: -520, z: 760, radius: 220, height: 40 }];
-}
-
 function buildGround(track: Track, look: ThemeLook): Ground & { geometry: THREE.BufferGeometry } {
   const { path } = track;
-  const lake = lakeFor(track.theme);
-  const hills = hillsFor(track.theme);
+  const { lake, hills = [] } = track;
   const coarse = path.samples.filter((_, index) => index % 3 === 0);
   const grid = TERRAIN_CELLS + 1;
   const cell = TERRAIN_SIZE / TERRAIN_CELLS;
@@ -230,6 +327,10 @@ function buildGround(track: Track, look: ThemeLook): Ground & { geometry: THREE.
   const dark = new THREE.Color(look.terrainTint[1]);
   const sand = new THREE.Color('#c8b48a');
   const color = new THREE.Color();
+  // Countryside gets a patchwork of fields away from the road.
+  const fields = (
+    track.theme === 'smaland' ? ['#d9cb36', '#c9a650', '#7fae4a', '#5d8f38', '#8a6a48', '#9cc25a'] : ['#7fae4a', '#5d8f38', '#c9a650', '#6e9a40']
+  ).map((hex) => new THREE.Color(hex));
 
   for (let i = 0; i < position.count; i++) {
     const x = position.getX(i);
@@ -239,7 +340,13 @@ function buildGround(track: Track, look: ThemeLook): Ground & { geometry: THREE.
     const height = heights[row * grid + column];
     position.setY(i, height);
     color.copy(light).lerp(dark, 0.5 + 0.5 * Math.sin(x * 0.02 + z * 0.013) * Math.cos(z * 0.021));
-    if (lakeFactor(x, z) < 1.25) color.lerp(sand, 0.7);
+    if (track.setting === 'country' && distances[row * grid + column] > track.wall + 28) {
+      const fx = Math.floor((x + Math.sin(z * 0.011) * 40) / 120);
+      const fz = Math.floor((z + Math.sin(x * 0.009) * 40) / 90);
+      const pick = Math.abs((fx * 73856093) ^ (fz * 19349663)) % (fields.length * 2);
+      if (pick < fields.length) color.lerp(fields[pick], 0.85);
+    }
+    if (lakeFactor(x, z) < 1.25) color.lerp(sand, track.setting === 'city' ? 0.2 : 0.7);
     colors.push(color.r, color.g, color.b);
   }
   geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
@@ -344,11 +451,17 @@ export function buildTrackWorld(track: Track): TrackWorld {
   scene.add(sky);
 
   const ground = buildGround(track, look);
-  const grass = keep(grassTexture(look.grass, look.grassShades, 9));
-  const terrainMaterial = keep(new THREE.MeshLambertMaterial({ map: grass, vertexColors: true, flatShading: true }));
+  // Neutral speckle: vertex colours carry the hue, so fields and paving share one texture.
+  const speckle = keep(grassTexture('#8a8a8a', ['#808080', '#949494', '#7a7a7a', '#9a9a9a'], 9));
+  const terrainMaterial = keep(new THREE.MeshLambertMaterial({ map: speckle, vertexColors: true, flatShading: true }));
   scene.add(new THREE.Mesh(keep(ground.geometry), terrainMaterial));
 
-  const shoulderMaterial = keep(new THREE.MeshLambertMaterial({ map: grass, color: '#d8e8c8' }));
+  const city = track.setting === 'city';
+  const shoulderMaterial = keep(
+    city
+      ? new THREE.MeshLambertMaterial({ map: keep(pavingTexture()), color: '#c4c2bc' })
+      : new THREE.MeshLambertMaterial({ map: speckle, color: look.terrainTint[0] }),
+  );
   const shoulderOptions = { lift: -0.04, outerDrop: 0.5, uMeters: 12, vLength: 12 };
   scene.add(new THREE.Mesh(keep(ribbon(path, halfWidth - 0.2, wall + 3, shoulderOptions)), shoulderMaterial));
   scene.add(new THREE.Mesh(keep(ribbon(path, -halfWidth + 0.2, -wall - 3, shoulderOptions)), shoulderMaterial));
@@ -364,14 +477,14 @@ export function buildTrackWorld(track: Track): TrackWorld {
   scene.add(new THREE.Mesh(keep(ribbon(path, -halfWidth, -halfWidth - 1.4, curbOptions)), curbMaterial));
 
   const barrierMap = keep(barrierTexture(look.barrier));
-  const barrierMaterial = keep(new THREE.MeshLambertMaterial({ map: barrierMap, side: THREE.DoubleSide }));
-  const barrierHeight = look.barrier === 'armco' ? 0.9 : 1.1;
+  const barrierMaterial = keep(new THREE.MeshLambertMaterial({ map: barrierMap, side: THREE.DoubleSide, alphaTest: 0.5 }));
+  const barrierHeight = look.barrier === 'concrete' ? 1.1 : 0.9;
   scene.add(new THREE.Mesh(keep(wallGeometry(path, wall, barrierHeight)), barrierMaterial));
   scene.add(new THREE.Mesh(keep(wallGeometry(path, -wall, barrierHeight)), barrierMaterial));
 
-  const lake = lakeFor(track.theme);
+  const { lake } = track;
   if (lake) {
-    const waterMaterial = keep(new THREE.MeshPhongMaterial({ color: '#3f6f9a', shininess: 90, specular: '#ffd7a8', flatShading: true }));
+    const waterMaterial = keep(new THREE.MeshPhongMaterial({ color: look.water, shininess: 90, specular: '#ffd7a8', flatShading: true }));
     const water = new THREE.Mesh(keep(new THREE.CircleGeometry(1, 40)), waterMaterial);
     water.rotation.x = -Math.PI / 2;
     water.scale.set(lake.rx * 1.3, lake.rz * 1.3, 1);

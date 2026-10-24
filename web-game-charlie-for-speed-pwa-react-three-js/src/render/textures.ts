@@ -88,10 +88,20 @@ export function checkerTexture() {
   );
 }
 
-export function barrierTexture(kind: 'armco' | 'concrete') {
+export function barrierTexture(kind: 'armco' | 'concrete' | 'wood') {
   return texture(
     canvas(32, 16, (context) => {
-      if (kind === 'armco') {
+      if (kind === 'wood') {
+        context.fillStyle = 'rgba(0,0,0,0)';
+        context.clearRect(0, 0, 32, 16);
+        context.fillStyle = '#8a6440';
+        context.fillRect(0, 2, 32, 3);
+        context.fillRect(0, 9, 32, 3);
+        context.fillStyle = '#6a4a2e';
+        context.fillRect(0, 4, 32, 1);
+        context.fillRect(0, 11, 32, 1);
+        context.fillRect(14, 0, 4, 16);
+      } else if (kind === 'armco') {
         context.fillStyle = '#9aa3aa';
         context.fillRect(0, 0, 32, 16);
         context.fillStyle = '#c9d0d4';
@@ -277,6 +287,21 @@ export function concreteTexture() {
       context.fillRect(0, 26, 32, 6);
       context.fillStyle = '#8c8982';
       context.fillRect(31, 0, 1, 32);
+    }),
+  );
+}
+
+export function pavingTexture() {
+  return texture(
+    canvas(32, 32, (context) => {
+      context.fillStyle = '#d4d2cc';
+      context.fillRect(0, 0, 32, 32);
+      speckle(context, 32, 32, ['#c8c6c0', '#dcdad4', '#c2c0ba'], 200, 31);
+      context.fillStyle = '#9c9a94';
+      for (let i = 0; i < 32; i += 8) {
+        context.fillRect(i, 0, 1, 32);
+        context.fillRect(0, i, 32, 1);
+      }
     }),
   );
 }

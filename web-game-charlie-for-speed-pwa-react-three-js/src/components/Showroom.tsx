@@ -53,7 +53,7 @@ export function Showroom({ carId, className = 'showroom' }: { carId: string; cla
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       renderer.setSize(clientWidth, clientHeight, false);
       camera.aspect = clientWidth / Math.max(clientHeight, 1);
-      camera.position.z = camera.aspect < 1 ? 15 : 10.5;
+      camera.position.z = camera.aspect < 1 ? 15 : camera.aspect > 2.2 ? 7.2 : 10.5;
       camera.updateProjectionMatrix();
     };
     const observer = new ResizeObserver(resize);
