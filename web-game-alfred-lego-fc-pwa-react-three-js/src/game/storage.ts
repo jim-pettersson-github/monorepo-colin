@@ -20,8 +20,7 @@ export function validMatch(value: unknown): value is MatchState {
       s.league.seasonId.length > 100 ||
       !Number.isInteger(s.league.fixtureId) ||
       s.league.fixtureId < 0 ||
-      s.league.fixtureId >= 132 ||
-      s.mode !== 'solo')
+      s.league.fixtureId >= 132)
   )
     return false;
   if (![60, 180, 300].includes(s.duration) || !finite(s.remaining) || s.remaining < 0 || s.remaining > s.duration) return false;

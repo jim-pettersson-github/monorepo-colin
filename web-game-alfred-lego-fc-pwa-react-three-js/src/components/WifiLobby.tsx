@@ -25,12 +25,23 @@ const statusText = {
   error: 'Anslutningen kunde inte fortsätta.',
 };
 
-export function WifiLobby({ input, onBack, onLaunch }: { input: InputManager; onBack: () => void; onLaunch: (link: PeerLink, state: MatchState) => void }) {
+export function WifiLobby({
+  input,
+  fixture = null,
+  onBack,
+  onLaunch,
+}: {
+  input: InputManager;
+  fixture?: MatchState | null;
+  onBack: () => void;
+  onLaunch: (link: PeerLink, state: MatchState) => void;
+}) {
   const [role, setRole] = useState<'host' | 'guest' | null>(null);
   const [link, setLink] = useState<PeerLink | null>(null);
   const [error, setError] = useState('');
-  const [clubs, setClubs] = useState<MatchClubs>([...defaultClubs]);
-  const [duration, setDuration] = useState(180);
+  const [clubs, setClubs] = useState<MatchClubs>(fixture ? [...fixture.clubs] : [...defaultClubs]);
+  const [duration, setDuration] = useState(fixture?.duration ?? 180);
+  const [leagueMatch, setLeagueMatch] = useState(!!fixture?.league);
   const [guestReady, setGuestReady] = useState(false);
   const [ready, setReady] = useState(false);
   const owned = useRef<PeerLink | null>(null);
@@ -65,6 +76,7 @@ export function WifiLobby({ input, onBack, onLaunch }: { input: InputManager; on
       ) {
         setClubs(m.clubs as MatchClubs);
         setDuration(m.duration as number);
+        setLeagueMatch(m.league === true);
       }
       if (link.role === 'guest' && m.kind === 'start' && m.version === 1 && validNetworkMatch(m.state) && link.status === 'connected') {
         transferred.current = true;
@@ -73,8 +85,8 @@ export function WifiLobby({ input, onBack, onLaunch }: { input: InputManager; on
     });
   }, [link]);
   useEffect(() => {
-    if (link?.role === 'host' && connected) link.send({ kind: 'settings', clubs, duration });
-  }, [link, connected, clubs, duration]);
+    if (link?.role === 'host' && connected) link.send({ kind: 'settings', clubs, duration, league: !!fixture?.league });
+  }, [link, connected, clubs, duration, fixture]);
   useEffect(() => {
     if (link?.role === 'guest' && connected && ready && !available) {
       setReady(false);
@@ -95,12 +107,13 @@ export function WifiLobby({ input, onBack, onLaunch }: { input: InputManager; on
     setError('');
     setGuestReady(false);
     setReady(false);
+    setLeagueMatch(!!fixture?.league);
   };
   return (
     <main className='app-shell wifi-shell'>
       <header className='app-header'>
         <button type='button' onClick={onBack}>
-          ← Startmenyn
+          ← {fixture ? 'Till ligan' : 'Startmenyn'}
         </button>
         <div className='header-tools'>
           <SoundToggle />
@@ -110,7 +123,7 @@ export function WifiLobby({ input, onBack, onLaunch }: { input: InputManager; on
       <section className={`wifi-intro ${role ? 'wifi-intro-compact' : ''}`}>
         <p className='eyebrow'>TVÅ ENHETER · SAMMA WI-FI</p>
         {role ? (
-          <h1>Wi-Fi-match.</h1>
+          <h1>{leagueMatch ? 'Ligamatch via Wi-Fi.' : 'Wi-Fi-match.'}</h1>
         ) : (
           <h1>
             Spela mot
@@ -122,6 +135,15 @@ export function WifiLobby({ input, onBack, onLaunch }: { input: InputManager; on
           Öppna Alfred FC på båda enheterna. En skapar matchen, den andra ansluter. Ni byter QR-koder åt båda hållen och spelar sedan direkt mellan enheterna.
         </p>
       </section>
+      {leagueMatch && (
+        <section className='wifi-connection-state' aria-label='Ligamatch'>
+          <strong>
+            {getClub(clubs[0]).name} – {getClub(clubs[1]).name}
+          </strong>
+          <p>Spelare 1 styr ligalaget. Spelare 2 styr motståndarlaget. Resultatet sparas i värdens liga när matchen är klar.</p>
+          <p>En avbruten match räknas inte. Koppla ihop igen eller spela om från ligan.</p>
+        </section>
+      )}
       {!supported && (
         <p className='control-warning' role='alert'>
           Wi-Fi-spelet behöver WebRTC och HTTPS. Öppna spelets publicerade adress i en modern webbläsare.
@@ -143,13 +165,15 @@ export function WifiLobby({ input, onBack, onLaunch }: { input: InputManager; on
               }
             }}
           >
-            <strong>Skapa match</strong>
-            <span>Du väljer lagen · Spelare 1</span>
+            <strong>{fixture ? 'Skapa ligamatch' : 'Skapa match'}</strong>
+            <span>{fixture ? 'Ditt ligalag · Spelare 1' : 'Du väljer lagen · Spelare 1'}</span>
           </button>
-          <button type='button' disabled={!supported} onClick={() => setRole('guest')}>
-            <strong>Anslut</strong>
-            <span>Läs kompisens kod · Spelare 2</span>
-          </button>
+          {!fixture && (
+            <button type='button' disabled={!supported} onClick={() => setRole('guest')}>
+              <strong>Anslut</strong>
+              <span>Läs kompisens kod · Spelare 2</span>
+            </button>
+          )}
         </div>
       ) : (
         <>
@@ -170,7 +194,7 @@ export function WifiLobby({ input, onBack, onLaunch }: { input: InputManager; on
               Börja om kopplingen
             </button>
           </section>
-          {role === 'host' && (
+          {role === 'host' && !fixture && (
             <details className='wifi-settings'>
               <summary>Välj lag och matchlängd · {duration / 60} min</summary>
               <TeamSelection
@@ -238,7 +262,7 @@ export function WifiLobby({ input, onBack, onLaunch }: { input: InputManager; on
                     onClick={() => {
                       if (!link) return;
                       transferred.current = true;
-                      onLaunch(link, createMatch('versus', duration, 'normal', clubs));
+                      onLaunch(link, fixture ? structuredClone(fixture) : createMatch('versus', duration, 'normal', clubs));
                     }}
                   >
                     Starta Wi-Fi-match
@@ -280,7 +304,7 @@ export function WifiLobby({ input, onBack, onLaunch }: { input: InputManager; on
         </p>
         <p>
           Matchen pausas för båda om någon lämnar spelet. Håll båda skärmarna öppna. Vid bruten anslutning eller omladdning behöver ni koppla ihop er för en ny
-          match. Wi-Fi-matcher sparas inte.
+          match. Pågående Wi-Fi-matcher sparas inte. Färdigspelade ligamatcher räknas i värdens säsong.
         </p>
       </details>
     </main>

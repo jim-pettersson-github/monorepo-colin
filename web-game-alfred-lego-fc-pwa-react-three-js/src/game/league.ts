@@ -4,7 +4,7 @@ import type { Difficulty, MatchState } from './model';
 import { createMatch, neutralControls, STEP } from './model';
 import { stepMatch } from './simulation';
 
-export type LeagueAction = 'play' | 'watch' | 'simulate';
+export type LeagueAction = 'play' | 'local' | 'wifi' | 'watch' | 'simulate';
 
 export interface Fixture {
   id: number;
@@ -118,7 +118,6 @@ export function finishLeagueMatch(season: Season, match: MatchState): Season {
     !fixture ||
     match.league?.seasonId !== season.id ||
     match.league.fixtureId !== fixture.id ||
-    match.mode !== 'solo' ||
     match.clubs[0] !== season.club ||
     match.clubs[1] !== opponentClub(season, fixture)
   )

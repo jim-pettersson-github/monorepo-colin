@@ -2,9 +2,10 @@
 
 ## Implemented
 
-- Quick match and Division 1 entry, with always-visible start/resume actions and a focused match-exit confirmation modal.
+- Quick match and Division 1 entry, with inline start/resume actions near the top and visible update controls and a focused match-exit confirmation modal.
 - Twelve-club league: 22 home/away rounds, 132 fixtures, standings, automatic results for other games, a final champion and separate validated season saves/backups.
 - League results record once at full time. Unfinished fixtures can resume; abandoning one preserves past rounds and lets the player retry. A replacement season requires confirmation.
+- League fixtures support solo, shared-screen and Wi-Fi opponents. Player 2 controls the scheduled opponent; only the Wi-Fi host records the season result. Reconnect per fixture; abandoned games do not count.
 - League-only options to play, watch AI versus AI at 1×/2×/5×, or simulate directly without a pitch view. All use the same fixed-step rules, auto-take penalties, save progress and record each round once.
 - A 96 x 60 pitch, twice the original length and width, with scaled goals, markings, formations and AI positioning. Character sizes and tackle/contact distances remain unchanged.
 - A smooth shared follow camera with limited automatic zoom, pitch-edge bounds and a live overview. The menu preview still shows the whole stadium.
@@ -46,4 +47,4 @@ Desktop, portrait-phone and landscape-phone browser checks cover direct simulati
 
 ## Scope
 
-Local single-device quick matches, two-device LAN matches and a solo league are implemented. Multiple divisions, promotion/relegation, automatic internet matchmaking/relay, full football rules, music, replays and knockout tournaments are not implemented. Controller compatibility depends on the OS, browser and device. Universal compatibility is not promised.
+Local single-device quick matches, two-device LAN matches and division play with optional human opponents are implemented. Multiple divisions, promotion/relegation, automatic internet matchmaking/relay, full football rules, music, replays and knockout tournaments are not implemented. Controller compatibility depends on the OS, browser and device. Universal compatibility is not promised.

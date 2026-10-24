@@ -20,6 +20,7 @@ export function App() {
   const [input] = useState(() => new InputManager());
   const [session, setSession] = useState<MatchSession | null>(null);
   const [wifi, setWifi] = useState(false);
+  const [wifiFixture, setWifiFixture] = useState<MatchState | null>(null);
   const [season, setSeason] = useState(loadSeason);
   const [saved, setSaved] = useState(() => {
     const match = loadMatch();
@@ -118,6 +119,11 @@ export function App() {
     saveSeason(updated);
     seasonRef.current = updated;
     setSeason(updated);
+    const pending = loadMatch();
+    if (pending?.league?.seasonId === result.league.seasonId && pending.league.fixtureId === result.league.fixtureId) {
+      clearMatch();
+      setSaved(null);
+    }
   };
   const launch = (state: MatchState) => {
     if (simulationBusy.current || (!state.watching && !controlsReady(input, state.mode))) return;
@@ -133,7 +139,9 @@ export function App() {
       session.dispose();
       input.end();
       setSession(null);
-      setWifi(true);
+      setWifi(!session.state.league || session.networkRole === 'guest');
+      setWifiFixture(null);
+      if (session.state.league && session.networkRole === 'host') setScreen('league');
       return;
     }
     setScreen(session?.state.league ? 'league' : 'quick');
@@ -158,10 +166,14 @@ export function App() {
     return (
       <WifiLobby
         input={input}
-        onBack={() => setWifi(false)}
+        fixture={wifiFixture}
+        onBack={() => {
+          setWifi(false);
+          setWifiFixture(null);
+        }}
         onLaunch={(link, state) => {
           input.begin([0]);
-          const next = new NetworkSession(state, input, link);
+          const next = new NetworkSession(state, input, link, recordResult);
           next.setForeground(!document.hidden);
           setSession(next);
           setWifi(false);
@@ -192,8 +204,14 @@ export function App() {
     if (!fixture) return;
     const state = saved?.league?.seasonId === season.id && saved.league.fixtureId === fixture.id ? structuredClone(saved) : createLeagueMatch(season);
     if (!state) return;
-    state.watching = action !== 'play';
+    state.mode = action === 'local' || action === 'wifi' ? 'versus' : 'solo';
+    state.watching = action === 'watch' || action === 'simulate';
     state.playbackSpeed = action === 'watch' ? speed : 1;
+    if (action === 'wifi') {
+      setWifiFixture(state);
+      setWifi(true);
+      return;
+    }
     if (action !== 'simulate') return launch(state);
     simulationBusy.current = true;
     setSimulating(true);
@@ -215,7 +233,10 @@ export function App() {
   return (
     <StartMenu
       input={input}
-      onWifi={() => setWifi(true)}
+      onWifi={() => {
+        setWifiFixture(null);
+        setWifi(true);
+      }}
       screen={screen}
       onScreen={setScreen}
       mode={mode}

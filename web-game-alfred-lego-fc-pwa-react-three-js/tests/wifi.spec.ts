@@ -1,6 +1,6 @@
 import type { Browser, BrowserContext, Page } from '@playwright/test';
 import { expect, test } from '@playwright/test';
-import { createSeason } from '../src/game/league';
+import { createLeagueMatch, createSeason } from '../src/game/league';
 import { createMatch } from '../src/game/model';
 
 async function devices(browser: Browser, baseURL: string | undefined, viewport: { width: number; height: number } | null) {
@@ -38,9 +38,14 @@ async function devices(browser: Browser, baseURL: string | undefined, viewport: 
   };
 }
 
-async function enter(host: Page, guest: Page) {
-  for (const page of [host, guest]) await page.getByRole('button', { name: 'Spela via Wi-Fi' }).click();
-  await host.getByRole('button', { name: 'Skapa match', exact: false }).click();
+async function enter(host: Page, guest: Page, league = false) {
+  if (league) {
+    await host.getByRole('button', { name: /^Divisionsspel/ }).click();
+    await host.getByRole('button', { name: 'Två via Wi-Fi', exact: true }).click();
+    await host.getByRole('button', { name: 'Koppla upp ligamatch via Wi-Fi', exact: true }).click();
+  } else await host.getByRole('button', { name: 'Spela via Wi-Fi' }).click();
+  await guest.getByRole('button', { name: 'Spela via Wi-Fi' }).click();
+  await host.getByRole('button', { name: league ? 'Skapa ligamatch' : 'Skapa match', exact: false }).click();
   await guest.getByRole('button', { name: 'Anslut', exact: false }).click();
   await expect(host.getByRole('img', { name: 'QR-kod för matchen', exact: true })).toBeVisible();
 }
@@ -54,8 +59,8 @@ async function paste(to: Page, code: string) {
   await to.getByRole('textbox', { name: 'Klistra in anslutningskod', exact: true }).fill(code);
   await to.getByRole('button', { name: 'Läs in koden', exact: true }).click();
 }
-async function connect(host: Page, guest: Page, qr = true) {
-  await enter(host, guest);
+async function connect(host: Page, guest: Page, qr = true, league = false) {
+  await enter(host, guest, league);
   if (qr) await imageTransfer(host, guest);
   else {
     await host.getByText('Kopiera kod istället', { exact: true }).click();
@@ -222,5 +227,42 @@ test('camera scanning reads a live QR frame and releases the camera after a succ
     await expect.poll(() => guest.evaluate(() => (window as unknown as { wifiCameraTrack: MediaStreamTrack }).wifiCameraTrack?.readyState)).toBe('ended');
   } finally {
     await context.close();
+  }
+});
+
+test('a Wi-Fi league fixture locks its teams, records only the host season and preserves the guest saves', async ({ browser, baseURL, page }) => {
+  test.setTimeout(60_000);
+  const pair = await devices(browser, baseURL, page.viewportSize());
+  const { host, guest } = pair;
+  try {
+    const fixture = createLeagueMatch(pair.season);
+    if (!fixture) throw new Error('Missing league fixture');
+    fixture.remaining = 0.15;
+    fixture.score = [2, 1];
+    await host.evaluate((state) => localStorage.setItem('alfred-fc-match-v1', JSON.stringify(state)), fixture);
+    await host.reload();
+    await connect(host, guest, true, true);
+    for (const p of [host, guest]) await expect(p.getByRole('region', { name: 'Ligamatch', exact: true })).toBeVisible();
+    await expect(host.getByText('Välj lag och matchlängd', { exact: false })).toHaveCount(0);
+    await start(host, guest, true);
+    for (const p of [host, guest]) await expect(p.locator('.final-score')).toBeVisible({ timeout: 15_000 });
+    await expect(guest.getByText('Resultatet sparas i värdens liga.', { exact: true })).toBeVisible();
+    await expect(host.getByRole('button', { name: /Spela igen/ })).toHaveCount(0);
+    const completed = await host.evaluate(() => JSON.parse(localStorage.getItem('alfred-fc-season-v1') || '{}'));
+    expect(completed.fixtures.filter((f: { score: unknown }) => f.score)).toHaveLength(6);
+    expect(completed.fixtures[fixture.league?.fixtureId ?? -1].score).toEqual(
+      completed.fixtures[fixture.league?.fixtureId ?? -1].home === completed.club ? [2, 1] : [1, 2],
+    );
+    expect(await guest.evaluate(() => JSON.parse(localStorage.getItem('alfred-fc-season-v1') || '{}'))).toEqual(pair.season);
+    expect(await guest.evaluate(() => JSON.parse(localStorage.getItem('alfred-fc-match-v1') || '{}'))).toEqual(pair.saved);
+    await host.getByRole('button', { name: 'Till ligan', exact: true }).click();
+    await expect(host.locator('.last-league-result')).toBeVisible();
+    // Opening and cancelling the next connection does not invent another league result.
+    await host.getByRole('button', { name: 'Två via Wi-Fi', exact: true }).click();
+    await host.getByRole('button', { name: 'Koppla upp ligamatch via Wi-Fi', exact: true }).click();
+    await host.getByRole('button', { name: '← Till ligan', exact: true }).click();
+    expect(await host.evaluate(() => JSON.parse(localStorage.getItem('alfred-fc-season-v1') || '{}'))).toEqual(completed);
+  } finally {
+    await pair.close();
   }
 });

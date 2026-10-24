@@ -183,9 +183,11 @@ export function MatchView({ session, onExit, onRematch }: { session: MatchSessio
                 Spela igen <span>↗</span>
               </button>
             )}
-            {session.networkRole === 'guest' && <p className='small-copy'>Värden kan starta en returmatch med samma anslutning.</p>}
+            {session.networkRole === 'guest' && (
+              <p className='small-copy'>{state.league ? 'Resultatet sparas i värdens liga.' : 'Värden kan starta en returmatch med samma anslutning.'}</p>
+            )}
             <button type='button' onClick={onExit}>
-              {state.league ? 'Till ligan' : 'Till startmenyn'}
+              {state.league && session.networkRole !== 'guest' ? 'Till ligan' : 'Till startmenyn'}
             </button>
           </>
         ) : (

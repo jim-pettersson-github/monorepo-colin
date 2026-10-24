@@ -4,7 +4,7 @@ import type { ClubId, MatchClubs } from '../game/clubs';
 import { getClub } from '../game/clubs';
 import type { InputManager } from '../game/input';
 import type { LeagueAction, Season } from '../game/league';
-import { nextFixture } from '../game/league';
+import { nextFixture, opponentClub } from '../game/league';
 import type { Difficulty, MatchMode, MatchState, PlaybackSpeed, Team } from '../game/model';
 import { difficultyNames } from '../game/model';
 import { ControlSetup, controlsReady } from './ControlSetup';
@@ -54,14 +54,14 @@ export function StartMenu(props: Props) {
   }, [replaceSeason]);
   const league = screen === 'league';
   const hub = league && !!season && !leagueSetup;
-  const activeMode = league ? 'solo' : mode;
+  const activeMode = league ? (hub && leagueAction === 'local' ? 'versus' : 'solo') : mode;
   const next = season ? nextFixture(season) : undefined;
   const beginSeason = () => {
     props.onSeason();
     setLeagueSetup(false);
     setReplaceSeason(false);
   };
-  const needsControls = !hub || leagueAction === 'play';
+  const needsControls = !hub || leagueAction === 'play' || leagueAction === 'local';
   const ready = !simulating && (!needsControls || controlsReady(input, activeMode));
   const action = hub ? () => props.onLeagueMatch(leagueAction, watchSpeed) : league ? () => (season ? setReplaceSeason(true) : beginSeason()) : props.onQuick;
   const actionText = hub
@@ -72,7 +72,9 @@ export function StartMenu(props: Props) {
           ? 'Se nästa ligamatch'
           : leagueAction === 'simulate'
             ? 'Simulera nästa ligamatch'
-            : 'Spela nästa ligamatch'
+            : leagueAction === 'wifi'
+              ? 'Koppla upp ligamatch via Wi-Fi'
+              : 'Spela nästa ligamatch'
       : 'Säsongen är klar'
     : league
       ? season
@@ -107,6 +109,42 @@ export function StartMenu(props: Props) {
           <small>{season ? getClub(season.club).name : '12 lag · En hel säsong'}</small>
         </button>
       </nav>
+      <section className='start-panel' aria-label='Starta spelet'>
+        <div className='start-panel-summary'>
+          <strong>
+            {hub
+              ? `${getClub(season.club).name}${next ? ` – ${getClub(opponentClub(season, next)).name}` : ''}`
+              : league
+                ? 'Din nya liga'
+                : `${getClub(clubs[0]).name} – ${getClub(clubs[1]).name}`}
+          </strong>
+          <small>
+            {hub
+              ? next
+                ? `Omgång ${next.round + 1} av 22 · ${leagueAction === 'local' ? 'Två på samma skärm' : leagueAction === 'wifi' ? 'Två via Wi-Fi' : leagueAction === 'play' ? 'Mot datorn' : leagueAction === 'watch' ? 'Matchvisning' : 'Simulering'}`
+                : 'Alla matcher är spelade'
+              : `${league ? 'Divisionsspel' : mode === 'solo' ? 'Mot datorn' : 'Två spelare'} · ${duration / 60} min${activeMode === 'solo' ? ` · ${difficultyNames[difficulty]}` : ''}`}
+          </small>
+        </div>
+        <div className='start-panel-actions'>
+          {saved && (
+            <button
+              type='button'
+              className='resume-save'
+              disabled={simulating || (!saved.watching && !controlsReady(input, saved.mode))}
+              onClick={props.onResume}
+            >
+              Fortsätt sparad {saved.watching ? 'matchvisning' : saved.league ? 'ligamatch' : saved.mode === 'solo' ? 'solomatch' : 'tvåspelarmatch'} ·{' '}
+              {saved.score[0]}–{saved.score[1]}
+            </button>
+          )}
+          <button type='button' className='primary-button start-button' disabled={!ready || (hub && !next)} onClick={action}>
+            {actionText}
+            <span aria-hidden='true'>▶</span>
+          </button>
+        </div>
+        {needsControls && !controlsReady(input, activeMode) && <p className='control-warning'>Välj olika, anslutna kontroller under Spelkontroller.</p>}
+      </section>
       <button type='button' className='wifi-entry' disabled={simulating} onClick={props.onWifi}>
         <strong>Spela via Wi-Fi</strong>
         <span>Två enheter · Koppla ihop med QR-koder ↗</span>
@@ -114,7 +152,7 @@ export function StartMenu(props: Props) {
       {hub ? (
         <>
           <div className='league-toolbar'>
-            <p className='small-copy'>Din säsong sparas automatiskt. Du styr ditt lag till vänster på matchens resultattavla.</p>
+            <p className='small-copy'>Din säsong sparas automatiskt. Spelare 1 styr ditt lag; spelare 2 styr motståndarlaget i nästa omgång.</p>
             <button
               type='button'
               disabled={simulating}
@@ -136,6 +174,12 @@ export function StartMenu(props: Props) {
                   <button type='button' aria-pressed={leagueAction === 'play'} onClick={() => setLeagueAction('play')}>
                     Spela själv
                   </button>
+                  <button type='button' aria-pressed={leagueAction === 'local'} onClick={() => setLeagueAction('local')}>
+                    Två på samma skärm
+                  </button>
+                  <button type='button' aria-pressed={leagueAction === 'wifi'} onClick={() => setLeagueAction('wifi')}>
+                    Två via Wi-Fi
+                  </button>
                   <button type='button' aria-pressed={leagueAction === 'watch'} onClick={() => setLeagueAction('watch')}>
                     Se matchen
                   </button>
@@ -146,9 +190,13 @@ export function StartMenu(props: Props) {
                 <p className='small-copy'>
                   {leagueAction === 'play'
                     ? 'Styr ditt lag som vanligt.'
-                    : leagueAction === 'watch'
-                      ? 'Datorn styr båda lagen. Välj hastighet och följ hela matchen.'
-                      : 'Samma match räknas ut utan bild. Resultatet och tabellen sparas direkt.'}
+                    : leagueAction === 'local'
+                      ? 'Spela mot varandra på samma skärm. Välj varsin kontroll nedan. Resultatet räknas i din liga.'
+                      : leagueAction === 'wifi'
+                        ? 'Du är värd för nästa ligamatch. Kompisen ansluter från Spela via Wi-Fi och styr motståndarlaget. Säsongen sparas på din enhet.'
+                        : leagueAction === 'watch'
+                          ? 'Datorn styr båda lagen. Välj hastighet och följ hela matchen.'
+                          : 'Samma match räknas ut utan bild. Resultatet och tabellen sparas direkt.'}
                 </p>
                 {leagueAction === 'watch' && <PlaybackSpeedSelect value={watchSpeed} onChange={setWatchSpeed} />}
               </section>
@@ -166,7 +214,7 @@ export function StartMenu(props: Props) {
           </LeagueView>
           <details className='league-control-details'>
             <summary>Kontroller för ligamatchen</summary>
-            <ControlSetup input={input} mode='solo' clubs={[season.club, clubs[1]]} />
+            <ControlSetup input={input} mode={activeMode} clubs={[season.club, next ? opponentClub(season, next) : clubs[1]]} />
           </details>
         </>
       ) : (
@@ -195,7 +243,9 @@ export function StartMenu(props: Props) {
             <p className='eyebrow'>{league ? 'BYGG DIN SÄSONG' : 'SPELA DIREKT'}</p>
             <h2>{league ? 'Välj ditt ligalag.' : 'Din snabbmatch.'}</h2>
             {league ? (
-              <p className='small-copy'>Du spelar mot datorn. Alla 12 lag möts hemma och borta: 22 omgångar och ett färdigt spelschema.</p>
+              <p className='small-copy'>
+                Spela själv eller möt en kompis i varje omgång. Alla 12 lag möts hemma och borta: 22 omgångar och ett färdigt spelschema.
+              </p>
             ) : (
               <fieldset className='mode-options' aria-label='Spelläge'>
                 <button type='button' aria-pressed={mode === 'solo'} onClick={() => onMode('solo')}>
@@ -255,36 +305,7 @@ export function StartMenu(props: Props) {
         <summary>Ljudinställningar</summary>
         <SoundSettings />
       </details>
-      <section className='start-dock' aria-label='Starta spelet'>
-        <div className='start-dock-summary'>
-          <strong>{hub ? getClub(season.club).name : league ? 'Din nya liga' : `${getClub(clubs[0]).name} – ${getClub(clubs[1]).name}`}</strong>
-          <small>
-            {hub
-              ? next
-                ? `Omgång ${next.round + 1} av 22`
-                : 'Alla matcher är spelade'
-              : `${league ? 'Divisionsspel' : mode === 'solo' ? 'Mot datorn' : 'Två spelare'} · ${duration / 60} min${activeMode === 'solo' ? ` · ${difficultyNames[difficulty]}` : ''}`}
-          </small>
-        </div>
-        <div className='start-dock-actions'>
-          {saved && (
-            <button
-              type='button'
-              className='resume-save'
-              disabled={simulating || (!saved.watching && !controlsReady(input, saved.mode))}
-              onClick={props.onResume}
-            >
-              Fortsätt sparad {saved.watching ? 'matchvisning' : saved.league ? 'ligamatch' : saved.mode === 'solo' ? 'solomatch' : 'tvåspelarmatch'} ·{' '}
-              {saved.score[0]}–{saved.score[1]}
-            </button>
-          )}
-          <button type='button' className='primary-button start-button' disabled={!ready || (hub && !next)} onClick={action}>
-            {actionText}
-            <span aria-hidden='true'>▶</span>
-          </button>
-        </div>
-        {needsControls && !controlsReady(input, activeMode) && <p className='control-warning'>Välj olika, anslutna kontroller för spelarna ovan.</p>}
-      </section>
+
       <dialog
         ref={confirm}
         className='match-dialog'

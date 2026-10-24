@@ -6,7 +6,7 @@ import { MatchSession } from './session';
 import { validMatch } from './storage';
 
 export function validNetworkMatch(value: unknown): value is MatchState {
-  return validMatch(value) && value.mode === 'versus' && !value.watching && value.league === null;
+  return validMatch(value) && value.mode === 'versus' && !value.watching;
 }
 function validControls(value: unknown): value is Controls {
   if (!value || typeof value !== 'object') return false;
@@ -36,6 +36,7 @@ export class NetworkSession extends MatchSession {
     state: MatchState,
     input: InputManager,
     public readonly link: PeerLink,
+    private onLeagueFinished?: (state: MatchState) => void,
   ) {
     super(state, input);
     this.networkRole = link.role;
@@ -61,7 +62,8 @@ export class NetworkSession extends MatchSession {
     return this.networkRole === 'guest' ? this.display : this.state;
   }
   override save = () => {
-    /* A live peer match never replaces a local match or league save. */
+    // Only the host records a completed fixture. Live snapshots never replace local match saves.
+    if (this.networkRole === 'host' && this.state.league && this.state.phase === 'finished') this.onLeagueFinished?.(this.state);
   };
 
   private snapshot() {
@@ -105,7 +107,7 @@ export class NetworkSession extends MatchSession {
     }
   }
   rematch() {
-    if (this.networkRole !== 'host' || !this.canResume) return;
+    if (this.networkRole !== 'host' || this.state.league || !this.canResume) return;
     this.round++;
     this.state = createMatch('versus', this.state.duration, this.state.difficulty, this.state.clubs);
     this.remote = neutralControls();

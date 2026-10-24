@@ -172,6 +172,41 @@ test('the host rejects forged scores and invalid controls, synchronizes decision
   mirror.dispose();
 });
 
+test('only the Wi-Fi host records a completed league fixture and league fixtures cannot rematch', () => {
+  let season = createSeason('alfred', 'easy', 60);
+  const state = createLeagueMatch(season);
+  if (!state) throw new Error('Missing fixture');
+  state.mode = 'versus';
+  state.phase = 'playing';
+  state.remaining = STEP;
+  state.score = [2, 1];
+  expect(validNetworkMatch(state)).toBe(true);
+  const host = fakePeer('host');
+  const guest = fakePeer('guest');
+  const session = new NetworkSession(state, host.input, host.link, (result) => {
+    season = finishLeagueMatch(season, result);
+  });
+  let guestRecords = 0;
+  const mirror = new NetworkSession(structuredClone(state), guest.input, guest.link, () => {
+    guestRecords++;
+  });
+  session.save();
+  expect(season.fixtures.filter((fixture) => fixture.score)).toHaveLength(0);
+  session.advance(0.1);
+  guest.receive(host.messages.at(-1));
+  expect(mirror.state.phase).toBe('finished');
+  mirror.save();
+  expect(guestRecords).toBe(0);
+  expect(season.fixtures.filter((fixture) => fixture.score)).toHaveLength(6);
+  const completed = structuredClone(season);
+  session.save();
+  session.rematch();
+  expect(session.state.phase).toBe('finished');
+  expect(season).toEqual(completed);
+  session.dispose();
+  mirror.dispose();
+});
+
 test('a close slide past a standing opponent never counts as contact across the visible gap', () => {
   for (const gap of [0.7, 0.8, 0.95, 1.1, 2]) {
     const state = createMatch('versus');

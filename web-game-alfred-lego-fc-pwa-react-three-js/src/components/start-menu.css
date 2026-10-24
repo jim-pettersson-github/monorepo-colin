@@ -1,5 +1,5 @@
 .app-shell.menu-shell {
-  padding-bottom: max(220px, calc(env(safe-area-inset-bottom) + 220px));
+  padding-bottom: max(24px, env(safe-area-inset-bottom));
 }
 .play-mode-tabs {
   display: grid;
@@ -55,46 +55,42 @@
   line-height: 1.6;
   color: var(--muted);
 }
-.start-dock {
-  position: fixed;
-  z-index: 5;
-  bottom: 0;
-  left: 0;
-  right: 0;
+.start-panel {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 16px max(24px, calc((100vw - 1280px) / 2)) max(16px, env(safe-area-inset-bottom));
-  border-top: 1px solid var(--border);
+  padding: 16px;
+  margin-top: 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
   background: var(--surface);
-  box-shadow: 0 -8px 32px #0003;
   flex-wrap: wrap;
 }
-.start-dock-summary {
+.start-panel-summary {
   display: grid;
   gap: 5px;
   min-width: 0;
 }
-.start-dock-summary strong {
+.start-panel-summary strong {
   font-size: 14px;
   overflow-wrap: anywhere;
 }
-.start-dock-summary small {
+.start-panel-summary small {
   color: var(--muted);
   font-size: 12px;
 }
-.start-dock-actions {
+.start-panel-actions {
   display: flex;
   gap: 12px;
   align-items: center;
 }
-.start-dock .start-button,
-.start-dock .resume-save {
+.start-panel .start-button,
+.start-panel .resume-save {
   margin: 0;
   width: auto;
 }
-.start-dock .control-warning {
+.start-panel .control-warning {
   flex-basis: 100%;
   margin: 0;
 }
@@ -315,29 +311,29 @@
   .play-mode-tabs small {
     font-size: 11px;
   }
-  .start-dock {
+  .start-panel {
     padding: 12px 16px max(12px, env(safe-area-inset-bottom));
     gap: 10px;
   }
-  .start-dock-summary {
+  .start-panel-summary {
     width: 100%;
   }
-  .start-dock-summary strong {
+  .start-panel-summary strong {
     font-size: 12px;
   }
-  .start-dock-summary small {
+  .start-panel-summary small {
     font-size: 11px;
   }
-  .start-dock-actions {
+  .start-panel-actions {
     width: 100%;
     flex-direction: column-reverse;
     gap: 8px;
   }
-  .start-dock .start-button,
-  .start-dock .resume-save {
+  .start-panel .start-button,
+  .start-panel .resume-save {
     width: 100%;
   }
-  .start-dock .resume-save {
+  .start-panel .resume-save {
     min-height: 48px;
     font-size: 12px;
   }
@@ -363,21 +359,21 @@
   .menu-shell {
     padding-top: 12px;
   }
-  .start-dock {
+  .start-panel {
     padding-block: 8px;
     flex-wrap: nowrap;
   }
-  .start-dock-summary {
+  .start-panel-summary {
     width: auto;
   }
-  .start-dock-actions {
+  .start-panel-actions {
     flex-direction: row;
     width: auto;
   }
-  .start-dock .resume-save {
+  .start-panel .resume-save {
     max-width: 250px;
   }
-  .start-dock .start-button {
+  .start-panel .start-button {
     min-width: 220px;
   }
 }

@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import type { Season } from '../src/game/league';
 import { nextFixture } from '../src/game/league';
 
-test('quick match starts from a visible dock and exposes three difficulty levels', async ({ page }, testInfo) => {
+test('quick match starts from a visible section without covering the menu and exposes three difficulty levels', async ({ page }, testInfo) => {
   await page.goto('./');
   const start = page.getByRole('button', { name: 'Starta snabbmatch', exact: true });
   const box = await start.boundingBox();
@@ -11,6 +11,11 @@ test('quick match starts from a visible dock and exposes three difficulty levels
   expect(box.y).toBeGreaterThanOrEqual(0);
   expect(box.y + box.height).toBeLessThanOrEqual(viewport.height);
   expect(await page.evaluate(() => scrollY)).toBe(0);
+  await expect(page.getByRole('region', { name: 'Speluppdateringar' })).toBeInViewport();
+  expect(await page.locator('.start-panel').evaluate((node) => getComputedStyle(node).position)).toBe('static');
+  await page.getByRole('combobox', { name: 'Matchlängd', exact: true }).scrollIntoViewIfNeeded();
+  await expect(page.locator('.start-panel')).not.toBeInViewport();
+  await page.evaluate(() => scrollTo(0, 0));
   await page.screenshot({ path: testInfo.outputPath('start-menu.png') });
   await expect(page.getByRole('combobox', { name: 'Motstånd', exact: true }).locator('option')).toHaveText(['Lätt', 'Vanlig', 'Svår']);
   await page.getByRole('combobox', { name: 'Motstånd', exact: true }).selectOption('hard');
@@ -95,4 +100,39 @@ test('a league keeps its schedule, records a round once, restores a fixture and 
   await expect(page.getByRole('dialog', { name: 'Börja om ligan?' })).toBeVisible();
   await page.getByRole('button', { name: 'Behåll min säsong', exact: true }).click();
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('alfred-fc-season-v1') || '{}'))).toEqual(completed);
+});
+
+test('division shared-screen play restores two players and records the fixture once', async ({ page }) => {
+  await page.clock.install();
+  await page.goto('./');
+  await page.getByRole('button', { name: /^Divisionsspel/ }).click();
+  await page.getByRole('button', { name: 'Starta ligan', exact: true }).click();
+  await page.getByRole('button', { name: 'Två på samma skärm', exact: true }).click();
+  await page.getByText('Kontroller för ligamatchen', { exact: true }).click();
+  await page.locator('.source-label select').nth(0).selectOption('keyboard1');
+  await page.locator('.source-label select').nth(1).selectOption('keyboard2');
+  await page.getByRole('button', { name: 'Spela nästa ligamatch', exact: true }).click();
+  await expect(page.locator('.match-ribbon')).toContainText('TVÅ SPELARE');
+  await page.getByRole('button', { name: 'Pausa matchen' }).click();
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('alfred-fc-match-v1') || '{}'));
+  expect(saved.mode).toBe('versus');
+  expect(saved.league).not.toBeNull();
+  await page.addInitScript(() => {
+    const match = JSON.parse(localStorage.getItem('alfred-fc-match-v1') || 'null');
+    if (match?.league) {
+      match.phase = 'playing';
+      match.remaining = 0.12;
+      match.score = [1, 2];
+      localStorage.setItem('alfred-fc-match-v1', JSON.stringify(match));
+    }
+  });
+  await page.reload();
+  await page.getByRole('button', { name: /Fortsätt sparad ligamatch/ }).click();
+  await page.clock.runFor(400);
+  await page.getByRole('button', { name: 'Till ligan', exact: true }).click();
+  const season: Season = await page.evaluate(() => JSON.parse(localStorage.getItem('alfred-fc-season-v1') || '{}'));
+  expect(season.fixtures.filter((fixture) => fixture.score)).toHaveLength(6);
+  expect(season.fixtures[saved.league.fixtureId].score).toEqual(season.fixtures[saved.league.fixtureId].home === season.club ? [1, 2] : [2, 1]);
+  await page.reload();
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('alfred-fc-season-v1') || '{}'))).toEqual(season);
 });

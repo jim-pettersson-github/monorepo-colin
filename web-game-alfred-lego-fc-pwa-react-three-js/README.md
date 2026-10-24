@@ -9,17 +9,17 @@ npm ci
 npm start
 ```
 
-Open http://localhost:4012 with Node 22.12+. Choose **Snabbmatch** to select two clubs and play solo or local versus on one screen. The start/resume actions stay visible in a fixed bottom bar on desktop and phones. Choose a separate input for each player and a 1-, 3- or 5-minute match. Exiting a paused match replaces the pause panel with a short, focused confirmation modal; Escape returns to pause.
+Open http://localhost:4012 with Node 22.12+. Choose **Snabbmatch** to select two clubs and play solo or local versus on one screen. The start/resume actions sit below the mode tabs and scroll with the page without covering settings. Update controls appear directly below the header. Choose a separate input for each player and a 1-, 3- or 5-minute match. Exiting a paused match replaces the pause panel with a short, focused confirmation modal; Escape returns to pause.
 
 Solo has **Lätt**, **Vanlig** and **Svår** difficulty. Lätt gives much slower opponents, delayed reactions, weaker and less accurate shots, a slower keeper, and no opponent slide tackles. Vanlig adds moderate speed and tackling; Svår uses faster movement, quicker reactions and stronger, more accurate shots. Human players and their AI teammates keep their normal movement. Local versus treats both sides equally.
 
 ## Division play
 
-Choose **Divisionsspel**, a club and match settings, then **Starta ligan**. Division 1 contains all 12 clubs. A double round-robin schedule has 22 rounds of six games: every pair meets once at home and once away. Play your club's 22 fixtures against AI; the other five results in each round are simulated when your game finishes. Your club appears on the left of the match scoreboard, including away fixtures; the league records results in scheduled home/away order.
+Choose **Divisionsspel**, a club and match settings, then **Starta ligan**. Division 1 contains all 12 clubs. A double round-robin schedule has 22 rounds of six games: every pair meets once at home and once away. Play your club's 22 fixtures against AI or a friend; the other five results in each round are simulated when your game finishes. Your club appears on the left of the match scoreboard, including away fixtures; the league records results in scheduled home/away order.
 
 The league view shows the next opponent, a table and all rounds. Wins give three points and draws one; goal difference and goals scored break ties. Completed rounds save immediately, before leaving the result screen, and cannot count twice. The season has its own validated local save and backup, separate from the current match. Reloading can resume an unfinished fixture. Abandoning that match leaves previous rounds intact and lets you replay the pending fixture. A new season asks before replacing the old table. The final table and champion remain available after all 22 games. Multiple divisions and promotion/relegation are not simulated.
 
-League fixtures offer **Spela själv**, **Se matchen** and **Simulera direkt**. Watching lets AI control both teams with the same difficulty settings, without needing an assigned controller. Choose 1×, 2× or 5× speed before starting or during the match. Speed changes the number of fixed simulation steps; animation and camera movement follow the same pace. Pausing, backgrounding and restoring a saved viewing session retain its speed and progress. Both teams also take penalties automatically.
+League fixtures offer **Spela själv**, **Två på samma skärm**, **Två via Wi-Fi**, **Se matchen** and **Simulera direkt**. Player 1 controls the season club; player 2 controls the scheduled opponent. Shared-screen play uses separate keyboards or controllers and can resume from a saved fixture. For Wi-Fi, the season owner hosts the fixed fixture and the friend joins from **Spela via Wi-Fi**. Only the host records the completed result; guest saves stay separate. Abandoned fixtures do not count. Connect again for each league fixture. Watching lets AI control both teams with the same difficulty settings, without needing an assigned controller. Choose 1×, 2× or 5× speed before starting or during the match. Speed changes the number of fixed simulation steps; animation and camera movement follow the same pace. Pausing, backgrounding and restoring a saved viewing session retain its speed and progress. Both teams also take penalties automatically.
 
 Direct simulation runs that same AI match without opening the pitch, yielding between batches so the menu stays responsive. A saved pending match continues from its snapshot. Progress saves during calculation; the final result and the other five games update the table once, with the latest result shown in the league view. Quick matches do not offer watching or direct simulation.
 
@@ -33,7 +33,7 @@ Choose from 12 clubs: Alfred FF, IFK Göteborg, Norrköping FC, Colin FF, Charli
 
 Choose **Spela via Wi-Fi** on both devices. The host selects **Skapa match** and the guest **Anslut**. The guest scans the host's match QR code, then shows the generated answer QR code for the host to scan. Both directions are required. Camera access is requested only after pressing **Skanna med kameran**; the camera stops after a scan, cancellation or leaving the screen. **Välj QR-bild** reads a saved image, and expandable copy/paste fields support devices without cameras.
 
-The guest chooses a local keyboard, touch input or gamepad and presses **Jag är redo**. The host chooses both clubs and the duration, then starts from the fixed bottom bar. Both players use their own screen and input; the guest is player 2 and can use the same keyboard layout as the host on their separate device. The lobby displays each player's club. Portrait/landscape controls follow each device's camera orientation independently.
+The guest chooses a local keyboard, touch input or gamepad and presses **Jag är redo**. The host chooses both clubs and the duration, then starts with **Starta Wi-Fi-match**. Both players use their own screen and input; the guest is player 2 and can use the same keyboard layout as the host on their separate device. The lobby displays each player's club. Portrait/landscape controls follow each device's camera orientation independently.
 
 WebRTC uses local ICE candidates with no STUN, TURN, signaling server, accounts or external QR service. The host runs the fixed-step match and sends snapshots at 20 Hz; the guest sends controls and smooths the displayed positions between snapshots. Scores, tackles, cards, penalties, restarts and full time all come from the host. Only the host can start a rematch; the same connection is reused.
 
@@ -72,7 +72,7 @@ Matches save locally every few seconds and when paused or backgrounded. On launc
 
 The app pauses when focus is lost or it goes into the background, without time catch-up. Portrait and landscape are supported without locking rotation. Fullscreen is available where the browser supports it.
 
-Production builds cache the game for offline play after the first online load. Updates download in the background, then wait until old clients close or the user chooses Uppdatera spelet from the pause screen. A requested update saves the current match before reload. Service workers are disabled in development.
+Production builds cache the game for offline play after the first online load. Updates download in the background, then wait until old clients close or the user chooses **Uppdatera spelet** from the start menu or pause screen. A requested update saves the current match before reload. Service workers are disabled in development.
 
 ## Verify
 
@@ -91,7 +91,7 @@ For a production preview, run `npm run build` then `npm run preview` and open ht
 ## Structure
 
 - `src/App.tsx`: match/season lifetime, result recording and background handling.
-- `src/components/StartMenu.tsx`, `start-menu.css`: quick-match setup, league entry and persistent start actions.
+- `src/components/StartMenu.tsx`, `start-menu.css`: quick-match setup, league entry and inline start actions.
 - `src/game/league.ts`, `src/components/LeagueView.tsx`: schedule, table, simulated results, league saves and season UI.
 - `src/components/MatchView.tsx`, `GameCanvas.tsx`: match HUD, pause/result dialogs and canvas lifecycle.
 - `src/components/ControlSetup.tsx`, `TouchControls.tsx`: assignments, mapping and touch input.
