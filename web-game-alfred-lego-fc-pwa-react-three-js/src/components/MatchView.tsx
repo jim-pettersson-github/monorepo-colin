@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { getMatchClubs } from '../game/clubs';
+import { cupName } from '../game/cups';
 import type { MatchSession } from '../game/session';
 import { ControlGuide } from './ControlGuide';
 import { ControlSetup, controlsReady } from './ControlSetup';
@@ -38,7 +39,7 @@ export function MatchView({ session, onExit, onRematch }: { session: MatchSessio
       stayButton.current?.focus();
     }
   }, [confirmExit]);
-  const seconds = Math.ceil(state.remaining);
+  const seconds = state.cup?.extraTime ? Math.floor(state.cup.extraElapsed ?? 0) : Math.ceil(state.remaining);
   const clock = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
   const touchTeam = state.watching
     ? null
@@ -80,8 +81,8 @@ export function MatchView({ session, onExit, onRematch }: { session: MatchSessio
               </span>
             )}
           </span>
-          <time role='timer' aria-label='Tid kvar'>
-            {clock}
+          <time role='timer' aria-label={state.cup?.extraTime ? 'Spelad tid i förlängningen' : 'Tid kvar'}>
+            {state.cup?.extraTime ? `+${clock}` : clock}
           </time>
         </section>
         <button className='pause-button' type='button' aria-label='Pausa matchen' onClick={() => session.pause()}>
@@ -92,7 +93,7 @@ export function MatchView({ session, onExit, onRematch }: { session: MatchSessio
         <GameCanvas session={session} />
         <SoundToggle className='match-sound-toggle' />
         <div className='match-ribbon'>
-          <span>ALFRED ARENA</span>
+          <span>{state.cup?.extraTime ? 'GYLLENE MÅL · Nästa mål avgör' : state.cup ? cupName(state.cup.kind) : 'ALFRED ARENA'}</span>
           <span>
             5 MOT 5 · {network ? `WI-FI · DU ÄR P${localTeam + 1}` : state.watching ? 'MATCHVISNING' : state.mode === 'solo' ? 'MOT DATORN' : 'TVÅ SPELARE'}
           </span>
@@ -160,9 +161,11 @@ export function MatchView({ session, onExit, onRematch }: { session: MatchSessio
             <p>
               {network
                 ? 'Wi-Fi-matchen avslutas för båda. Ni behöver koppla ihop enheterna igen för en ny match.'
-                : state.league
-                  ? 'Matchen avbryts. Du kan spela om den från ligan. Dina tidigare ligaresultat sparas.'
-                  : 'Vill du avsluta och gå till startmenyn?'}
+                : state.cup
+                  ? 'Matchen avbryts. Du kan spela om den från cupen. Tidigare cupresultat sparas.'
+                  : state.league
+                    ? 'Matchen avbryts. Du kan spela om den från ligan. Dina tidigare ligaresultat sparas.'
+                    : 'Vill du avsluta och gå till startmenyn?'}
             </p>
             <button type='button' className='primary-button' onClick={onExit}>
               Ja, avsluta
@@ -178,16 +181,22 @@ export function MatchView({ session, onExit, onRematch }: { session: MatchSessio
               <span>–</span>
               <span className='away-name'>{state.score[1]}</span>
             </p>
-            {!state.league && session.networkRole !== 'guest' && (
+            {!state.league && !state.cup && session.networkRole !== 'guest' && (
               <button type='button' className='primary-button' disabled={network && !session.canResume} onClick={onRematch}>
                 Spela igen <span>↗</span>
               </button>
             )}
             {session.networkRole === 'guest' && (
-              <p className='small-copy'>{state.league ? 'Resultatet sparas i värdens liga.' : 'Värden kan starta en returmatch med samma anslutning.'}</p>
+              <p className='small-copy'>
+                {state.cup
+                  ? 'Resultatet sparas i värdens cup.'
+                  : state.league
+                    ? 'Resultatet sparas i värdens liga.'
+                    : 'Värden kan starta en returmatch med samma anslutning.'}
+              </p>
             )}
             <button type='button' onClick={onExit}>
-              {state.league && session.networkRole !== 'guest' ? 'Till ligan' : 'Till startmenyn'}
+              {state.cup && session.networkRole !== 'guest' ? 'Till cupen' : state.league && session.networkRole !== 'guest' ? 'Till ligan' : 'Till startmenyn'}
             </button>
           </>
         ) : (

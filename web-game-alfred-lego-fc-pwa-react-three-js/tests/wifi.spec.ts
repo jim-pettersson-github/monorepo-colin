@@ -1,5 +1,6 @@
 import type { Browser, BrowserContext, Page } from '@playwright/test';
 import { expect, test } from '@playwright/test';
+import { createCup, cupName, nextCupFixture } from '../src/game/cups';
 import { createLeagueMatch, createSeason } from '../src/game/league';
 import { createMatch } from '../src/game/model';
 
@@ -38,14 +39,19 @@ async function devices(browser: Browser, baseURL: string | undefined, viewport: 
   };
 }
 
-async function enter(host: Page, guest: Page, league = false) {
-  if (league) {
+async function enter(host: Page, guest: Page, league = false, cup: boolean | 'world' = false) {
+  if (cup) {
+    await host.getByRole('button', { name: /^Cupspel/ }).click();
+    if (cup === 'world') await host.locator('.cup-choice').filter({ hasText: 'Världscupen' }).click();
+    await host.getByRole('button', { name: 'Två via Wi-Fi', exact: true }).click();
+    await host.getByRole('button', { name: 'Koppla upp cupmatch via Wi-Fi', exact: true }).click();
+  } else if (league) {
     await host.getByRole('button', { name: /^Divisionsspel/ }).click();
     await host.getByRole('button', { name: 'Två via Wi-Fi', exact: true }).click();
     await host.getByRole('button', { name: 'Koppla upp ligamatch via Wi-Fi', exact: true }).click();
   } else await host.getByRole('button', { name: 'Spela via Wi-Fi' }).click();
   await guest.getByRole('button', { name: 'Spela via Wi-Fi' }).click();
-  await host.getByRole('button', { name: league ? 'Skapa ligamatch' : 'Skapa match', exact: false }).click();
+  await host.getByRole('button', { name: cup ? 'Skapa cupmatch' : league ? 'Skapa ligamatch' : 'Skapa match', exact: false }).click();
   await guest.getByRole('button', { name: 'Anslut', exact: false }).click();
   await expect(host.getByRole('img', { name: 'QR-kod för matchen', exact: true })).toBeVisible();
 }
@@ -58,8 +64,8 @@ async function paste(to: Page, code: string) {
   await to.getByRole('textbox', { name: 'Klistra in anslutningskod', exact: true }).fill(code);
   await to.getByRole('button', { name: 'Läs in koden', exact: true }).click();
 }
-async function connect(host: Page, guest: Page, qr = true, league = false) {
-  await enter(host, guest, league);
+async function connect(host: Page, guest: Page, qr = true, league = false, cup: boolean | 'world' = false) {
+  await enter(host, guest, league, cup);
   if (qr) await imageTransfer(host, guest);
   else {
     await host.getByText('Visa koden som text', { exact: true }).click();
@@ -265,3 +271,34 @@ test('a Wi-Fi league fixture locks its teams, records only the host season and p
     await pair.close();
   }
 });
+
+for (const kind of ['alfred', 'world'] as const) {
+  test(`a QR ${kind} cup fixture shows the competition on both peers and preserves guest cup and league saves`, async ({ browser, baseURL, page }) => {
+    test.setTimeout(60000);
+    const pair = await devices(browser, baseURL, page.viewportSize());
+    const { host, guest } = pair;
+    const own = createCup(kind, kind === 'world' ? 'swe' : 'alfred', 'easy', 60, 5),
+      other = createCup(kind, kind === 'world' ? 'jpn' : 'brick', 'normal', 60, 7);
+    try {
+      for (const [p, cup] of [
+        [host, own],
+        [guest, other],
+      ] as const) {
+        await p.evaluate((cup) => localStorage.setItem(`alfred-fc-cup-${cup.kind}-v1`, JSON.stringify(cup)), cup);
+        await p.reload();
+      }
+      await connect(host, guest, true, false, kind === 'world' ? 'world' : true);
+      await expect(guest.getByRole('heading', { name: `${cupName(kind)} via Wi-Fi.` })).toBeVisible();
+      await start(host, guest);
+      await expect(host.locator('.match-ribbon')).toContainText(cupName(kind));
+      await host.getByRole('button', { name: 'Pausa matchen' }).click();
+      await expect(guest.getByRole('dialog', { name: 'Vi tar en paus.' })).toBeVisible();
+      expect(await guest.evaluate((kind) => JSON.parse(localStorage.getItem(`alfred-fc-cup-${kind}-v1`) || 'null'), kind)).toEqual(other);
+      expect(await guest.evaluate(() => JSON.parse(localStorage.getItem('alfred-fc-season-v1') || 'null'))).toEqual(pair.season);
+      expect(await guest.evaluate(() => JSON.parse(localStorage.getItem('alfred-fc-match-v1') || 'null'))).toEqual(pair.saved);
+      expect(nextCupFixture(own)).toBeDefined();
+    } finally {
+      await pair.close();
+    }
+  });
+}

@@ -25,7 +25,7 @@ export interface Season {
 }
 
 export function seasonSchedule(): Fixture[] {
-  const rotation = clubs.map((club) => club.id);
+  const rotation: ClubId[] = clubs.map((club) => club.id);
   const fixtures: Fixture[] = [];
   for (let round = 0; round < rotation.length - 1; round++) {
     for (let pair = 0; pair < rotation.length / 2; pair++) {
@@ -61,7 +61,7 @@ export function createLeagueMatch(season: Season): MatchState | null {
 
 // Use the same AI and fixed steps as the visible match, yielding between batches.
 export async function simulateLeagueMatch(initial: MatchState, onProgress?: (match: MatchState) => void): Promise<MatchState> {
-  if (!initial.league || initial.mode !== 'solo') throw new Error('Simulation requires a league fixture');
+  if ((!initial.league && !initial.cup) || initial.mode !== 'solo') throw new Error('Simulation requires a competition fixture');
   const match = structuredClone(initial);
   match.watching = true;
   match.playbackSpeed = 1;
@@ -79,8 +79,8 @@ export async function simulateLeagueMatch(initial: MatchState, onProgress?: (mat
   return match;
 }
 
-export function standings(season: Season) {
-  const rows = clubs.map((club) => ({ club: club.id, played: 0, won: 0, drawn: 0, lost: 0, goalsFor: 0, goalsAgainst: 0, points: 0 }));
+export function standings(season: Pick<Season, 'fixtures'>, participants: readonly ClubId[] = clubs.map((club) => club.id)) {
+  const rows = participants.map((club) => ({ club, played: 0, won: 0, drawn: 0, lost: 0, goalsFor: 0, goalsAgainst: 0, points: 0 }));
   for (const fixture of season.fixtures) {
     if (!fixture.score) continue;
     const home = rows.find((row) => row.club === fixture.home);
@@ -144,6 +144,7 @@ export function validSeason(value: unknown): value is Season {
     !s.id.length ||
     s.id.length > 100 ||
     !validClub(s.club) ||
+    !clubs.some((club) => club.id === s.club) ||
     !['easy', 'normal', 'hard'].includes(s.difficulty) ||
     ![60, 180, 300].includes(s.duration)
   )

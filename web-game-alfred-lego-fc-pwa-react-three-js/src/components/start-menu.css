@@ -3,10 +3,10 @@
 }
 .play-mode-tabs {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   margin-top: 22px;
-  max-width: 720px;
+  max-width: 920px;
 }
 .play-mode-tabs button {
   display: grid;
@@ -375,5 +375,21 @@
   }
   .start-panel .start-button {
     min-width: 220px;
+  }
+}
+
+@media (max-width: 700px) {
+  .play-mode-tabs {
+    gap: 7px;
+  }
+  .play-mode-tabs button {
+    padding: 12px 9px;
+  }
+  .play-mode-tabs strong {
+    font-size: 14px;
+    overflow-wrap: anywhere;
+  }
+  .play-mode-tabs small {
+    font-size: 10px;
   }
 }

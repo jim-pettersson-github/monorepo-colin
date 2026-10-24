@@ -2,6 +2,7 @@ import type { MatchClubs } from './clubs';
 import { defaultClubs } from './clubs';
 
 export type Team = 0 | 1;
+export type CupKind = 'alfred' | 'masters' | 'world';
 export type MatchMode = 'solo' | 'versus';
 export type PlaybackSpeed = 1 | 2 | 5;
 export type Difficulty = 'easy' | 'normal' | 'hard';
@@ -50,6 +51,7 @@ export interface Player {
 }
 
 export interface MatchState {
+  cup?: { kind: CupKind; runId: string; fixtureId: number; knockout: boolean; extraTime: boolean; extraElapsed?: number } | null;
   watching: boolean;
   playbackSpeed: PlaybackSpeed;
   league: { seasonId: string; fixtureId: number } | null;
@@ -83,6 +85,7 @@ export function createMatch(mode: MatchMode, duration = 180, difficulty: Difficu
     watching: false,
     playbackSpeed: 1,
     league: null,
+    cup: null,
     pitchScale: FIELD.scale,
     clubs: [...clubs],
     mode,

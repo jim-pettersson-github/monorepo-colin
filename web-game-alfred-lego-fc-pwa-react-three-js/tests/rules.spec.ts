@@ -1,6 +1,18 @@
 import { expect, test } from '@playwright/test';
 import { matchCameraFrame } from '../src/game/camera';
-import { clubs } from '../src/game/clubs';
+import { clubs, getMatchClubs } from '../src/game/clubs';
+import {
+  createCup,
+  createCupMatch,
+  cupChampion,
+  cupGroups,
+  cupThirdPlaces,
+  finishCupMatch,
+  loadCup,
+  nextCupFixture,
+  saveCup,
+  validCup,
+} from '../src/game/cups';
 import { defaultMapping, InputManager, readPad, stickValue } from '../src/game/input';
 import {
   createLeagueMatch,
@@ -16,6 +28,7 @@ import {
   validSeason,
 } from '../src/game/league';
 import { attackDirection, createMatch, ensureMatchRules, FIELD, neutralControls, resetPositions, STEP, screenToWorld, type Team } from '../src/game/model';
+import { nations } from '../src/game/nations';
 import { NetworkSession, validNetworkMatch } from '../src/game/network-session';
 import { decodeSignal, encodeSignal, type PeerLink } from '../src/game/peer-link';
 import { MatchSession } from '../src/game/session';
@@ -833,5 +846,291 @@ test('held gamepad actions fire once, and disconnecting a slot does not shift th
     else Reflect.deleteProperty(globalThis, 'matchMedia');
     if (padDescriptor) Object.defineProperty(navigator, 'getGamepads', padDescriptor);
     else Reflect.deleteProperty(navigator, 'getGamepads');
+  }
+});
+
+for (const kind of ['alfred', 'masters', 'world'] as const) {
+  test(`${kind} cup gives every club a valid route to the trophy and commits each match once`, () => {
+    for (const club of kind === 'world' ? nations : clubs) {
+      let cup = createCup(kind, club.id, 'easy', 60, 12345);
+      expect(validCup(cup)).toBe(true);
+      let played = 0;
+      while (nextCupFixture(cup)) {
+        const match = createCupMatch(cup);
+        if (!match) throw new Error('Missing cup match');
+        expect(validMatch(match)).toBe(true);
+        match.phase = 'finished';
+        match.remaining = 0;
+        match.score = [3, 0];
+        const before = cup;
+        cup = finishCupMatch(cup, match);
+        played++;
+        expect(cup).not.toBe(before);
+        expect(validCup(cup)).toBe(true);
+        expect(finishCupMatch(cup, match)).toBe(cup);
+        expect(played).toBeLessThan(9);
+      }
+      expect(cupChampion(cup)).toBe(club.id);
+      expect(cup.fixtures).toHaveLength(kind === 'alfred' ? 11 : kind === 'world' ? 51 : 33);
+      expect(cup.fixtures.every((f) => f.score !== null)).toBe(true);
+      expect(played).toBe(kind === 'alfred' ? (cup.draw.slice(0, 4).includes(club.id) ? 3 : 4) : 7);
+    }
+  });
+}
+
+test('masters groups contain six teams with one meeting per pair and cross-group semifinals', () => {
+  let cup = createCup('masters', 'alfred', 'normal', 60, 77);
+  expect(cup.fixtures).toHaveLength(30);
+  for (const group of [cup.draw.slice(0, 6), cup.draw.slice(6)]) {
+    const games = cup.fixtures.filter((f) => group.includes(f.home));
+    expect(games).toHaveLength(15);
+    expect(new Set(games.map((f) => [f.home, f.away].sort().join(':'))).size).toBe(15);
+    for (const club of group) expect(games.filter((f) => f.home === club || f.away === club)).toHaveLength(5);
+  }
+  for (let i = 0; i < 5; i++) {
+    const match = createCupMatch(cup);
+    if (!match) throw new Error('No group match');
+    match.phase = 'finished';
+    match.remaining = 0;
+    match.score = [4, 0];
+    cup = finishCupMatch(cup, match);
+  }
+  const [a, b] = cupGroups(cup);
+  expect(a.every((row) => row.played === 5)).toBe(true);
+  const semis = cup.fixtures.filter((f) => f.round === 5);
+  expect(semis.map((f) => [f.home, f.away])).toEqual([
+    [a[0].club, b[1].club],
+    [b[0].club, a[1].club],
+  ]);
+});
+
+test('elimination completes the other rounds, corrupt brackets are rejected and cup saves are independent', () => {
+  let cup = createCup('alfred', 'alfred', 'easy', 60, 5);
+  const match = createCupMatch(cup);
+  if (!match) throw new Error('Missing match');
+  match.phase = 'finished';
+  match.remaining = 0;
+  match.score = [0, 1];
+  cup = finishCupMatch(cup, match);
+  expect(cupChampion(cup)).not.toBeNull();
+  expect(cupChampion(cup)).not.toBe(cup.club);
+  expect(nextCupFixture(cup)).toBeUndefined();
+  expect(validCup(cup)).toBe(true);
+  const corrupt = structuredClone(cup);
+  corrupt.fixtures[0].home = corrupt.fixtures[0].away;
+  expect(validCup(corrupt)).toBe(false);
+  const groups = createCup('masters', 'brick', 'hard', 60, 8);
+  groups.fixtures[6].score = [99, 0];
+  expect(validCup(groups)).toBe(false);
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'localStorage'),
+    data = new Map<string, string>();
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    value: { getItem: (key: string) => data.get(key) ?? null, setItem: (key: string, value: string) => data.set(key, value) },
+  });
+  try {
+    const masters = createCup('masters', 'alfred', 'easy', 60, 4);
+    saveCup(cup);
+    saveCup(masters);
+    expect(loadCup('alfred')).toEqual(cup);
+    expect(loadCup('masters')).toEqual(masters);
+    saveCup(cup);
+    data.set('alfred-fc-cup-alfred-v1', 'bad');
+    expect(loadCup('alfred')).toEqual(cup);
+    expect(data.has('alfred-fc-season-v1')).toBe(false);
+  } finally {
+    if (descriptor) Object.defineProperty(globalThis, 'localStorage', descriptor);
+    else Reflect.deleteProperty(globalThis, 'localStorage');
+  }
+});
+
+test('a tied knockout continues at zero time until the next goal; groups and quick games still allow draws', () => {
+  const cup = createCup('alfred', 'alfred', 'easy', 60, 1),
+    match = createCupMatch(cup);
+  if (!match) throw new Error('No cup match');
+  match.mode = 'versus';
+  match.phase = 'playing';
+  match.remaining = 0.001;
+  match.score = [1, 1];
+  stepMatch(match, [neutralControls(), neutralControls()], STEP);
+  expect(match.cup?.extraTime).toBe(true);
+  expect(match.cup?.extraElapsed).toBeCloseTo(STEP);
+  expect(match.phase).toBe('playing');
+  expect(validMatch(match)).toBe(true);
+  match.players.forEach((p) => {
+    p.z = 20;
+  });
+  match.ball = { x: FIELD.halfLength - 0.05, z: 0, vx: 25, vz: 0, owner: null, blocked: null, lock: 0.5 };
+  stepMatch(match, [neutralControls(), neutralControls()], STEP);
+  expect(match.phase).toBe('finished');
+  expect(match.score).toEqual([2, 1]);
+  expect(validMatch(match)).toBe(true);
+  const finished = finishCupMatch(cup, match);
+  expect(validCup(finished)).toBe(true);
+  for (const state of [createMatch('solo', 60), createCupMatch(createCup('masters', 'alfred', 'easy', 60, 2))]) {
+    if (!state) throw new Error('Missing group match');
+    state.phase = 'playing';
+    state.remaining = 0.001;
+    stepMatch(state, [neutralControls(), neutralControls()], STEP);
+    expect(state.phase).toBe('finished');
+    expect(state.score).toEqual([0, 0]);
+  }
+});
+
+test('instant cup simulation finishes golden goal using the visible match rules', async () => {
+  const state = createCupMatch(createCup('alfred', 'alfred', 'easy', 60, 1));
+  if (!state) throw new Error('No match');
+  state.phase = 'playing';
+  state.remaining = 0.001;
+  state.score = [0, 0];
+  state.watching = true;
+  const result = await simulateLeagueMatch(state);
+  expect(result.phase).toBe('finished');
+  expect(result.score[0]).not.toBe(result.score[1]);
+  expect(validMatch(result)).toBe(true);
+});
+
+test('golden goal keeps AI reaction timing active and preserves its elapsed clock', () => {
+  const state = createCupMatch(createCup('alfred', 'alfred', 'hard', 60, 1));
+  if (!state?.cup) throw new Error('No cup match');
+  state.phase = 'playing';
+  state.remaining = 0;
+  state.cup.extraTime = true;
+  state.randomState = 0;
+  state.players[9].x = -FIELD.halfLength + 5;
+  state.players[9].z = 0;
+  state.players[6].x = -FIELD.halfLength + 5;
+  state.players[6].z = 0;
+  state.ball = { x: -FIELD.halfLength + 4.2, z: 0, vx: 0, vz: 0, owner: 9, blocked: null, lock: 0 };
+  for (let i = 0; i < 180; i++) stepMatch(state, [neutralControls(), neutralControls()], STEP);
+  expect(state.phase).toBe('finished');
+  expect(state.score).toEqual([0, 1]);
+  expect(state.cup.extraElapsed).toBeGreaterThan(0.1);
+  const restored = JSON.parse(JSON.stringify(state));
+  expect(validMatch(restored)).toBe(true);
+  expect(restored.cup.extraElapsed).toBe(state.cup.extraElapsed);
+  restored.cup.extraElapsed = -1;
+  expect(validMatch(restored)).toBe(false);
+});
+
+test('only the Wi-Fi host commits a cup result and cup fixtures cannot rematch', () => {
+  let cup = createCup('alfred', 'alfred', 'easy', 60, 5);
+  const state = createCupMatch(cup);
+  if (!state) throw new Error('No cup fixture');
+  state.mode = 'versus';
+  state.phase = 'playing';
+  state.remaining = STEP;
+  state.score = [3, 1];
+  const host = fakePeer('host'),
+    guest = fakePeer('guest');
+  let guestRecords = 0;
+  const session = new NetworkSession(state, host.input, host.link, (result) => {
+    cup = finishCupMatch(cup, result);
+  });
+  const mirror = new NetworkSession(structuredClone(state), guest.input, guest.link, () => {
+    guestRecords++;
+  });
+  session.advance(0.1);
+  guest.receive(host.messages.at(-1));
+  mirror.save();
+  expect(mirror.state.phase).toBe('finished');
+  expect(guestRecords).toBe(0);
+  expect(nextCupFixture(cup)?.id).not.toBe(state.cup?.fixtureId);
+  expect(validCup(cup)).toBe(true);
+  const recorded = structuredClone(cup);
+  session.save();
+  session.rematch();
+  expect(session.state.phase).toBe('finished');
+  expect(cup).toEqual(recorded);
+  session.dispose();
+  mirror.dispose();
+});
+
+test('world cup has all Nordic nations, a complete group schedule and fair cross-group qualification', () => {
+  expect(nations).toHaveLength(24);
+  for (const id of ['swe', 'den', 'nor', 'fin', 'isl', 'jpn', 'irn', 'usa', 'mex', 'arg', 'bra']) expect(nations.some((n) => n.id === id)).toBe(true);
+  const kits = getMatchClubs({ clubs: ['swe', 'bra'] });
+  expect(kits[0].shirt).toBe(nations.find((n) => n.id === 'swe')?.shirt);
+  expect(kits[1].shirt).toBe(nations.find((n) => n.id === 'bra')?.awayShirt);
+  expect(validSeason({ ...createSeason('alfred', 'easy', 60), club: 'swe' })).toBe(false);
+  expect(validCup({ ...createCup('masters', 'alfred', 'easy', 60), club: 'swe' })).toBe(false);
+  expect(validCup({ ...createCup('world', 'swe', 'easy', 60), club: 'alfred' })).toBe(false);
+  for (let seed = 0; seed < 20; seed++) {
+    let cup = createCup('world', 'swe', 'normal', 60, seed);
+    expect(cup.fixtures).toHaveLength(36);
+    for (const rows of cupGroups(cup)) {
+      expect(rows).toHaveLength(4);
+      const group = rows.map((r) => r.club);
+      const games = cup.fixtures.filter((f) => group.includes(f.home));
+      expect(games).toHaveLength(6);
+      expect(games.every((f) => group.includes(f.away))).toBe(true);
+      expect(new Set(games.map((f) => [f.home, f.away].sort().join(':'))).size).toBe(6);
+      for (const id of group) expect(games.filter((f) => f.home === id || f.away === id)).toHaveLength(3);
+    }
+    for (let round = 0; round < 3; round++) {
+      const match = createCupMatch(cup);
+      if (!match) throw new Error('Missing group match');
+      match.phase = 'finished';
+      match.remaining = 0;
+      match.score = [8, 0];
+      cup = finishCupMatch(cup, match);
+    }
+    const groups = cupGroups(cup),
+      thirdPlaces = cupThirdPlaces(cup),
+      round16 = cup.fixtures.filter((f) => f.round === 3);
+    const expected = [...groups.flatMap((rows) => rows.slice(0, 2).map((r) => r.club)), ...thirdPlaces.slice(0, 4).map((r) => r.club)];
+    expect(round16).toHaveLength(8);
+    expect(round16.flatMap((f) => [f.home, f.away]).sort()).toEqual(expected.sort());
+    for (const fixture of round16)
+      expect(groups.findIndex((rows) => rows.some((r) => r.club === fixture.home))).not.toBe(
+        groups.findIndex((rows) => rows.some((r) => r.club === fixture.away)),
+      );
+    expect(groups.flat().every((row) => row.played === 3)).toBe(true);
+    expect(validCup(cup)).toBe(true);
+    const corrupted = structuredClone(cup);
+    corrupted.fixtures[36].home = corrupted.fixtures[36].away;
+    expect(validCup(corrupted)).toBe(false);
+  }
+});
+
+test('world cup elimination completes the bracket and saves recover independently of club cups', () => {
+  let cup = createCup('world', 'swe', 'easy', 60, 12);
+  for (let round = 0; round < 3; round++) {
+    const match = createCupMatch(cup);
+    if (!match) throw new Error('Missing group match');
+    match.phase = 'finished';
+    match.remaining = 0;
+    match.score = [0, 9];
+    cup = finishCupMatch(cup, match);
+  }
+  expect(nextCupFixture(cup)).toBeUndefined();
+  expect(cupChampion(cup)).not.toBe('swe');
+  expect(cup.fixtures).toHaveLength(51);
+  expect(cup.fixtures.every((f) => f.score)).toBe(true);
+  expect(validCup(cup)).toBe(true);
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'localStorage'),
+    data = new Map<string, string>();
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    value: { getItem: (key: string) => data.get(key) ?? null, setItem: (key: string, value: string) => data.set(key, value) },
+  });
+  try {
+    const club = createCup('alfred', 'alfred', 'easy', 60);
+    saveCup(club);
+    saveCup(cup);
+    saveCup(cup);
+    data.set('alfred-fc-cup-world-v1', 'bad');
+    expect(loadCup('world')).toEqual(cup);
+    expect(loadCup('alfred')).toEqual(club);
+    const match = createCupMatch(createCup('world', 'swe', 'easy', 60));
+    if (!match?.cup) throw new Error('No world match');
+    expect(validMatch(match)).toBe(true);
+    match.cup.fixtureId = 50;
+    expect(validMatch(match)).toBe(true);
+    match.cup.fixtureId = 51;
+    expect(validMatch(match)).toBe(false);
+  } finally {
+    if (descriptor) Object.defineProperty(globalThis, 'localStorage', descriptor);
+    else Reflect.deleteProperty(globalThis, 'localStorage');
   }
 });

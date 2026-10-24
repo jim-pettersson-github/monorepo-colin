@@ -29,6 +29,9 @@
 - Offline production PWA and save-before-update behavior. No accounts or backend.
 - Locally synthesized kick/pass, slide/contact, save/rebound, goal and referee/finish sound effects. Saved mute/volume controls, user-gesture audio unlocking, pause/background silence and event deduplication for restored matches and Wi-Fi snapshots.
 
+- Two independently saved twelve-club cups: Alfredcupen (knockout, four drawn byes) and Mästarpokalen (two six-team groups, cross-group semifinals and final). Group tables, brackets, champions, golden-goal knockout ties, solo/local/QR play, watching and direct simulation.
+- Världscupen: 24 national teams selected from the December 2025 FIFA men's ranking plus all five Nordic countries, flags and alternative kits. Six four-team groups, best-third-place table, round of 16 through final, a separate save and the same cup play modes. This is an arcade format; the ranking selects the roster and does not change AI strength.
+
 ## Verification
 
 Rules tests cover the full home/away season, standings, instant/watched simulation equivalence, watch speed/pause, result deduplication, backups and invalid schedules, alongside close non-contact slides, late ball wins, three-way referee decisions, difficulty, pitch boundaries, cameras, scoring, penalties, input and save validation.
@@ -47,4 +50,4 @@ Desktop, portrait-phone and landscape-phone browser checks cover direct simulati
 
 ## Scope
 
-Local single-device quick matches, two-device LAN matches and division play with optional human opponents are implemented. Multiple divisions, promotion/relegation, automatic internet matchmaking/relay, full football rules, music, replays and knockout tournaments are not implemented. Controller compatibility depends on the OS, browser and device. Universal compatibility is not promised.
+Local single-device quick matches, two-device LAN matches and division play with optional human opponents are implemented. Multiple divisions, promotion/relegation, automatic internet matchmaking/relay, full football rules, music, replays are not implemented. Controller compatibility depends on the OS, browser and device. Universal compatibility is not promised.

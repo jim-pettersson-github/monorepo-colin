@@ -9,7 +9,28 @@ export function validMatch(value: unknown): value is MatchState {
   if (!value || typeof value !== 'object') return false;
   const s = value as MatchState;
   if (s.pitchScale !== FIELD.scale) return false;
-  if (typeof s.watching !== 'boolean' || ![1, 2, 5].includes(s.playbackSpeed) || (s.watching ? !s.league || s.mode !== 'solo' : s.playbackSpeed !== 1))
+  if (
+    typeof s.watching !== 'boolean' ||
+    ![1, 2, 5].includes(s.playbackSpeed) ||
+    (s.watching ? (!s.league && !s.cup) || s.mode !== 'solo' : s.playbackSpeed !== 1)
+  )
+    return false;
+  if (
+    s.cup != null &&
+    (s.league !== null ||
+      !['alfred', 'masters', 'world'].includes(s.cup.kind) ||
+      typeof s.cup.runId !== 'string' ||
+      !s.cup.runId.length ||
+      s.cup.runId.length > 100 ||
+      !Number.isInteger(s.cup.fixtureId) ||
+      s.cup.fixtureId < 0 ||
+      s.cup.fixtureId >= (s.cup.kind === 'world' ? 51 : 33) ||
+      typeof s.cup.knockout !== 'boolean' ||
+      typeof s.cup.extraTime !== 'boolean' ||
+      (s.cup.extraElapsed !== undefined &&
+        (!finite(s.cup.extraElapsed, Number.MAX_SAFE_INTEGER) || s.cup.extraElapsed < 0 || (!s.cup.extraTime && s.cup.extraElapsed !== 0))) ||
+      (s.cup.extraTime && (!s.cup.knockout || s.remaining !== 0)))
+  )
     return false;
   if (!Array.isArray(s.clubs) || s.clubs.length !== 2 || !s.clubs.every(validClub) || s.clubs[0] === s.clubs[1]) return false;
   if (!['solo', 'versus'].includes(s.mode) || !['easy', 'normal', 'hard'].includes(s.difficulty)) return false;

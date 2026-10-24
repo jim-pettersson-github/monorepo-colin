@@ -1,0 +1,30 @@
+// Selection from the FIFA men's ranking of 22 December 2025: top 18,
+// Iran (20) for a second Asian representative, and all five Nordic countries.
+export const rankingSource = 'https://inside.fifa.com/fifa-rankings/world-ranking/men/news/coca-cola-december-2025-rank-spain-top-morocco-arab-cup-win';
+export const nations = [
+  { id: 'swe', name: 'Sverige', code: 'SWE', shirt: '#f3cc26', trim: '#17559b', awayShirt: '#17559b', awayTrim: '#f3cc26' },
+  { id: 'den', name: 'Danmark', code: 'DEN', shirt: '#cf263b', trim: '#ffffff', awayShirt: '#ffffff', awayTrim: '#cf263b' },
+  { id: 'nor', name: 'Norge', code: 'NOR', shirt: '#b8253c', trim: '#163266', awayShirt: '#ffffff', awayTrim: '#163266' },
+  { id: 'fin', name: 'Finland', code: 'FIN', shirt: '#f5f7fa', trim: '#155398', awayShirt: '#155398', awayTrim: '#f5f7fa' },
+  { id: 'isl', name: 'Island', code: 'ISL', shirt: '#2465b7', trim: '#ef3843', awayShirt: '#ffffff', awayTrim: '#2465b7' },
+  { id: 'esp', name: 'Spanien', code: 'ESP', shirt: '#c92032', trim: '#f2c638', awayShirt: '#f3dca2', awayTrim: '#c92032', rank2025: 1 },
+  { id: 'arg', name: 'Argentina', code: 'ARG', shirt: '#81c7e7', trim: '#ffffff', awayShirt: '#193461', awayTrim: '#81c7e7', rank2025: 2 },
+  { id: 'fra', name: 'Frankrike', code: 'FRA', shirt: '#254a93', trim: '#ffffff', awayShirt: '#ffffff', awayTrim: '#ce263b', rank2025: 3 },
+  { id: 'eng', name: 'England', code: 'ENG', shirt: '#f6f5ee', trim: '#202d57', awayShirt: '#ce3044', awayTrim: '#ffffff', rank2025: 4 },
+  { id: 'bra', name: 'Brasilien', code: 'BRA', shirt: '#f1ce2e', trim: '#24763b', awayShirt: '#2455af', awayTrim: '#ffffff', rank2025: 5 },
+  { id: 'por', name: 'Portugal', code: 'POR', shirt: '#b3263b', trim: '#28774a', awayShirt: '#f1eee3', awayTrim: '#28774a', rank2025: 6 },
+  { id: 'ned', name: 'Nederländerna', code: 'NED', shirt: '#ed7a2d', trim: '#202b46', awayShirt: '#182e63', awayTrim: '#ed7a2d', rank2025: 7 },
+  { id: 'bel', name: 'Belgien', code: 'BEL', shirt: '#b92434', trim: '#eac84e', awayShirt: '#75b9d4', awayTrim: '#ffffff', rank2025: 8 },
+  { id: 'ger', name: 'Tyskland', code: 'GER', shirt: '#f2f2ea', trim: '#24282f', awayShirt: '#732f64', awayTrim: '#f2f2ea', rank2025: 9 },
+  { id: 'cro', name: 'Kroatien', code: 'CRO', shirt: '#e44349', trim: '#ffffff', awayShirt: '#243c78', awayTrim: '#e44349', rank2025: 10 },
+  { id: 'mar', name: 'Marocko', code: 'MAR', shirt: '#bb2638', trim: '#21824b', awayShirt: '#f5f2e8', awayTrim: '#21824b', rank2025: 11 },
+  { id: 'ita', name: 'Italien', code: 'ITA', shirt: '#2480c8', trim: '#ffffff', awayShirt: '#f4f3ed', awayTrim: '#2480c8', rank2025: 12 },
+  { id: 'col', name: 'Colombia', code: 'COL', shirt: '#f2cb32', trim: '#23366d', awayShirt: '#23366d', awayTrim: '#f2cb32', rank2025: 13 },
+  { id: 'usa', name: 'USA', code: 'USA', shirt: '#f2f4f7', trim: '#234471', awayShirt: '#234471', awayTrim: '#ee4955', rank2025: 14 },
+  { id: 'mex', name: 'Mexiko', code: 'MEX', shirt: '#25825e', trim: '#ffffff', awayShirt: '#f3f1e8', awayTrim: '#a72839', rank2025: 15 },
+  { id: 'uru', name: 'Uruguay', code: 'URU', shirt: '#75c0e2', trim: '#202b37', awayShirt: '#ffffff', awayTrim: '#202b37', rank2025: 16 },
+  { id: 'sui', name: 'Schweiz', code: 'SUI', shirt: '#d82f40', trim: '#ffffff', awayShirt: '#ffffff', awayTrim: '#d82f40', rank2025: 17 },
+  { id: 'jpn', name: 'Japan', code: 'JPN', shirt: '#2545a3', trim: '#ffffff', awayShirt: '#f1f2f4', awayTrim: '#c72b48', rank2025: 18 },
+  { id: 'irn', name: 'Iran', code: 'IRN', shirt: '#f1f3ee', trim: '#23865b', awayShirt: '#bb293d', awayTrim: '#ffffff', rank2025: 20 },
+] as const;
+export type NationId = (typeof nations)[number]['id'];

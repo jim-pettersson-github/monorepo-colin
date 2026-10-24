@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { MatchClubs } from '../game/clubs';
 import { defaultClubs, getClub, validClub } from '../game/clubs';
+import { cupName } from '../game/cups';
 import type { InputManager } from '../game/input';
-import type { MatchState } from '../game/model';
+import type { CupKind, MatchState } from '../game/model';
 import { createMatch } from '../game/model';
 import { validNetworkMatch } from '../game/network-session';
 import { decodeSignal, PeerLink } from '../game/peer-link';
@@ -41,6 +42,7 @@ export function WifiLobby({
   const [error, setError] = useState('');
   const [clubs, setClubs] = useState<MatchClubs>(fixture ? [...fixture.clubs] : [...defaultClubs]);
   const [duration, setDuration] = useState(fixture?.duration ?? 180);
+  const [cupMatch, setCupMatch] = useState<CupKind | null>(fixture?.cup?.kind ?? null);
   const [leagueMatch, setLeagueMatch] = useState(!!fixture?.league);
   const [guestReady, setGuestReady] = useState(false);
   const [ready, setReady] = useState(false);
@@ -77,6 +79,7 @@ export function WifiLobby({
         setClubs(m.clubs as MatchClubs);
         setDuration(m.duration as number);
         setLeagueMatch(m.league === true);
+        setCupMatch(m.cup === 'alfred' || m.cup === 'masters' || m.cup === 'world' ? m.cup : null);
       }
       if (link.role === 'guest' && m.kind === 'start' && m.version === 1 && validNetworkMatch(m.state) && link.status === 'connected') {
         transferred.current = true;
@@ -85,7 +88,7 @@ export function WifiLobby({
     });
   }, [link]);
   useEffect(() => {
-    if (link?.role === 'host' && connected) link.send({ kind: 'settings', clubs, duration, league: !!fixture?.league });
+    if (link?.role === 'host' && connected) link.send({ kind: 'settings', clubs, duration, league: !!fixture?.league, cup: fixture?.cup?.kind ?? null });
   }, [link, connected, clubs, duration, fixture]);
   useEffect(() => {
     if (link?.role === 'guest' && connected && ready && !available) {
@@ -108,6 +111,7 @@ export function WifiLobby({
     setGuestReady(false);
     setReady(false);
     setLeagueMatch(!!fixture?.league);
+    setCupMatch(fixture?.cup?.kind ?? null);
   };
   return (
     <main className='app-shell wifi-shell'>
@@ -123,7 +127,7 @@ export function WifiLobby({
       <section className={`wifi-intro ${role ? 'wifi-intro-compact' : ''}`}>
         <p className='eyebrow'>TVÅ ENHETER · SAMMA WI-FI</p>
         {role ? (
-          <h1>{leagueMatch ? 'Ligamatch via Wi-Fi.' : 'Wi-Fi-match.'}</h1>
+          <h1>{cupMatch ? `${cupName(cupMatch)} via Wi-Fi.` : leagueMatch ? 'Ligamatch via Wi-Fi.' : 'Wi-Fi-match.'}</h1>
         ) : (
           <h1>
             Spela mot
@@ -135,6 +139,14 @@ export function WifiLobby({
           Öppna Alfred FC på båda enheterna. En skapar matchen, den andra ansluter. Ni byter QR-koder åt båda hållen och spelar sedan direkt mellan enheterna.
         </p>
       </section>
+      {cupMatch && (
+        <section className='wifi-connection-state' aria-label='Cupmatch'>
+          <strong>
+            {getClub(clubs[0]).name} – {getClub(clubs[1]).name}
+          </strong>
+          <p>Spelare 1 styr cuplaget, spelare 2 motståndarna. Resultatet sparas i värdens cup. En avbruten match räknas inte.</p>
+        </section>
+      )}
       {leagueMatch && (
         <section className='wifi-connection-state' aria-label='Ligamatch'>
           <strong>
@@ -165,8 +177,8 @@ export function WifiLobby({
               }
             }}
           >
-            <strong>{fixture ? 'Skapa ligamatch' : 'Skapa match'}</strong>
-            <span>{fixture ? 'Ditt ligalag · Spelare 1' : 'Du väljer lagen · Spelare 1'}</span>
+            <strong>{fixture?.cup ? 'Skapa cupmatch' : fixture ? 'Skapa ligamatch' : 'Skapa match'}</strong>
+            <span>{fixture?.cup ? 'Ditt cuplag · Spelare 1' : fixture ? 'Ditt ligalag · Spelare 1' : 'Du väljer lagen · Spelare 1'}</span>
           </button>
           {!fixture && (
             <button type='button' disabled={!supported} onClick={() => setRole('guest')}>

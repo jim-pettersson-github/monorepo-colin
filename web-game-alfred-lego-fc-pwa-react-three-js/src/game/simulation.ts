@@ -282,7 +282,7 @@ function aiControls(state: MatchState, player: Player, chaser: number): Controls
   const owner = ball.owner === null ? null : state.players[ball.owner];
   const opponent = state.mode === 'solo' && (state.watching || player.team === 1);
   const settings = difficultySettings[state.difficulty];
-  const canAct = !opponent || (state.duration - state.remaining + player.id * 0.11) % settings.reaction < 0.08;
+  const canAct = !opponent || (state.duration - state.remaining + (state.cup?.extraElapsed ?? 0) + player.id * 0.11) % settings.reaction < 0.08;
   let targetX: number;
   let targetZ: number;
   if (player.role === 0) {
@@ -394,11 +394,15 @@ export function stepMatch(state: MatchState, inputs: [Controls, Controls], dt: n
   }
   state.restartProtection = Math.max(0, state.restartProtection - dt);
   state.remaining = Math.max(0, state.remaining - dt);
-  if (state.remaining === 0) {
+  if (state.remaining === 0 && state.cup?.knockout && state.score[0] === state.score[1]) {
+    state.cup.extraTime = true;
+    state.message = 'Gyllene mål – nästa mål avgör!';
+  } else if (state.remaining === 0) {
     state.phase = 'finished';
     state.message = state.score[0] === state.score[1] ? 'Oavgjort!' : `${getMatchClubs(state)[state.score[0] > state.score[1] ? 0 : 1].name} vinner!`;
     return;
   }
+  if (state.cup?.extraTime) state.cup.extraElapsed = (state.cup.extraElapsed ?? 0) + dt;
   for (const team of [0, 1] as const) {
     state.switchWait[team] -= dt;
     if (inputs[team].switch) selectPlayer(state, team, true);
@@ -502,6 +506,12 @@ export function stepMatch(state: MatchState, inputs: [Controls, Controls], dt: n
       state.score[team]++;
       state.lastGoal = team;
       state.kickoffTeam = team === 0 ? 1 : 0;
+      if (state.cup?.extraTime) {
+        state.phase = 'finished';
+        state.message = `${getMatchClubs(state)[team].name} vinner på gyllene mål!`;
+        ball.owner = null;
+        return;
+      }
       state.phase = 'goal';
       state.phaseTime = 2.6;
       state.message = `MÅL! ${getMatchClubs(state)[team].name}`;

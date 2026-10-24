@@ -1,3 +1,5 @@
+import { nations } from './nations';
+
 export const clubs = [
   { id: 'alfred', name: 'Alfred FF', code: 'AFF', shirt: '#59b9d7', trim: '#f3f6ed' },
   { id: 'brick', name: 'IFK Göteborg', code: 'IFG', shirt: '#f47c68', trim: '#213c51' },
@@ -13,13 +15,28 @@ export const clubs = [
   { id: 'klosskoping', name: 'IFK Lund', code: 'IFK', shirt: '#c4b2fb', trim: '#674735' },
 ] as const;
 
-export type ClubId = (typeof clubs)[number]['id'];
+export type ClubId = (typeof clubs)[number]['id'] | (typeof nations)[number]['id'];
+export interface FootballTeam {
+  id: ClubId;
+  name: string;
+  code: string;
+  shirt: string;
+  trim: string;
+  awayShirt?: string;
+  awayTrim?: string;
+}
 export type MatchClubs = [ClubId, ClubId];
 export const defaultClubs: MatchClubs = ['alfred', 'brick'];
-export const getClub = (id: ClubId) => clubs.find((club) => club.id === id) || clubs[0];
-export const validClub = (id: unknown): id is ClubId => clubs.some((club) => club.id === id);
+export const getClub = (id: ClubId): FootballTeam => clubs.find((club) => club.id === id) || nations.find((nation) => nation.id === id) || clubs[0];
+export const validClub = (id: unknown): id is ClubId => clubs.some((club) => club.id === id) || nations.some((nation) => nation.id === id);
 
 export function getMatchClubs(value: { clubs: MatchClubs }) {
   // Open sessions from the earlier two-team build keep their original clubs.
-  return (value.clubs || defaultClubs).map(getClub);
+  const teams = (value.clubs || defaultClubs).map(getClub);
+  const rgb = (color: string) => [1, 3, 5].map((offset) => Number.parseInt(color.slice(offset, offset + 2), 16));
+  const distance = (a: string, b: string) => Math.hypot(...rgb(a).map((value, i) => value - rgb(b)[i]));
+  const away = teams[1];
+  if (away.awayShirt && distance(teams[0].shirt, away.shirt) < 110 && distance(teams[0].shirt, away.awayShirt) > distance(teams[0].shirt, away.shirt))
+    teams[1] = { ...away, shirt: away.awayShirt, trim: away.awayTrim ?? away.trim };
+  return teams;
 }

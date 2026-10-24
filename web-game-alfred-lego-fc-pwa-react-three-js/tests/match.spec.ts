@@ -150,6 +150,8 @@ test('two keyboards move independently, pause freezes time, and rotation keeps t
   await page.locator('.source-label select').nth(1).selectOption('keyboard2');
   await page.getByRole('button', { name: /Fortsätt sparad/ }).click();
   await expect(page.locator('.game-canvas')).toHaveAttribute('data-rendered', 'true');
+  // Advance only through runFor; screenshots and input setup must not consume match time.
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 100));
   const portrait = (await page.locator('.game-canvas').getAttribute('data-orientation')) === 'portrait';
   await page.keyboard.down('d');
   await page.keyboard.down('ArrowDown');

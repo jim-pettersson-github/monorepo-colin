@@ -1,11 +1,14 @@
 import type { CSSProperties } from 'react';
 import { useState } from 'react';
-import type { ClubId, MatchClubs } from '../game/clubs';
+import type { ClubId, FootballTeam, MatchClubs } from '../game/clubs';
 import { clubs, getClub } from '../game/clubs';
 import type { MatchMode, Team } from '../game/model';
+import { nations } from '../game/nations';
+import { NationalFlag } from './NationalFlag';
 
 function ClubCrest({ id }: { id: ClubId }) {
   const club = getClub(id);
+  if (nations.some((nation) => nation.id === id)) return <NationalFlag id={id} />;
   return (
     <span className='club-crest' aria-hidden='true' style={{ '--club-shirt': club.shirt, '--club-trim': club.trim } as CSSProperties}>
       {club.code}
@@ -17,18 +20,23 @@ export function TeamSelection({
   selected,
   mode,
   single = false,
+  roster = clubs,
   onChange,
 }: {
   selected: MatchClubs;
   mode: MatchMode;
   single?: boolean;
+  roster?: readonly FootballTeam[];
   onChange: (team: Team, id: ClubId) => void;
 }) {
   const [active, setActive] = useState<Team>(0);
   return (
     <fieldset className='team-selection' aria-label='Välj lag'>
       <legend>
-        VÄLJ LAG <span>12 LAG</span>
+        VÄLJ LAG{' '}
+        <span>
+          {roster.length} {roster === nations ? 'LANDSLAG' : 'LAG'}
+        </span>
       </legend>
       <div className='selected-clubs'>
         {(single ? ([0] as const) : ([0, 1] as const)).map((team) => (
@@ -43,7 +51,7 @@ export function TeamSelection({
       </div>
       <p className='team-selection-hint'>Välj {mode === 'versus' ? `lag för spelare ${active + 1}` : active === 0 ? 'ditt lag' : 'motståndarlag'}:</p>
       <div className='club-grid'>
-        {clubs.map((club) => (
+        {roster.map((club) => (
           <button
             key={club.id}
             type='button'

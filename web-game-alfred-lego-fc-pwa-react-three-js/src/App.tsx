@@ -5,10 +5,11 @@ import { StartMenu } from './components/StartMenu';
 import { WifiLobby } from './components/WifiLobby';
 import type { ClubId, MatchClubs } from './game/clubs';
 import { defaultClubs } from './game/clubs';
+import { createCup, createCupMatch, finishCupMatch, loadCup, nextCupFixture, saveCup } from './game/cups';
 import { InputManager } from './game/input';
 import type { LeagueAction } from './game/league';
 import { createLeagueMatch, createSeason, finishLeagueMatch, loadSeason, nextFixture, saveSeason, simulateLeagueMatch } from './game/league';
-import type { Difficulty, MatchMode, MatchState, PlaybackSpeed, Team } from './game/model';
+import type { CupKind, Difficulty, MatchMode, MatchState, PlaybackSpeed, Team } from './game/model';
 import { createMatch } from './game/model';
 import { NetworkSession } from './game/network-session';
 import { MatchSession } from './game/session';
@@ -21,12 +22,20 @@ export function App() {
   const [session, setSession] = useState<MatchSession | null>(null);
   const [wifi, setWifi] = useState(false);
   const [wifiFixture, setWifiFixture] = useState<MatchState | null>(null);
+  const [cups, setCups] = useState(() => ({ alfred: loadCup('alfred'), masters: loadCup('masters'), world: loadCup('world') }));
+  const [cupKind, setCupKind] = useState<CupKind>('alfred');
+  const cupsRef = useRef(cups);
+  cupsRef.current = cups;
   const [season, setSeason] = useState(loadSeason);
   const [saved, setSaved] = useState(() => {
     const match = loadMatch();
+    if (match?.cup) {
+      const currentCup = cups[match.cup.kind];
+      if (!currentCup || match.cup.runId !== currentCup.id || match.cup.fixtureId !== nextCupFixture(currentCup)?.id) return null;
+    }
     return match?.league && (match.league.seasonId !== season?.id || match.league.fixtureId !== (season ? nextFixture(season)?.id : undefined)) ? null : match;
   });
-  const [screen, setScreen] = useState<'quick' | 'league'>('quick');
+  const [screen, setScreen] = useState<'quick' | 'league' | 'cups'>('quick');
   const [mode, setMode] = useState<MatchMode>('solo');
   const [duration, setDuration] = useState(180);
   const [difficulty, setDifficulty] = useState<Difficulty>('easy');
@@ -112,6 +121,22 @@ export function App() {
   }, [input]);
 
   const recordResult = (result: MatchState) => {
+    if (result.cup) {
+      const current = cupsRef.current[result.cup.kind];
+      if (!current) return;
+      const updated = finishCupMatch(current, result);
+      if (updated === current) return;
+      saveCup(updated);
+      const next = { ...cupsRef.current, [updated.kind]: updated };
+      cupsRef.current = next;
+      setCups(next);
+      const pending = loadMatch();
+      if (pending?.cup?.runId === result.cup.runId && pending.cup.fixtureId === result.cup.fixtureId) {
+        clearMatch();
+        setSaved(null);
+      }
+      return;
+    }
     const current = seasonRef.current;
     if (!current || !result.league) return;
     const updated = finishLeagueMatch(current, result);
@@ -139,12 +164,17 @@ export function App() {
       session.dispose();
       input.end();
       setSession(null);
-      setWifi(!session.state.league || session.networkRole === 'guest');
+      setWifi(!(session.state.league || session.state.cup) || session.networkRole === 'guest');
       setWifiFixture(null);
       if (session.state.league && session.networkRole === 'host') setScreen('league');
+      if (session.state.cup && session.networkRole === 'host') {
+        setScreen('cups');
+        setCupKind(session.state.cup.kind);
+      }
       return;
     }
-    setScreen(session?.state.league ? 'league' : 'quick');
+    setScreen(session?.state.cup ? 'cups' : session?.state.league ? 'league' : 'quick');
+    if (session?.state.cup) setCupKind(session.state.cup.kind);
     input.end();
     clearMatch();
     setSession(null);
@@ -198,12 +228,8 @@ export function App() {
       setSaved(null);
     }
   };
-  const playLeague = async (action: LeagueAction, speed: PlaybackSpeed) => {
-    if (!season || simulationBusy.current) return;
-    const fixture = nextFixture(season);
-    if (!fixture) return;
-    const state = saved?.league?.seasonId === season.id && saved.league.fixtureId === fixture.id ? structuredClone(saved) : createLeagueMatch(season);
-    if (!state) return;
+  const playCompetition = async (state: MatchState, action: LeagueAction, speed: PlaybackSpeed) => {
+    if (simulationBusy.current) return;
     state.mode = action === 'local' || action === 'wifi' ? 'versus' : 'solo';
     state.watching = action === 'watch' || action === 'simulate';
     state.playbackSpeed = action === 'watch' ? speed : 1;
@@ -230,9 +256,42 @@ export function App() {
       setSimulating(false);
     }
   };
+  const playLeague = (action: LeagueAction, speed: PlaybackSpeed) => {
+    if (!season) return;
+    const fixture = nextFixture(season);
+    if (!fixture) return;
+    const state = saved?.league?.seasonId === season.id && saved.league.fixtureId === fixture.id ? structuredClone(saved) : createLeagueMatch(season);
+    if (state) void playCompetition(state, action, speed);
+  };
+  const beginCup = (kind: CupKind, club: ClubId, level: Difficulty, length: number) => {
+    const created = createCup(kind, club, level, length);
+    saveCup(created);
+    const next = { ...cupsRef.current, [kind]: created };
+    cupsRef.current = next;
+    setCups(next);
+    setCupKind(kind);
+    if (saved?.cup?.kind === kind) {
+      clearMatch();
+      setSaved(null);
+    }
+  };
+  const playCup = (kind: CupKind, action: LeagueAction, speed: PlaybackSpeed) => {
+    const cup = cupsRef.current[kind];
+    if (!cup) return;
+    const fixture = nextCupFixture(cup);
+    if (!fixture) return;
+    const state = saved?.cup?.runId === cup.id && saved.cup.fixtureId === fixture.id ? structuredClone(saved) : createCupMatch(cup);
+    setCupKind(kind);
+    if (state) void playCompetition(state, action, speed);
+  };
   return (
     <StartMenu
       input={input}
+      cups={cups}
+      cupKind={cupKind}
+      onCupKind={setCupKind}
+      onCreateCup={beginCup}
+      onCupMatch={playCup}
       onWifi={() => {
         setWifiFixture(null);
         setWifi(true);
