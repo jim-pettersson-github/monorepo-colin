@@ -47,6 +47,11 @@ export function forwardSpeed(car: CarState) {
   return car.vx * Math.sin(car.yaw) + car.vz * Math.cos(car.yaw);
 }
 
+// Arcade cornering grip, well above the spec sheet so most bends flow without braking.
+export function cornerGrip(spec: CarSpec) {
+  return spec.grip * GRAVITY * 1.6;
+}
+
 export function topSpeed(spec: CarSpec) {
   return spec.topKmh / 3.6;
 }
@@ -111,7 +116,7 @@ export function stepCar(car: CarState, spec: CarSpec, controls: Controls, track:
   const speed = Math.abs(forward);
   const surfaceGrip = car.surface === 'grass' ? 0.62 : car.surface === 'curb' ? 0.93 : 1;
 
-  const steerRate = Math.abs(controls.steer) > Math.abs(car.steer) && Math.sign(controls.steer) === Math.sign(car.steer) ? 3.2 : 6;
+  const steerRate = Math.abs(controls.steer) > Math.abs(car.steer) && Math.sign(controls.steer) === Math.sign(car.steer) ? 4.5 : 8;
   car.steer += Math.max(-steerRate * dt, Math.min(steerRate * dt, controls.steer - car.steer));
 
   car.shiftTimer = Math.max(0, car.shiftTimer - dt);
@@ -157,12 +162,18 @@ export function stepCar(car: CarState, spec: CarSpec, controls: Controls, track:
   if (controls.brake > 0.5 && controls.throttle === 0 && forward < 0.5) car.gear = 0;
   else if (reversing && (controls.throttle > 0.1 || forward > 0.5)) car.gear = 1;
 
-  // Steering limited by tyre grip so full lock at speed only just breaks traction.
-  const gripAcc = spec.grip * GRAVITY * surfaceGrip;
+  // Weight transfer: lifting loads the front tyres, trail braking loads them more, full throttle trims a little.
+  const load = 1 + (controls.throttle < 0.1 ? 0.15 : 0) + Math.min(1, controls.brake) * 0.12 - controls.throttle * 0.05;
+  const gripAcc = cornerGrip(spec) * surfaceGrip * load;
+
+  // Steering is limited by tyre grip; asking for more scrubs speed instead of sliding wide.
   const geometric = (forward * Math.tan(car.steer * MAX_STEER)) / 2.6;
-  const limit = ((controls.handbrake ? 1.6 : 1.12) * gripAcc) / Math.max(speed, 6);
+  const limit = ((controls.handbrake ? 1.6 : 1) * gripAcc) / Math.max(speed, 6);
   const yawRate = Math.max(-limit, Math.min(limit, geometric));
   car.yaw -= yawRate * dt;
+  if (!controls.handbrake && speed > 15 && Math.abs(geometric) > limit) {
+    forward -= Math.sign(forward) * Math.min(1, Math.abs(geometric) / limit - 1) * 5 * dt;
+  }
 
   // Keep the old heading's sideways velocity; tyres scrub it away up to their grip.
   const newSin = Math.sin(car.yaw);
@@ -172,7 +183,7 @@ export function stepCar(car: CarState, spec: CarSpec, controls: Controls, track:
   forward = worldX * newSin + worldZ * newCos;
   lateral = worldX * -newCos + worldZ * newSin;
 
-  const scrub = gripAcc * (controls.handbrake ? 0.28 : 1) * dt;
+  const scrub = gripAcc * (controls.handbrake ? 0.28 : 1.08) * dt;
   lateral -= Math.sign(lateral) * Math.min(Math.abs(lateral), scrub);
   car.slip = Math.abs(lateral);
   if (car.slip > 2) forward -= Math.sign(forward) * Math.min(Math.abs(forward), car.slip * 0.25 * dt);

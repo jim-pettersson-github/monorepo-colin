@@ -1,5 +1,5 @@
 import type { CarSpec } from './cars';
-import { type CarState, type Controls, forwardSpeed, topSpeed } from './physics';
+import { type CarState, type Controls, cornerGrip, forwardSpeed, topSpeed } from './physics';
 import { sampleAt } from './track-path';
 import type { Track } from './tracks';
 
@@ -10,11 +10,9 @@ export type Driver = {
   stuck: number;
 };
 
-const GRAVITY = 9.81;
-
 export function targetSpeedAhead(track: Track, spec: CarSpec, s: number, speed: number, skill: number) {
   const { path } = track;
-  const grip = spec.grip * GRAVITY * 0.9 * skill;
+  const grip = cornerGrip(spec) * 0.9 * skill;
   const brake = 9 * spec.braking * skill;
   let target = topSpeed(spec) * (0.9 + skill * 0.1);
   const horizon = 30 + (speed * speed) / (2 * brake);
