@@ -6,6 +6,8 @@ export interface Connection {
 interface Options<S, C> {
   connections: Connection[];
   waitForViews?: boolean;
+  // Leave the links open when the race ends, so a Wi-Fi career can run the next race on them.
+  keepLinks?: boolean;
   localSlot: number;
   snapshot: () => S;
   apply: (state: S) => void;
@@ -206,7 +208,7 @@ export class NetworkPlay<S, C> {
   close() {
     this.disposed = true;
     for (const remove of this.listeners) remove();
-    for (const { link } of this.options.connections) link.close();
+    if (!this.options.keepLinks) for (const { link } of this.options.connections) link.close();
     this.clear();
   }
 }

@@ -32,18 +32,120 @@ async function transform(bytes: Uint8Array, decompress: boolean) {
   return result;
 }
 
-export async function encodeSignal(signal: Signal) {
-  let bytes = new TextEncoder().encode(JSON.stringify(signal));
+// Compact codes carry only what differs between connections (keys, fingerprint, candidates) and rebuild the
+// data-channel SDP from a template, so the QR image stays coarse enough to scan from another phone's screen.
+type Compact = { t: 'o' | 'a'; i: string; u: string; p: string; f: string; s: string; m: string; c: string[] };
+
+const lineValue = (sdp: string, prefix: string) =>
+  sdp
+    .split(/\r?\n/)
+    .find((line) => line.startsWith(prefix))
+    ?.slice(prefix.length)
+    .trim() ?? '';
+
+function compactSignal(signal: Signal): Compact | undefined {
+  const sdp = signal.sdp;
+  const fingerprint = lineValue(sdp, 'a=fingerprint:');
+  const compact: Compact = {
+    t: signal.type === 'offer' ? 'o' : 'a',
+    i: signal.id.replace(/-/g, ''),
+    u: lineValue(sdp, 'a=ice-ufrag:'),
+    p: lineValue(sdp, 'a=ice-pwd:'),
+    f: fingerprint.startsWith('sha-256 ') ? fingerprint.slice(8).replace(/:/g, '').toLowerCase() : '',
+    s: lineValue(sdp, 'a=setup:'),
+    m: lineValue(sdp, 'a=max-message-size:') || '262144',
+    // Keep each candidate's essential fields and drop browser extras such as generation and network-cost.
+    c: sdp
+      .split(/\r?\n/)
+      .filter((line) => line.startsWith('a=candidate:'))
+      .map((line) => line.slice(12).split(' ').slice(0, 8).join(' ')),
+  };
+  const valid =
+    /^[a-f0-9]{32}$/.test(compact.i) &&
+    /^[a-f0-9]{64}$/.test(compact.f) &&
+    /^[A-Za-z0-9+/]{4,256}$/.test(compact.u) &&
+    /^[A-Za-z0-9+/]{22,256}$/.test(compact.p) &&
+    ['actpass', 'active', 'passive'].includes(compact.s) &&
+    sdp.includes('webrtc-datachannel');
+  return valid ? compact : undefined;
+}
+
+function expandSignal(compact: Compact): Signal {
+  const id = compact.i.replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})$/, '$1-$2-$3-$4-$5');
+  const fingerprint = compact.f.toUpperCase().match(/../g)?.join(':') ?? '';
+  const lines = [
+    'v=0',
+    `o=- ${Date.now()} 2 IN IP4 127.0.0.1`,
+    's=-',
+    't=0 0',
+    'a=group:BUNDLE 0',
+    'a=msid-semantic: WMS',
+    'm=application 9 UDP/DTLS/SCTP webrtc-datachannel',
+    'c=IN IP4 0.0.0.0',
+    ...compact.c.map((candidate) => `a=candidate:${candidate}`),
+    `a=ice-ufrag:${compact.u}`,
+    `a=ice-pwd:${compact.p}`,
+    'a=ice-options:trickle',
+    `a=fingerprint:sha-256 ${fingerprint}`,
+    `a=setup:${compact.s}`,
+    'a=mid:0',
+    'a=sctp-port:5000',
+    `a=max-message-size:${compact.m}`,
+  ];
+  return { v: 1, id, type: compact.t === 'o' ? 'offer' : 'answer', sdp: `${lines.join('\r\n')}\r\n` };
+}
+
+function validCompact(value: unknown): value is Compact {
+  if (!value || typeof value !== 'object') return false;
+  const c = value as Compact;
+  return (
+    (c.t === 'o' || c.t === 'a') &&
+    /^[a-f0-9]{32}$/.test(c.i) &&
+    /^[A-Za-z0-9+/]{4,256}$/.test(c.u) &&
+    /^[A-Za-z0-9+/]{22,256}$/.test(c.p) &&
+    /^[a-f0-9]{64}$/.test(c.f) &&
+    ['actpass', 'active', 'passive'].includes(c.s) &&
+    /^\d{1,10}$/.test(c.m) &&
+    Array.isArray(c.c) &&
+    c.c.length <= 16 &&
+    c.c.every((candidate) => typeof candidate === 'string' && /^[\w.:\- ]{8,200}$/.test(candidate))
+  );
+}
+
+async function pack(value: unknown, prefix: string) {
+  let bytes = new TextEncoder().encode(JSON.stringify(value));
   const compressed = typeof CompressionStream !== 'undefined';
   if (compressed) bytes = new Uint8Array(await transform(bytes, false));
-  return `CFS1.${compressed ? 'Z' : 'P'}.${btoa(String.fromCharCode(...bytes))
+  return `${prefix}.${compressed ? 'Z' : 'P'}.${btoa(String.fromCharCode(...bytes))
     .replace(/\+/g, '-')
     .replace(/\//g, '_')
     .replace(/=+$/, '')}`;
 }
 
+export async function encodeSignal(signal: Signal) {
+  const compact = compactSignal(signal);
+  if (compact) return pack(compact, 'CFS2');
+  return encodeFullSignal(signal);
+}
+
+function encodeFullSignal(signal: Signal) {
+  return pack(signal, 'CFS1');
+}
+
 export async function decodeSignal(code: string): Promise<Signal> {
-  const text = code.trim();
+  // Messaging apps may wrap long codes or add spaces; codes never contain whitespace.
+  const text = code.replace(/\s+/g, '');
+  if (/^CFS2\.[ZP]\.[A-Za-z0-9_-]+$/.test(text) && text.length <= 2000) {
+    try {
+      const bytes = Uint8Array.from(atob(text.slice(7).replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
+      const decoded = text[5] === 'Z' ? await transform(bytes, true) : bytes;
+      const value = JSON.parse(new TextDecoder().decode(decoded));
+      if (!validCompact(value)) throw new Error();
+      return expandSignal(value);
+    } catch {
+      throw new Error('Koden kunde inte läsas. Kopiera hela koden eller skanna QR-bilden igen.');
+    }
+  }
   if (text.length > 6000 || !/^CFS1\.[ZP]\.[A-Za-z0-9_-]+$/.test(text)) throw new Error('Det här är ingen anslutningskod från Charlie for Speed.');
   try {
     const bytes = Uint8Array.from(atob(text.slice(7).replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));

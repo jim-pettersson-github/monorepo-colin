@@ -285,3 +285,100 @@ test('all redesigned bodies have outward bumper caps, finite geometry and cleara
     shape.glass.dispose();
   }
 });
+
+import {
+  cupProblems,
+  joinSession,
+  memberBuy,
+  memberUpgrade,
+  newSession,
+  recordSessionRace,
+  sessionField,
+  sessionTrack,
+  startSessionCup,
+  validSession,
+} from '../src/game/multi-career';
+
+test('Wi-Fi career: fresh and own-car members, fair names, cup entry and a shared grid', () => {
+  let session = newSession('Fredagsracet', 'fresh', 5);
+  session = joinSession(session, 'host', 'Charlie', { garage: [{ carId: 'skarv', upgrades: { engine: 3, tyres: 3, brakes: 3 } }], activeCarId: 'skarv' });
+  session = joinSession(session, 'guest', 'Charlie');
+  session = joinSession(session, 'ai-name', 'Klaus');
+  expect(session.members.map((member) => member.name)).toEqual(['Charlie', 'Charlie 2', 'Klaus 2']);
+  expect(session.members[0].garage).toEqual([]);
+  expect(session.members.every((member) => member.money === START_MONEY)).toBe(true);
+  expect(joinSession(session, 'host', 'Someone else')).toBe(session);
+
+  const own = joinSession(newSession('Egna', 'own', 6), 'host', 'Alva', {
+    garage: [{ carId: 'skarv', upgrades: { engine: 2, tyres: 1, brakes: 0 } }],
+    activeCarId: 'skarv',
+  });
+  expect(own.members[0].garage[0].upgrades.engine).toBe(2);
+  expect(own.members[0].activeCarId).toBe('skarv');
+
+  const present = ['host', 'guest'];
+  expect(cupProblems(session, 'klubb', present)).toHaveLength(2);
+  session = memberBuy(session, 'host', 'nxr');
+  session = memberBuy(session, 'guest', 'arrow');
+  session = memberUpgrade(session, 'guest', 'arrow', 'engine');
+  expect(session.members[1].money).toBe(START_MONEY - carById('arrow').price - 4000);
+  expect(cupProblems(session, 'klubb', present)).toEqual([]);
+  expect(cupProblems(session, 'mastare', present)[0]).toMatch(/Supercupen/);
+
+  session = startSessionCup(session, 'klubb', present);
+  expect(sessionTrack(session)).toBe('smaland');
+  expect(memberBuy(session, 'host', 'sting')).toBe(session);
+  const field = sessionField(session, present);
+  expect(field).toHaveLength(8);
+  expect(field[5]).toMatchObject({ driverName: 'Charlie', carId: 'nxr', player: 0 });
+  expect(field[6]).toMatchObject({ driverName: 'Charlie 2', carId: 'arrow', player: 1, upgrades: { engine: 1, tyres: 0, brakes: 0 } });
+  expect(field.filter((entrant) => entrant.player === undefined)).toHaveLength(6);
+
+  const config = {
+    settings: { trackId: 'smaland', carId: 'nxr', laps: 1, difficulty: 'normal' as const, transmission: 'auto' as const },
+    cars: ['nxr', 'arrow'],
+    seed: 3,
+    entrants: field,
+  };
+  expect(validRaceConfig(config)).toBe(true);
+  expect(validRaceConfig({ ...config, cars: ['nxr', 'sting'] })).toBe(false);
+  const guestRace = createNetworkRace(config, 1);
+  expect(guestRace.player.driverName).toBe('Charlie 2');
+  expect(guestRace.player.spec.topKmh).toBeGreaterThan(carById('arrow').topKmh);
+  expect(guestRace.racers.filter((racer) => racer.isPlayer)).toHaveLength(2);
+  expect(validSession(JSON.parse(JSON.stringify(session)))).toBe(true);
+});
+
+test('Wi-Fi career: races pay every member and a finished cup crowns a winner and upgrades rivals', () => {
+  let session = newSession('Cup', 'fresh', 9);
+  for (const [id, name] of [
+    ['a', 'Alva'],
+    ['b', 'Bo'],
+  ])
+    session = joinSession(session, id, name);
+  session = memberBuy(memberBuy(session, 'a', 'nxr'), 'b', 'sting');
+  session = startSessionCup(session, 'klubb', ['a', 'b']);
+  const rows = (first: string, second: string) =>
+    [first, second, 'Sanna', 'Klaus', 'Lotta', 'Henrik', 'Greta', 'Jürgen'].map((driverName, index) => ({
+      position: index + 1,
+      driverName,
+      car: carById('nxr'),
+      isPlayer: false,
+      time: 60 + index,
+      estimated: false,
+      bestLap: 30,
+    }));
+  const before = session.members.map((member) => member.money);
+  session = recordSessionRace(session, rows('Alva', 'Bo'));
+  expect(session.members[0].money - before[0]).toBe(cupById('klubb').prizes[0]);
+  expect(session.members[1].money - before[1]).toBe(cupById('klubb').prizes[1]);
+  session = recordSessionRace(session, rows('Bo', 'Alva'));
+  session = recordSessionRace(session, rows('Alva', 'Bo'));
+  expect(session.run).toBeUndefined();
+  expect(session.lastCup?.winner).toBe('Alva');
+  expect(session.members[0].cupsWon).toEqual(['klubb']);
+  expect(session.rivals.some((rival) => rival.upgrades.C.engine + rival.upgrades.C.tyres + rival.upgrades.C.brakes > 0)).toBe(true);
+  const late = joinSession(session, 'c', 'Cleo');
+  expect(late.members[2].money).toBe(START_MONEY);
+  expect(late.news[0]).toMatch(/börjar bakifrån/);
+});

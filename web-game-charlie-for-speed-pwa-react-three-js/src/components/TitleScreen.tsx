@@ -3,9 +3,17 @@ import type { Settings } from '../game/storage';
 import { trackById } from '../game/tracks';
 import { Showroom } from './Showroom';
 
-type Props = { settings: Settings; onRace: () => void; onGarage: () => void; onCareer: () => void; onSettings: () => void; onWifi: () => void };
+type Props = {
+  settings: Settings;
+  onRace: () => void;
+  onGarage: () => void;
+  onCareer: () => void;
+  onSettings: () => void;
+  onWifi: () => void;
+  onWifiCareer: () => void;
+};
 
-export function TitleScreen({ settings, onRace, onGarage, onCareer, onSettings, onWifi }: Props) {
+export function TitleScreen({ settings, onRace, onGarage, onCareer, onSettings, onWifi, onWifiCareer }: Props) {
   const car = carById(settings.carId);
   const track = trackById(settings.trackId);
   return (
@@ -35,7 +43,10 @@ export function TitleScreen({ settings, onRace, onGarage, onCareer, onSettings, 
           </small>
         </button>
         <button type='button' onClick={onWifi}>
-          Spela via Wi-Fi<small>Två enheter · QR-koppling</small>
+          Spela via Wi-Fi<small>Upp till 8 enheter · QR eller kod</small>
+        </button>
+        <button type='button' onClick={onWifiCareer}>
+          Wi-Fi-karriär<small>Cuper och uppgraderingar med kompisar</small>
         </button>
         <button type='button' onClick={onSettings}>
           Inställningar

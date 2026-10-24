@@ -10,7 +10,7 @@ import {
   entryProblem,
   formatMoney,
   newCareer,
-  ownedCar,
+  type OwnedCar,
   PLAYER_NAME,
   partNames,
   setActiveCar,
@@ -169,8 +169,18 @@ function CupsTab({ career, onChange, onRace }: { career: Career; onChange: Props
   );
 }
 
-function GarageTab({ career, onChange, onDealer }: { career: Career; onChange: Props['onChange']; onDealer: () => void }) {
-  const owned = ownedCar(career);
+// A player's wallet and garage plus what they can do with them; shared by solo and Wi-Fi careers.
+export type Shop = {
+  money: number;
+  garage: OwnedCar[];
+  activeCarId: string;
+  buy: (carId: string) => void;
+  upgrade: (carId: string, part: UpgradePart) => void;
+  select: (carId: string) => void;
+};
+
+export function GarageTab({ shop, onDealer }: { shop: Shop; onDealer: () => void }) {
+  const owned = shop.garage.find((car) => car.carId === shop.activeCarId);
   if (!owned) {
     return (
       <section className='panel'>
@@ -192,8 +202,8 @@ function GarageTab({ career, onChange, onDealer }: { career: Career; onChange: P
         <p className='hint'>Klass {base.carClass}</p>
         <Stats car={tuned} />
         <div className='owned-list'>
-          {career.garage.map((car) => (
-            <button key={car.carId} type='button' aria-pressed={car.carId === career.activeCarId} onClick={() => onChange(setActiveCar(career, car.carId))}>
+          {shop.garage.map((car) => (
+            <button key={car.carId} type='button' aria-pressed={car.carId === shop.activeCarId} onClick={() => shop.select(car.carId)}>
               {carName(carById(car.carId))}
             </button>
           ))}
@@ -210,8 +220,8 @@ function GarageTab({ career, onChange, onDealer }: { career: Career; onChange: P
               <Pips level={level} />
               <button
                 type='button'
-                disabled={level >= MAX_UPGRADE || career.money < cost}
-                onClick={() => onChange(buyUpgrade(career, owned.carId, part))}
+                disabled={level >= MAX_UPGRADE || shop.money < cost}
+                onClick={() => shop.upgrade(owned.carId, part)}
                 aria-label={`Uppgradera ${partNames[part].toLowerCase()}`}
               >
                 {level >= MAX_UPGRADE ? 'Max' : formatMoney(cost)}
@@ -225,7 +235,7 @@ function GarageTab({ career, onChange, onDealer }: { career: Career; onChange: P
   );
 }
 
-function DealerTab({ career, onChange }: { career: Career; onChange: Props['onChange'] }) {
+export function DealerTab({ shop }: { shop: Shop }) {
   return (
     <div className='career-stack'>
       {(['C', 'B', 'A'] as CarClass[]).map((carClass) => (
@@ -237,12 +247,12 @@ function DealerTab({ career, onChange }: { career: Career; onChange: Props['onCh
             {cars
               .filter((car) => car.carClass === carClass)
               .map((car) => {
-                const owned = !!ownedCar(career, car.id);
+                const owned = shop.garage.some((entry) => entry.carId === car.id);
                 return (
                   <article key={car.id} className='panel dealer-card'>
                     <h4>{carName(car)}</h4>
                     <Stats car={car} />
-                    <button type='button' className='primary' disabled={owned || career.money < car.price} onClick={() => onChange(buyCar(career, car.id))}>
+                    <button type='button' className='primary' disabled={owned || shop.money < car.price} onClick={() => shop.buy(car.id)}>
                       {owned ? 'I garaget' : `Köp ${formatMoney(car.price)}`}
                     </button>
                   </article>
@@ -325,6 +335,15 @@ export function CareerHub({ career, onChange, onRace, onBack }: Props) {
     );
   }
 
+  const shop: Shop = {
+    money: career.money,
+    garage: career.garage,
+    activeCarId: career.activeCarId,
+    buy: (carId) => onChange(buyCar(career, carId)),
+    upgrade: (carId, part) => onChange(buyUpgrade(career, carId, part)),
+    select: (carId) => onChange(setActiveCar(career, carId)),
+  };
+
   return (
     <main className='menu-screen career'>
       <header className='screen-header'>
@@ -345,8 +364,8 @@ export function CareerHub({ career, onChange, onRace, onBack }: Props) {
       </nav>
       <div className='career-body'>
         {tab === 'cups' && <CupsTab career={career} onChange={onChange} onRace={onRace} />}
-        {tab === 'garage' && <GarageTab career={career} onChange={onChange} onDealer={() => setTab('dealer')} />}
-        {tab === 'dealer' && <DealerTab career={career} onChange={onChange} />}
+        {tab === 'garage' && <GarageTab shop={shop} onDealer={() => setTab('dealer')} />}
+        {tab === 'dealer' && <DealerTab shop={shop} />}
         {tab === 'rivals' && <RivalsTab career={career} />}
         <div className='career-reset'>
           {confirmReset ? (

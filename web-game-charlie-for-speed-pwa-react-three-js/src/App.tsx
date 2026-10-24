@@ -5,11 +5,25 @@ import { RaceView } from './components/RaceView';
 import { SettingsPanel } from './components/SettingsPanel';
 import { TitleScreen } from './components/TitleScreen';
 import { TrackSelect } from './components/TrackSelect';
+import { WifiCareerRun, WifiCareerStart } from './components/WifiCareer';
 import { WifiLobby } from './components/WifiLobby';
 import { type Career, cupById, cupField, currentTrack, recordRace } from './game/career';
+import { type CareerLobbyConfig, CareerSession, validLobbyConfig } from './game/career-session';
 import { carName, cars } from './game/cars';
+import { newSession, type Session } from './game/multi-career';
 import { MAX_PLAYERS, NetworkRace, type RaceConfig, validRaceConfig } from './game/network-race';
-import { loadCareer, loadSettings, type Settings, saveCareer, saveSettings } from './game/storage';
+import {
+  deleteSession,
+  loadCareer,
+  loadIdentity,
+  loadSessions,
+  loadSettings,
+  type Settings,
+  saveCareer,
+  saveIdentity,
+  saveSession,
+  saveSettings,
+} from './game/storage';
 import { trackById, trackDefs } from './game/tracks';
 
 // Guests who have not chosen yet get a different car from the host's class.
@@ -36,7 +50,18 @@ function CarSelect({ label, value, onChange }: { label: string; value: string; o
   );
 }
 
-type Screen = 'wifi' | 'network-race' | 'title' | 'garage' | 'tracks' | 'race' | 'career' | 'career-race';
+type Screen =
+  | 'wifi'
+  | 'network-race'
+  | 'title'
+  | 'garage'
+  | 'tracks'
+  | 'race'
+  | 'career'
+  | 'career-race'
+  | 'wifi-career'
+  | 'wifi-career-lobby'
+  | 'wifi-career-hub';
 
 export function App() {
   const [screen, setScreen] = useState<Screen>('title');
@@ -49,6 +74,30 @@ export function App() {
     seed: Date.now() % 2147483647,
   }));
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [identity, setIdentity] = useState(loadIdentity);
+  const [sessions, setSessions] = useState(loadSessions);
+  // The session the host is about to open; undefined when this device joins someone else's.
+  const [hostSession, setHostSession] = useState<Session>();
+  const [careerLobby, setCareerLobby] = useState<CareerLobbyConfig>({ kind: 'career', session: '', mode: 'fresh' });
+  const [careerSession, setCareerSession] = useState<CareerSession>();
+
+  const changeIdentity = (next: typeof identity) => {
+    setIdentity(next);
+    saveIdentity(next);
+  };
+
+  const openCareerLobby = (session: Session | undefined) => {
+    setHostSession(session);
+    setCareerLobby({ kind: 'career', session: session?.name ?? '', mode: session?.mode ?? 'fresh' });
+    setScreen('wifi-career-lobby');
+  };
+
+  const leaveCareerSession = () => {
+    careerSession?.close();
+    setCareerSession(undefined);
+    setSessions(loadSessions());
+    setScreen('wifi-career');
+  };
 
   const update = (next: Settings) => {
     setSettings(next);
@@ -73,13 +122,74 @@ export function App() {
           onCareer={() => setScreen('career')}
           onSettings={() => setSettingsOpen(true)}
           onWifi={() => setScreen('wifi')}
+          onWifiCareer={() => setScreen('wifi-career')}
         />
+      )}
+      {screen === 'wifi-career' && (
+        <WifiCareerStart
+          identity={identity}
+          onIdentity={changeIdentity}
+          sessions={sessions}
+          onCreate={(name, mode) => openCareerLobby(newSession(name, mode))}
+          onResume={(session) => openCareerLobby(session)}
+          onDelete={(id) => {
+            deleteSession(id);
+            setSessions(loadSessions());
+          }}
+          onJoin={() => openCareerLobby(undefined)}
+          onBack={() => setScreen('title')}
+        />
+      )}
+      {screen === 'wifi-career-lobby' && (
+        <WifiLobby
+          name='Charlie for Speed'
+          title='Wi-Fi-karriär'
+          maxPlayers={MAX_PLAYERS}
+          config={careerLobby}
+          validConfig={validLobbyConfig}
+          validStart={validLobbyConfig}
+          startLabel='Öppna sessionen'
+          summary={(c) => (
+            <p>
+              Wi-Fi-karriär: {c.session || 'ny session'} · {c.mode === 'fresh' ? 'Ny start' : 'Egna bilar'}
+            </p>
+          )}
+          controls={
+            <p>
+              {hostSession
+                ? 'Para ihop de som är med nu. Fler kan bjudas in senare från sessionen.'
+                : 'Välj Anslut och läs in värdens kod. Har du varit med i sessionen förut får du tillbaka dina bilar och pengar.'}
+            </p>
+          }
+          available={true}
+          hostSettings={<p>Session: {careerLobby.session}</p>}
+          onBack={() => setScreen('wifi-career')}
+          onLaunch={(connections, config, state) => {
+            const solo = loadCareer();
+            const options = {
+              identity,
+              own: solo ? { garage: solo.garage, activeCarId: solo.activeCarId } : undefined,
+              transmission: settings.transmission,
+              save: saveSession,
+            };
+            const controller =
+              state || !hostSession
+                ? CareerSession.joinSession(connections[0], config, options)
+                : CareerSession.hostSession(hostSession, connections, config, options);
+            setCareerSession(controller);
+            setScreen('wifi-career-hub');
+          }}
+        />
+      )}
+      {screen === 'wifi-career-hub' && careerSession && (
+        <WifiCareerRun controller={careerSession} settings={settings} onSettings={update} onExit={leaveCareerSession} />
       )}
       {screen === 'wifi' && (
         <WifiLobby
           name='Charlie for Speed'
           maxPlayers={MAX_PLAYERS}
           config={wifiConfig}
+          readyKey={(c) => JSON.stringify(c.settings)}
           configure={(c, count, picks) => ({
             ...c,
             cars: Array.from({ length: count }, (_, player) => {

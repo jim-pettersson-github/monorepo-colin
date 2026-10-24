@@ -1,19 +1,51 @@
-import { cars } from './cars';
+import { applyUpgrades, carById, cars } from './cars';
+import { GRID, HUMAN_SLOTS, validUpgrades, type WireEntrant } from './multi-career';
 import { type Connection, NetworkPlay } from './network-play';
 import { type CarState, type Controls, shift } from './physics';
 import { createRace, type Race, type RaceSettings, resetRacer, STEP, stepRace } from './race';
 import { trackDefs } from './tracks';
 
-export const MAX_PLAYERS = 8;
-
-// Grid slots for players 1–8: humans start together mid-pack and AI fills the rest.
-const HUMAN_SLOTS = [5, 6, 4, 7, 3, 2, 1, 0];
+export const MAX_PLAYERS = GRID;
 
 export interface RaceConfig {
   settings: RaceSettings;
   // One car per player; player 1 is the host.
   cars: string[];
   seed: number;
+  // Wi-Fi career races send the whole grid: tuned cars, AI names and which player drives each place.
+  entrants?: WireEntrant[];
+}
+
+function validEntrants(config: RaceConfig) {
+  const { entrants } = config;
+  if (entrants === undefined) return true;
+  return (
+    Array.isArray(entrants) &&
+    entrants.length === GRID &&
+    entrants.every(
+      (entrant) =>
+        entrant &&
+        typeof entrant.driverName === 'string' &&
+        entrant.driverName.length > 0 &&
+        entrant.driverName.length <= 16 &&
+        cars.some((car) => car.id === entrant.carId) &&
+        validUpgrades(entrant.upgrades) &&
+        Number.isFinite(entrant.skill) &&
+        entrant.skill >= 0.5 &&
+        entrant.skill <= 1.2 &&
+        (entrant.player === undefined || (Number.isInteger(entrant.player) && entrant.player >= 0 && entrant.player < config.cars.length)),
+    ) &&
+    config.cars.every(
+      (carId, player) =>
+        entrants.filter((entrant) => entrant.player === player).length === 1 && entrants.find((entrant) => entrant.player === player)?.carId === carId,
+    ) &&
+    new Set(entrants.map((entrant) => entrant.driverName)).size === GRID
+  );
+}
+
+// The grid place each player drives.
+export function humanSlot(config: RaceConfig, player: number) {
+  return config.entrants ? config.entrants.findIndex((entrant) => entrant.player === player) : HUMAN_SLOTS[player];
 }
 export function validRaceConfig(value: unknown): value is RaceConfig {
   if (!value || typeof value !== 'object') return false;
@@ -28,6 +60,7 @@ export function validRaceConfig(value: unknown): value is RaceConfig {
     c.cars.length <= MAX_PLAYERS &&
     c.cars.every((id) => cars.some((car) => car.id === id)) &&
     c.cars[0] === s.carId &&
+    validEntrants(c) &&
     [1, 2, 3, 5].includes(s.laps) &&
     ['easy', 'normal', 'hard'].includes(s.difficulty) &&
     ['auto', 'manual'].includes(s.transmission) &&
@@ -37,6 +70,17 @@ export function validRaceConfig(value: unknown): value is RaceConfig {
   );
 }
 export function createNetworkRace(config: RaceConfig, slot = 0) {
+  if (config.entrants) {
+    const field = config.entrants.map((entrant) => ({
+      driverName: entrant.driverName,
+      spec: applyUpgrades(carById(entrant.carId), entrant.upgrades),
+      skill: entrant.skill,
+      isPlayer: entrant.player !== undefined,
+    }));
+    const race = createRace({ ...config.settings }, config.seed, field);
+    race.player = race.racers[humanSlot(config, slot)];
+    return race;
+  }
   const race = createRace({ ...config.settings }, config.seed);
   config.cars.forEach((carId, player) => {
     const racer = race.racers[HUMAN_SLOTS[player]];
@@ -135,10 +179,12 @@ export class NetworkRace {
     public readonly config: RaceConfig,
     connections: Connection[],
     public readonly localSlot: number,
+    options: { keepLinks?: boolean } = {},
   ) {
     this.race = createNetworkRace(config, localSlot);
     this.wire = new NetworkPlay({
       connections,
+      keepLinks: options.keepLinks,
       waitForViews: connections.length > 0,
       localSlot,
       snapshot: () => this.snapshot(),
@@ -202,7 +248,7 @@ export class NetworkRace {
       const inputs = this.config.cars.map((_, player) => (player === 0 ? local : this.wire.consume(player)));
       const controls = new Map<number, Controls>();
       inputs.forEach((input, player) => {
-        const racer = this.race.racers[HUMAN_SLOTS[player]];
+        const racer = this.race.racers[humanSlot(this.config, player)];
         if (input.reset && this.race.phase === 'racing') resetRacer(this.race, racer);
         if (input.shift && this.config.settings.transmission === 'manual') shift(racer.state, input.shift > 0 ? 1 : -1);
         controls.set(racer.id, input.controls);

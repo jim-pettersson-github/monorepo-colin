@@ -210,7 +210,7 @@ export function currentTrack(career: Career) {
 }
 
 // Rivals buy the cheapest upgrades they can afford for the class they just raced.
-function rivalShopping(rival: Rival, carClass: CarClass, news: string[]) {
+export function rivalShopping(rival: Rival, carClass: CarClass, news: string[]) {
   const upgrades = { ...rival.upgrades[carClass] };
   let money = rival.money;
   for (;;) {

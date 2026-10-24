@@ -2,6 +2,8 @@
 
 ## Done
 
+- Wi-Fi career sessions with per-player money, cars and upgrades, saved on the host and resumable; late joiners start fresh.
+- Short pairing codes with share/copy/paste fallback.
 - WebRTC races for 2–8 devices with two-way QR pairing, guest car choice, shared pause and separate local cameras; career remains local.
 
 - Six tracks: two circuits, two city tracks and two country roads.

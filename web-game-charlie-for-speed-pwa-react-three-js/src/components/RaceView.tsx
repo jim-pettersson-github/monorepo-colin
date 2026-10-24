@@ -156,7 +156,7 @@ export function RaceView({ settings, onSettings, onExit, career, network }: Prop
         finishTimer = setTimeout(
           () =>
             setOutcome({
-              rows: raceResults(race).map((row) => (network ? { ...row, isPlayer: row.driverName === `Spelare ${network.localSlot + 1}` } : row)),
+              rows: raceResults(race).map((row) => (network ? { ...row, isPlayer: row.driverName === race.player.driverName } : row)),
               bestLap,
               record,
             }),
@@ -277,7 +277,7 @@ export function RaceView({ settings, onSettings, onExit, career, network }: Prop
             <button type='button' className='primary' disabled={network && !network.wire.canResume} onClick={() => setPausedState(false)}>
               Fortsätt
             </button>
-            {(!network || network.localSlot === 0) && (
+            {(!network || network.localSlot === 0) && !career && (
               <button type='button' disabled={network && !network.wire.canResume} onClick={restart}>
                 Starta om
               </button>
@@ -347,9 +347,13 @@ export function RaceView({ settings, onSettings, onExit, career, network }: Prop
             </table>
             {career ? (
               <div className='panel-actions'>
-                <button type='button' className='primary' onClick={() => career.onFinish(outcome.rows)}>
-                  Fortsätt
-                </button>
+                {!network || network.localSlot === 0 ? (
+                  <button type='button' className='primary' onClick={() => career.onFinish(outcome.rows)}>
+                    Fortsätt
+                  </button>
+                ) : (
+                  <p>Väntar på värden.</p>
+                )}
               </div>
             ) : (
               <div className='panel-actions'>

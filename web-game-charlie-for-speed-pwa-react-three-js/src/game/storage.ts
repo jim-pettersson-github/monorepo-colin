@@ -1,6 +1,8 @@
 import type { CameraMode } from '../render/race-renderer';
 import type { Career } from './career';
+import type { Identity } from './career-session';
 import { cars } from './cars';
+import { type Session, validSession } from './multi-career';
 import type { RaceSettings } from './race';
 import { trackDefs } from './tracks';
 
@@ -82,5 +84,57 @@ export function saveCareer(career: Career | undefined) {
     else localStorage.removeItem(CAREER_KEY);
   } catch {
     // Without storage the career still works for this session.
+  }
+}
+
+const IDENTITY_KEY = 'charlie-for-speed:identity';
+const SESSIONS_KEY = 'charlie-for-speed:wifi-careers';
+
+// A stable id per device lets a Wi-Fi career recognise returning players.
+export function loadIdentity(): Identity {
+  try {
+    const raw = localStorage.getItem(IDENTITY_KEY);
+    const stored = raw ? (JSON.parse(raw) as Identity) : undefined;
+    if (stored && typeof stored.id === 'string' && typeof stored.name === 'string') return stored;
+  } catch {
+    // Fall through to a fresh identity.
+  }
+  const identity = { id: `p${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`, name: '' };
+  saveIdentity(identity);
+  return identity;
+}
+
+export function saveIdentity(identity: Identity) {
+  try {
+    localStorage.setItem(IDENTITY_KEY, JSON.stringify(identity));
+  } catch {
+    // Storage is optional.
+  }
+}
+
+export function loadSessions(): Session[] {
+  try {
+    const raw = localStorage.getItem(SESSIONS_KEY);
+    const list = raw ? (JSON.parse(raw) as unknown[]) : [];
+    return list.filter(validSession).sort((a, b) => b.updated - a.updated);
+  } catch {
+    return [];
+  }
+}
+
+export function saveSession(session: Session) {
+  try {
+    const others = loadSessions().filter((stored) => stored.id !== session.id);
+    localStorage.setItem(SESSIONS_KEY, JSON.stringify([session, ...others].slice(0, 12)));
+  } catch {
+    // Storage is optional.
+  }
+}
+
+export function deleteSession(id: string) {
+  try {
+    localStorage.setItem(SESSIONS_KEY, JSON.stringify(loadSessions().filter((stored) => stored.id !== id)));
+  } catch {
+    // Storage is optional.
   }
 }
