@@ -83,7 +83,7 @@ export function drawScene(c: C, w: number, h: number, state: GameState | null, t
   const span = state && state.settings.players === 2 ? Math.abs(state.runners[0].x - state.runners[1].x) / worldScale : 0;
   const ppm = w / Math.max(36, span + 22);
   const camera = Math.max(0, focus - 8);
-  const x = (meters: number, lane = 0) => (meters / worldScale - camera) * ppm + w * 0.12 + lane * 4;
+  const x = (meters: number, lane = 0) => (meters / worldScale - camera) * ppm + w * 0.12 + lane * 52;
   const rowH = h * 0.115;
   const first = h * 0.53;
   for (let lane = 0; lane < 4; lane++) {
