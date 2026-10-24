@@ -1,4 +1,6 @@
-# Colin — Elevator Explorer
+# Colin and Alfred — browser games
+
+## Colin — Elevator Explorer
 
 **[Play the game](https://jim-pettersson-github.github.io/monorepo-colin/)**
 
@@ -13,3 +15,15 @@ npm start
 ```
 
 Open http://localhost:4010. `npm ci` installs the local pre-commit hook; `npm test` installs its browser automatically if missing. Tests run before committing; GitHub only checks formatting, builds, and deploys. See the [game README](web-game-elevator-pwo-react-pixi-js/README.md) for checks and offline preview, and [AGENTS.md](AGENTS.md) for project guidance.
+
+## Alfred FC
+
+A separate React + Three.js foundation for a five-a-side football game with LEGO-style characters. The starter screen and static 3D pitch preview are implemented; matches and controls are planned. It is not deployed.
+
+```sh
+cd web-game-alfred-lego-fc-pwa-react-three-js
+npm ci
+npm start
+```
+
+Open http://localhost:4012. Production preview and browser tests use 4013. Run `npm run verify` in the Alfred folder before committing; the root hook and Pages workflow continue to target Colin's game. See the [Alfred README](web-game-alfred-lego-fc-pwa-react-three-js/README.md) and [game plan](web-game-alfred-lego-fc-pwa-react-three-js/PLAN.md).
