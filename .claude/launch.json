@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "charlie-for-speed",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "web-game-charlie-for-speed-pwa-react-three-js", "start"],
+      "port": 4014
+    }
+  ]
+}
