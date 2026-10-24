@@ -63,7 +63,8 @@ export class NetworkSession extends MatchSession {
   }
   override save = () => {
     // Only the host records a completed fixture. Live snapshots never replace local match saves.
-    if (this.networkRole === 'host' && (this.state.league || this.state.cup) && this.state.phase === 'finished') this.onLeagueFinished?.(this.state);
+    if (this.networkRole === 'host' && (this.state.league || this.state.cup || this.state.career) && this.state.phase === 'finished')
+      this.onLeagueFinished?.(this.state);
   };
 
   private snapshot() {
@@ -106,10 +107,10 @@ export class NetworkSession extends MatchSession {
       this.snapshot();
     }
   }
-  rematch() {
+  rematch(prepared?: MatchState) {
     if (this.networkRole !== 'host' || this.state.league || this.state.cup || !this.canResume) return;
     this.round++;
-    this.state = createMatch('versus', this.state.duration, this.state.difficulty, this.state.clubs);
+    this.state = prepared ?? createMatch('versus', this.state.duration, this.state.difficulty, this.state.clubs);
     this.remote = neutralControls();
     super.resume();
     this.snapshot();

@@ -31,10 +31,23 @@ import { attackDirection, createMatch, ensureMatchRules, FIELD, neutralControls,
 import { nations } from '../src/game/nations';
 import { NetworkSession, validNetworkMatch } from '../src/game/network-session';
 import { decodeSignal, encodeSignal, type PeerLink } from '../src/game/peer-link';
+import { footballers, playerPrice, startingFive } from '../src/game/players';
 import { MatchSession } from '../src/game/session';
 import { performAction, stepMatch } from '../src/game/simulation';
 import { MatchSoundTracker } from '../src/game/sound';
 import { validMatch } from '../src/game/storage';
+import {
+  buyPlayer,
+  createTransfers,
+  domesticClub,
+  loadTransfers,
+  prepareTransferMatch,
+  saveTransfers,
+  sellPlayer,
+  settleTransfers,
+  squadFor,
+  validTransfers,
+} from '../src/game/transfers';
 
 test('sound cues follow real actions once and never replay events observed while paused', () => {
   const state = createMatch('versus');
@@ -1133,4 +1146,202 @@ test('world cup elimination completes the bracket and saves recover independentl
     if (descriptor) Object.defineProperty(globalThis, 'localStorage', descriptor);
     else Reflect.deleteProperty(globalThis, 'localStorage');
   }
+});
+
+test('fixed player pool has balanced rating bands, distinct identities and a legal first five for every team', () => {
+  expect(footballers).toHaveLength(360);
+  expect(new Set(footballers.map((p) => p.id)).size).toBe(360);
+  expect(new Set(footballers.map((p) => p.name)).size).toBe(360);
+  const save = createTransfers();
+  expect(validTransfers(save)).toBe(true);
+  for (const team of [...clubs, ...nations]) {
+    const squad = squadFor(save, team.id);
+    expect(squad).toHaveLength(10);
+    expect(squad.filter((p) => p.overall >= 90)).toHaveLength(1);
+    expect(squad.filter((p) => p.overall >= 80 && p.overall < 90)).toHaveLength(2);
+    expect(squad.filter((p) => p.overall >= 70 && p.overall < 80)).toHaveLength(3);
+    expect(squad.filter((p) => p.overall < 70)).toHaveLength(4);
+    const lineup = startingFive(squad);
+    expect(new Set(lineup).size).toBe(5);
+    expect(squad.find((p) => p.id === lineup[0])?.keeper).toBe(true);
+    for (const p of squad)
+      for (const value of [p.overall, p.pace, p.shooting, p.passing, p.defending, p.goalkeeping]) {
+        expect(value).toBeGreaterThanOrEqual(0);
+        expect(value).toBeLessThanOrEqual(100);
+      }
+  }
+  expect(playerPrice(requiredTransfer(footballers.find((p) => p.overall >= 90)))).toBeGreaterThan(
+    playerPrice(requiredTransfer(footballers.find((p) => p.overall < 70))),
+  );
+  expect(createTransfers()).toEqual(save);
+});
+
+test('buying, swapping and selling conserve money, preserve player identities and enforce squad limits', () => {
+  const initial = createTransfers();
+  initial.money.alfred = 50000;
+  const target = requiredTransfer(squadFor(initial, 'brick').find((p) => p.overall >= 90));
+  const bought = buyPlayer(initial, 'alfred', target.id);
+  expect(bought.error).toBeUndefined();
+  expect(initial.owners[target.id]).toBe('brick');
+  expect(bought.save.owners[target.id]).toBe('alfred');
+  expect(bought.save.money.alfred).toBe(50000 - playerPrice(target));
+  expect(bought.save.protectedUntil[target.id]).toBe(3);
+  expect(validTransfers(bought.save)).toBe(true);
+  const poor = createTransfers();
+  poor.money.alfred = 0;
+  expect(buyPlayer(poor, 'alfred', target.id).save).toBe(poor);
+  const offer = requiredTransfer(squadFor(bought.save, 'alfred').find((p) => !p.keeper && p.id !== target.id));
+  const exchangeTarget = requiredTransfer(squadFor(bought.save, 'brick').find((p) => !p.keeper));
+  const exchanged = buyPlayer(bought.save, 'alfred', exchangeTarget.id, offer.id).save;
+  expect(exchanged.owners[offer.id]).toBe('brick');
+  expect(exchanged.owners[exchangeTarget.id]).toBe('alfred');
+  expect(squadFor(exchanged, 'alfred')).toHaveLength(11);
+  const total = Object.values(exchanged.money).reduce((a, b) => a + b, 0);
+  const sold = sellPlayer(exchanged, 'alfred', target.id, 'brick').save;
+  expect(sold.money.alfred - exchanged.money.alfred).toBe(Math.floor((playerPrice(target) * 0.8) / 50) * 50);
+  expect(Object.values(sold.money).reduce((a, b) => a + b, 0)).toBe(total);
+  let small = createTransfers();
+  small.money.brick = 1000000;
+  for (const player of squadFor(small, 'alfred')
+    .filter((p) => !p.keeper)
+    .slice(0, 4))
+    small = sellPlayer(small, 'alfred', player.id, 'brick').save;
+  // The seller has exactly four outfield players; those must stay even with a spare keeper.
+  expect(squadFor(small, 'brick')).toHaveLength(14);
+  expect(sellPlayer(small, 'alfred', requiredTransfer(squadFor(small, 'alfred').find((p) => !p.keeper)).id, 'brick').save).toBe(small);
+  small.money.solstad = 1000000;
+  const fifth = requiredTransfer(squadFor(small, 'alfred').find((p) => p.keeper));
+  small = sellPlayer(small, 'alfred', fifth.id, 'solstad').save;
+  expect(squadFor(small, 'alfred')).toHaveLength(5);
+  expect(squadFor(small, 'solstad')).toHaveLength(11);
+  expect(sellPlayer(small, 'alfred', squadFor(small, 'alfred')[0].id, 'solstad').save).toBe(small);
+  expect(validTransfers(small)).toBe(true);
+  const keeperSave = createTransfers();
+  keeperSave.money.brick = 1000000;
+  const keepers = squadFor(keeperSave, 'alfred').filter((p) => p.keeper);
+  const oneKeeper = sellPlayer(keeperSave, 'alfred', keepers[0].id, 'brick').save;
+  expect(sellPlayer(oneKeeper, 'alfred', keepers[1].id, 'brick').save).toBe(oneKeeper);
+});
+
+test('match payments, trophy bonuses and saved lineups apply once and an unfinished match cannot pay', () => {
+  for (const [score, amount] of [
+    [[2, 0], 400],
+    [[1, 1], 300],
+    [[0, 2], 200],
+  ] as const) {
+    const prepared = prepareTransferMatch(createTransfers(), createMatch('solo', 60));
+    expect(validMatch(prepared.state)).toBe(true);
+    expect(validNetworkMatch({ ...prepared.state, mode: 'versus' })).toBe(true);
+    expect(buyPlayer(prepared.save, 'alfred', squadFor(prepared.save, 'brick')[0].id).save).toBe(prepared.save);
+    expect(settleTransfers(prepared.save, prepared.state)).toBe(prepared.save);
+    prepared.state.phase = 'finished';
+    prepared.state.remaining = 0;
+    prepared.state.score = [...score];
+    const next = settleTransfers(prepared.save, prepared.state, { id: 'trophy-one', amount: 6000 });
+    expect(next.money.alfred).toBeGreaterThanOrEqual(6000 + amount + 6000);
+    expect(next.lastReward?.game).toBe(amount);
+    expect(next.lastReward?.prize).toBe(6000);
+    expect(next.pending).toBeNull();
+    expect(next.paid).toEqual([prepared.state.career?.id]);
+    expect(settleTransfers(next, prepared.state, { id: 'trophy-one', amount: 6000 })).toBe(next);
+    const replay = prepareTransferMatch(next, createMatch('solo', 60));
+    replay.state.phase = 'finished';
+    replay.state.remaining = 0;
+    expect(settleTransfers(replay.save, replay.state, { id: 'trophy-one', amount: 6000 }).lastReward?.prize).toBe(0);
+    const saved = JSON.parse(JSON.stringify(prepared.state));
+    const lineup = saved.lineups;
+    resetPositions(saved);
+    expect(saved.players.map((p: { athlete: string }) => p.athlete)).toEqual(lineup.flat());
+    expect(validMatch(saved)).toBe(true);
+  }
+});
+
+test('new signings survive three games and occasional AI transfers never dismantle a squad', () => {
+  let save = createTransfers();
+  save.money.alfred = 1000000;
+  const target = requiredTransfer(squadFor(save, 'brick').find((p) => p.overall >= 90));
+  save = buyPlayer(save, 'alfred', target.id).save;
+  for (let i = 0; i < 60; i++) {
+    const prepared = prepareTransferMatch(save, createMatch('solo', 60));
+    requiredTransfer(prepared.state.career).id = `test-match-${Math.imul(i + 1, 2654435761) >>> 0}`;
+    prepared.save.pending = requiredTransfer(prepared.state.career).id;
+    prepared.state.phase = 'finished';
+    prepared.state.remaining = 0;
+    prepared.state.score = [1, 0];
+    const next = settleTransfers(prepared.save, prepared.state);
+    if (i < 3) expect(next.owners[target.id]).toBe('alfred');
+    const lost = squadFor(save, 'alfred').filter((p) => next.owners[p.id] !== 'alfred');
+    expect(lost.length).toBeLessThanOrEqual(1);
+    if (lost.length) expect(next.matches - save.lastAiSale).toBeGreaterThanOrEqual(5);
+    expect(validTransfers(next)).toBe(true);
+    save = next;
+  }
+});
+
+test('transfer saves reject corrupt owners and balances and recover their independent backup', () => {
+  const save = createTransfers();
+  expect(validTransfers({ ...save, money: { ...save.money, alfred: -1 } })).toBe(false);
+  expect(validTransfers({ ...save, owners: { ...save.owners, [Object.keys(save.owners)[0]]: 'swe' } })).toBe(false);
+  expect(domesticClub('swe')).toBe(false);
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'localStorage'),
+    data = new Map<string, string>();
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    value: { getItem: (key: string) => data.get(key) ?? null, setItem: (key: string, value: string) => data.set(key, value) },
+  });
+  try {
+    saveTransfers(save);
+    saveTransfers(save);
+    data.set('alfred-fc-transfers-v1', 'bad');
+    expect(loadTransfers()).toEqual(save);
+    expect(data.has('alfred-fc-season-v1')).toBe(false);
+  } finally {
+    if (descriptor) Object.defineProperty(globalThis, 'localStorage', descriptor);
+    else Reflect.deleteProperty(globalThis, 'localStorage');
+  }
+});
+
+function requiredTransfer<T>(value: T | undefined): T {
+  if (value === undefined) throw new Error('Missing transfer test fixture');
+  return value;
+}
+
+test('player stats change running, shooting and goalkeeper saves while keeping the same football rules', () => {
+  const setup = (attribute: 'pace' | 'shooting' | 'goalkeeping', strong: boolean) => {
+    const state = prepareTransferMatch(createTransfers(), createMatch('versus', 60, 'hard')).state;
+    state.phase = 'playing';
+    const keeper = attribute === 'goalkeeping',
+      slot = keeper ? 0 : 4;
+    const candidates = footballers.filter((p) => p.keeper === keeper && !state.lineups?.flat().includes(p.id)).sort((a, b) => b[attribute] - a[attribute]);
+    const player = candidates[strong ? 0 : candidates.length - 1];
+    if (!state.lineups) throw new Error('No lineup');
+    state.lineups[0][slot] = player.id;
+    state.players[slot].athlete = player.id;
+    for (const person of state.players) {
+      person.x = person.team === 0 ? -42 : 42;
+      person.z = 25;
+    }
+    state.players[slot].x = keeper ? -FIELD.halfLength + 2 : 0;
+    state.players[slot].z = 0;
+    state.ball = { x: state.players[slot].x + (keeper ? 1.1 : 0), z: 0, vx: 0, vz: 0, owner: keeper ? null : slot, blocked: null, lock: 0 };
+    return state;
+  };
+  const fast = setup('pace', true),
+    slow = setup('pace', false);
+  for (let i = 0; i < 60; i++) {
+    stepMatch(fast, [{ ...neutralControls(), x: 1 }, neutralControls()], STEP);
+    stepMatch(slow, [{ ...neutralControls(), x: 1 }, neutralControls()], STEP);
+  }
+  expect(fast.players[4].x).toBeGreaterThan(slow.players[4].x + 0.5);
+  const powerful = setup('shooting', true),
+    weak = setup('shooting', false);
+  performAction(powerful, powerful.players[4], { ...neutralControls(), shoot: true });
+  performAction(weak, weak.players[4], { ...neutralControls(), shoot: true });
+  expect(Math.hypot(powerful.ball.vx, powerful.ball.vz)).toBeGreaterThan(Math.hypot(weak.ball.vx, weak.ball.vz));
+  const goodKeeper = setup('goalkeeping', true),
+    poorKeeper = setup('goalkeeping', false);
+  stepMatch(goodKeeper, [neutralControls(), neutralControls()], STEP);
+  stepMatch(poorKeeper, [neutralControls(), neutralControls()], STEP);
+  expect(goodKeeper.ball.owner).toBe(0);
+  expect(poorKeeper.ball.owner).toBeNull();
 });

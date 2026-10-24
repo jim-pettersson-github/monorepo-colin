@@ -34,6 +34,8 @@
 
 ## Verification
 
+- Persistent transfers and wallets: fixed ten-player squads, balanced rating bands, rating-based prices, automatic first fives and real gameplay stat effects. Purchases, sales, swaps, protected new signings and infrequent AI moves respect money and squad minima. Match and trophy rewards are deduplicated; national squads remain fixed and earnings go to a domestic club.
+
 Rules tests cover the full home/away season, standings, instant/watched simulation equivalence, watch speed/pause, result deduplication, backups and invalid schedules, alongside close non-contact slides, late ball wins, three-way referee decisions, difficulty, pitch boundaries, cameras, scoring, penalties, input and save validation.
 
 Desktop, portrait-phone and landscape-phone browser checks cover direct simulation/results, watch speed changes, saved viewing, full-time recording, league-only options and close slides without whistles, alongside menu actions, exit confirmation, season fixtures, camera scrolling, scoring, tackles, penalties, input, rotation and offline reload.

@@ -247,6 +247,24 @@ body:has(.match-shell) {
   font-weight: 800;
   margin: 25px 0;
 }
+.match-reward {
+  color: var(--accent);
+  line-height: 1.6;
+}
+.match-lineups {
+  margin-block: 16px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.match-lineups summary {
+  min-height: 48px;
+  align-content: center;
+  cursor: pointer;
+}
+.match-lineups ul {
+  padding-left: 20px;
+  line-height: 1.9;
+}
 .match-dialog > button:not(.primary-button) {
   width: 100%;
   margin-top: 12px;

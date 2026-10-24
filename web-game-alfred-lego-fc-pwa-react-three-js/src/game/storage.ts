@@ -1,6 +1,7 @@
 import { defaultClubs, validClub } from './clubs';
 import type { MatchState } from './model';
 import { ensureMatchRules, FALL_DURATION, FIELD, SLIDE_DURATION } from './model';
+import { footballer } from './players';
 
 const key = 'alfred-fc-match-v1';
 const finite = (value: unknown, limit = 10_000): value is number => typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= limit;
@@ -8,6 +9,16 @@ const finite = (value: unknown, limit = 10_000): value is number => typeof value
 export function validMatch(value: unknown): value is MatchState {
   if (!value || typeof value !== 'object') return false;
   const s = value as MatchState;
+  if (s.career !== undefined && (!s.career || typeof s.career.id !== 'string' || !s.career.id.length || s.career.id.length > 100 || !validClub(s.career.club)))
+    return false;
+  if (
+    s.lineups !== undefined &&
+    (!Array.isArray(s.lineups) ||
+      s.lineups.length !== 2 ||
+      !s.lineups.every((team) => Array.isArray(team) && team.length === 5 && team.every((id) => !!footballer(id)) && footballer(team[0])?.keeper) ||
+      new Set(s.lineups.flat()).size !== 10)
+  )
+    return false;
   if (s.pitchScale !== FIELD.scale) return false;
   if (
     typeof s.watching !== 'boolean' ||
@@ -69,6 +80,7 @@ export function validMatch(value: unknown): value is MatchState {
   for (let i = 0; i < 10; i++) {
     const p = s.players[i];
     if (!p || p.id !== i || p.team !== Math.floor(i / 5) || p.role !== i % 5) return false;
+    if ((p.athlete !== undefined && !footballer(p.athlete)) || p.athlete !== s.lineups?.[p.team][p.role]) return false;
     if (
       !finite(p.x, FIELD.halfLength + 1) ||
       !finite(p.z, FIELD.halfWidth + 1) ||

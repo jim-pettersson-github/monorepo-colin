@@ -12,6 +12,7 @@ import {
   resetPositions,
   SLIDE_DURATION,
 } from './model';
+import { footballer, skillScale } from './players';
 
 function randomRoll(state: MatchState) {
   state.randomState = (Math.imul(state.randomState, 1664525) + 1013904223) >>> 0;
@@ -84,7 +85,9 @@ export function performAction(state: MatchState, player: Player, input: Controls
       const opponent = state.mode === 'solo' && (state.watching || player.team === 1);
       const settings = difficultySettings[state.difficulty];
       if (opponent) targetZ += (randomRoll(state) * 2 - 1) * settings.shotError;
-      kickBall(state, player, direction * FIELD.halfLength - player.x, targetZ - player.z, opponent ? settings.shotSpeed : 27);
+      const skills = footballer(player.athlete);
+      if (skills) targetZ += (randomRoll(state) * 2 - 1) * (100 - skills.shooting) * 0.025;
+      kickBall(state, player, direction * FIELD.halfLength - player.x, targetZ - player.z, (opponent ? settings.shotSpeed : 27) * skillScale(skills?.shooting));
       state.message = 'Skott!';
     } else if (input.pass) {
       const aiming = Math.hypot(input.x, input.z) > 0.2;
@@ -98,7 +101,13 @@ export function performAction(state: MatchState, player: Player, input: Controls
       };
       teammates.sort((a, b) => rating(b) - rating(a));
       const target = teammates[0];
-      kickBall(state, player, target.x + target.vx * 0.25 - player.x, target.z + target.vz * 0.25 - player.z, 19);
+      kickBall(
+        state,
+        player,
+        target.x + target.vx * 0.25 - player.x,
+        target.z + target.vz * 0.25 - player.z,
+        19 * skillScale(footballer(player.athlete)?.passing),
+      );
       state.message = 'Passning';
     }
   } else if (input.shoot && player.role !== 0) {
@@ -118,7 +127,7 @@ export function performAction(state: MatchState, player: Player, input: Controls
     player.slide = SLIDE_DURATION;
     player.slideHit = false;
     player.slideContact = null;
-    player.cooldown = 1.25;
+    player.cooldown = 1.25 / skillScale(footballer(player.athlete)?.defending);
     state.message = 'Glidtackling!';
   }
 }
@@ -431,7 +440,9 @@ export function stepMatch(state: MatchState, inputs: [Controls, Controls], dt: n
       const magnitude = Math.max(1, Math.hypot(input.x, input.z));
       const settings = difficultySettings[state.difficulty];
       const aiSpeed = state.mode === 'solo' && (state.watching || player.team === 1) ? (player.role === 0 ? settings.keeperSpeed : settings.speed) : 1;
-      const speed = (player.role === 0 ? 4.8 : input.sprint ? 9.6 : 7.4) * (human ? 1 : aiSpeed);
+      const skills = footballer(player.athlete);
+      const speed =
+        (player.role === 0 ? 4.8 : input.sprint ? 9.6 : 7.4) * (human ? 1 : aiSpeed) * skillScale(player.role === 0 ? skills?.goalkeeping : skills?.pace);
       player.vx = (input.x / magnitude) * speed;
       player.vz = (input.z / magnitude) * speed;
       if (Math.hypot(player.vx, player.vz) > 0.1) {
@@ -524,7 +535,12 @@ export function stepMatch(state: MatchState, inputs: [Controls, Controls], dt: n
   }
   if (ball.owner === null) {
     const candidates = state.players.filter(
-      (p) => p.fallen <= 0 && p.slide <= 0 && !(p.id === ball.blocked && ball.lock > 0) && p.cooldown < 0.2 && distance(p, ball) < (p.role === 0 ? 1.05 : 1.0),
+      (p) =>
+        p.fallen <= 0 &&
+        p.slide <= 0 &&
+        !(p.id === ball.blocked && ball.lock > 0) &&
+        p.cooldown < 0.2 &&
+        distance(p, ball) < (p.role === 0 ? 1.05 * skillScale(footballer(p.athlete)?.goalkeeping) : 1.0),
     );
     candidates.sort((a, b) => distance(a, ball) - distance(b, ball));
     if (candidates[0]) {

@@ -18,8 +18,12 @@ import { PlaybackSpeedSelect } from './PlaybackSpeedSelect';
 import { SoundSettings, SoundToggle } from './SoundControls';
 import { TeamSelection } from './TeamSelection';
 import './start-menu.css';
+import type { TransferSave } from '../game/transfers';
+import { TransferPanel } from './TransferPanel';
 
 interface Props {
+  transfers: TransferSave;
+  onTransfers: (save: TransferSave) => void;
   cups: Record<CupKind, Cup | null>;
   cupKind: CupKind;
   onCupKind: (kind: CupKind) => void;
@@ -27,8 +31,8 @@ interface Props {
   onCupMatch: (kind: CupKind, action: LeagueAction, speed: PlaybackSpeed) => void;
   onWifi: () => void;
   input: InputManager;
-  screen: 'quick' | 'league' | 'cups';
-  onScreen: (screen: 'quick' | 'league' | 'cups') => void;
+  screen: 'quick' | 'league' | 'cups' | 'market';
+  onScreen: (screen: 'quick' | 'league' | 'cups' | 'market') => void;
   mode: MatchMode;
   onMode: (mode: MatchMode) => void;
   clubs: MatchClubs;
@@ -119,8 +123,14 @@ export function StartMenu(props: Props) {
           <strong>Cupspel</strong>
           <small>Klubbcuper & Världscupen</small>
         </button>
+        <button type='button' disabled={simulating} aria-pressed={screen === 'market'} onClick={() => onScreen('market')}>
+          <strong>Trupp & transfers</strong>
+          <small>{props.transfers.money[props.transfers.activeClub].toLocaleString('sv-SE')} mynt</small>
+        </button>
       </nav>
-      {screen === 'cups' ? (
+      {screen === 'market' ? (
+        <TransferPanel save={props.transfers} onChange={props.onTransfers} locked={!!saved || simulating} />
+      ) : screen === 'cups' ? (
         <CupPanel
           input={input}
           cups={props.cups}

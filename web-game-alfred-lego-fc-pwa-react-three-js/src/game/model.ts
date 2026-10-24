@@ -1,4 +1,4 @@
-import type { MatchClubs } from './clubs';
+import type { ClubId, MatchClubs } from './clubs';
 import { defaultClubs } from './clubs';
 
 export type Team = 0 | 1;
@@ -29,6 +29,7 @@ export interface Controls {
 export const neutralControls = (): Controls => ({ x: 0, z: 0, pass: false, shoot: false, switch: false, sprint: false });
 
 export interface Player {
+  athlete?: string;
   id: number;
   team: Team;
   role: number;
@@ -51,6 +52,8 @@ export interface Player {
 }
 
 export interface MatchState {
+  career?: { id: string; club: ClubId };
+  lineups?: [string[], string[]];
   cup?: { kind: CupKind; runId: string; fixtureId: number; knockout: boolean; extraTime: boolean; extraElapsed?: number } | null;
   watching: boolean;
   playbackSpeed: PlaybackSpeed;
@@ -126,6 +129,7 @@ export function resetPositions(state: MatchState) {
     for (let role = 0; role < 5; role++) {
       const [x, z] = formation[role];
       state.players.push({
+        athlete: state.lineups?.[team][role],
         id: team * 5 + role,
         team,
         role,

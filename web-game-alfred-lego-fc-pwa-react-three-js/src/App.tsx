@@ -5,19 +5,32 @@ import { StartMenu } from './components/StartMenu';
 import { WifiLobby } from './components/WifiLobby';
 import type { ClubId, MatchClubs } from './game/clubs';
 import { defaultClubs } from './game/clubs';
-import { createCup, createCupMatch, finishCupMatch, loadCup, nextCupFixture, saveCup } from './game/cups';
+import { createCup, createCupMatch, cupChampion, finishCupMatch, loadCup, nextCupFixture, saveCup } from './game/cups';
 import { InputManager } from './game/input';
 import type { LeagueAction } from './game/league';
-import { createLeagueMatch, createSeason, finishLeagueMatch, loadSeason, nextFixture, saveSeason, simulateLeagueMatch } from './game/league';
+import { createLeagueMatch, createSeason, finishLeagueMatch, loadSeason, nextFixture, saveSeason, simulateLeagueMatch, standings } from './game/league';
 import type { CupKind, Difficulty, MatchMode, MatchState, PlaybackSpeed, Team } from './game/model';
 import { createMatch } from './game/model';
 import { NetworkSession } from './game/network-session';
 import { MatchSession } from './game/session';
 import { gameSound } from './game/sound';
 import { clearMatch, loadMatch, saveMatch } from './game/storage';
+import { loadTransfers, prepareTransferMatch, saveTransfers, settleTransfers, type TransferSave } from './game/transfers';
 import './match.css';
 
 export function App() {
+  const [transfers, setTransfers] = useState(() => {
+    const loaded = loadTransfers();
+    if (!loadMatch()) loaded.pending = null;
+    return loaded;
+  });
+  const transfersRef = useRef(transfers);
+  transfersRef.current = transfers;
+  const updateTransfers = (next: TransferSave) => {
+    saveTransfers(next);
+    transfersRef.current = next;
+    setTransfers(next);
+  };
   const [input] = useState(() => new InputManager());
   const [session, setSession] = useState<MatchSession | null>(null);
   const [wifi, setWifi] = useState(false);
@@ -35,7 +48,7 @@ export function App() {
     }
     return match?.league && (match.league.seasonId !== season?.id || match.league.fixtureId !== (season ? nextFixture(season)?.id : undefined)) ? null : match;
   });
-  const [screen, setScreen] = useState<'quick' | 'league' | 'cups'>('quick');
+  const [screen, setScreen] = useState<'quick' | 'league' | 'cups' | 'market'>('quick');
   const [mode, setMode] = useState<MatchMode>('solo');
   const [duration, setDuration] = useState(180);
   const [difficulty, setDifficulty] = useState<Difficulty>('easy');
@@ -126,6 +139,12 @@ export function App() {
       if (!current) return;
       const updated = finishCupMatch(current, result);
       if (updated === current) return;
+      const champion = cupChampion(updated);
+      const bonus =
+        champion === updated.club
+          ? { id: `cup:${updated.id}`, amount: updated.kind === 'alfred' ? 6000 : updated.kind === 'masters' ? 8000 : 10000 }
+          : undefined;
+      updateTransfers(settleTransfers(transfersRef.current, result, bonus));
       saveCup(updated);
       const next = { ...cupsRef.current, [updated.kind]: updated };
       cupsRef.current = next;
@@ -138,9 +157,17 @@ export function App() {
       return;
     }
     const current = seasonRef.current;
-    if (!current || !result.league) return;
+    if (!result.league) {
+      updateTransfers(settleTransfers(transfersRef.current, result));
+      return;
+    }
+    if (!current) return;
     const updated = finishLeagueMatch(current, result);
     if (updated === current) return;
+    const complete = updated.fixtures.every((fixture) => fixture.score);
+    const place = complete ? standings(updated).findIndex((row) => row.club === updated.club) : -1;
+    const bonus = place >= 0 && place < 3 ? { id: `league:${updated.id}`, amount: [8000, 4000, 2000][place] } : undefined;
+    updateTransfers(settleTransfers(transfersRef.current, result, bonus));
     saveSeason(updated);
     seasonRef.current = updated;
     setSeason(updated);
@@ -152,6 +179,9 @@ export function App() {
   };
   const launch = (state: MatchState) => {
     if (simulationBusy.current || (!state.watching && !controlsReady(input, state.mode))) return;
+    const prepared = prepareTransferMatch(transfersRef.current, state);
+    state = prepared.state;
+    updateTransfers(prepared.save);
     clearMatch();
     const next = new MatchSession(state, input, recordResult);
     input.begin(state.mode === 'versus' ? [0, 1] : [0]);
@@ -160,6 +190,7 @@ export function App() {
     setSaved(null);
   };
   const exit = () => {
+    if (session?.networkRole !== 'guest' && transfersRef.current.pending) updateTransfers({ ...transfersRef.current, pending: null });
     if (session instanceof NetworkSession) {
       session.dispose();
       input.end();
@@ -184,9 +215,23 @@ export function App() {
     return (
       <MatchView
         session={session}
+        reward={transfers.lastReward}
+        onMarket={() => {
+          exit();
+          setWifi(false);
+          setScreen('market');
+        }}
         onExit={exit}
         onRematch={() => {
-          if (session instanceof NetworkSession) return session.rematch();
+          if (session instanceof NetworkSession) {
+            if (!session.canResume || session.networkRole !== 'host') return;
+            const prepared = prepareTransferMatch(
+              transfersRef.current,
+              createMatch('versus', session.state.duration, session.state.difficulty, session.state.clubs),
+            );
+            updateTransfers(prepared.save);
+            return session.rematch(prepared.state);
+          }
           launch(createMatch(session.state.mode, session.state.duration, session.state.difficulty, session.state.clubs));
         }}
       />
@@ -202,6 +247,11 @@ export function App() {
           setWifiFixture(null);
         }}
         onLaunch={(link, state) => {
+          if (link.role === 'host') {
+            const prepared = prepareTransferMatch(transfersRef.current, state);
+            state = prepared.state;
+            updateTransfers(prepared.save);
+          }
           input.begin([0]);
           const next = new NetworkSession(state, input, link, recordResult);
           next.setForeground(!document.hidden);
@@ -224,6 +274,7 @@ export function App() {
     saveSeason(created);
     setSeason(created);
     if (saved?.league) {
+      if (transfersRef.current.pending === saved.career?.id) updateTransfers({ ...transfersRef.current, pending: null });
       clearMatch();
       setSaved(null);
     }
@@ -240,6 +291,9 @@ export function App() {
     }
     if (action !== 'simulate') return launch(state);
     simulationBusy.current = true;
+    const prepared = prepareTransferMatch(transfersRef.current, state);
+    state = prepared.state;
+    updateTransfers(prepared.save);
     setSimulating(true);
     setSimulationError('');
     saveMatch(state);
@@ -271,6 +325,7 @@ export function App() {
     setCups(next);
     setCupKind(kind);
     if (saved?.cup?.kind === kind) {
+      if (transfersRef.current.pending === saved.career?.id) updateTransfers({ ...transfersRef.current, pending: null });
       clearMatch();
       setSaved(null);
     }
@@ -286,6 +341,8 @@ export function App() {
   };
   return (
     <StartMenu
+      transfers={transfers}
+      onTransfers={updateTransfers}
       input={input}
       cups={cups}
       cupKind={cupKind}

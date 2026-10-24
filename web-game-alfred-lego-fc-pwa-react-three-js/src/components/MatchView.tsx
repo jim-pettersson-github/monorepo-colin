@@ -2,7 +2,9 @@ import type { CSSProperties } from 'react';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { getMatchClubs } from '../game/clubs';
 import { cupName } from '../game/cups';
+import { footballer } from '../game/players';
 import type { MatchSession } from '../game/session';
+import type { TransferSave } from '../game/transfers';
 import { ControlGuide } from './ControlGuide';
 import { ControlSetup, controlsReady } from './ControlSetup';
 import { FullscreenButton } from './FullscreenButton';
@@ -13,7 +15,19 @@ import { PlaybackSpeedSelect } from './PlaybackSpeedSelect';
 import { SoundSettings, SoundToggle } from './SoundControls';
 import { TouchControls } from './TouchControls';
 
-export function MatchView({ session, onExit, onRematch }: { session: MatchSession; onExit: () => void; onRematch: () => void }) {
+export function MatchView({
+  session,
+  onExit,
+  onRematch,
+  onMarket,
+  reward,
+}: {
+  session: MatchSession;
+  onExit: () => void;
+  onRematch: () => void;
+  onMarket: () => void;
+  reward: TransferSave['lastReward'];
+}) {
   useSyncExternalStore(session.subscribe, session.getSnapshot);
   useSyncExternalStore(session.input.subscribe, session.input.getSnapshot);
   const state = session.state;
@@ -181,6 +195,16 @@ export function MatchView({ session, onExit, onRematch }: { session: MatchSessio
               <span>–</span>
               <span className='away-name'>{state.score[1]}</span>
             </p>
+            {session.networkRole !== 'guest' && reward && reward.id === state.career?.id && (
+              <p className='match-reward' role='status'>
+                +{reward.game} mynt för matchen{reward.prize ? ` · +${reward.prize.toLocaleString('sv-SE')} i prispengar` : ''}. Transferfönstret är öppet.
+              </p>
+            )}
+            {session.networkRole !== 'guest' && state.career && (
+              <button type='button' className='primary-button' onClick={onMarket}>
+                Öppna transferfönstret
+              </button>
+            )}
             {!state.league && !state.cup && session.networkRole !== 'guest' && (
               <button type='button' className='primary-button' disabled={network && !session.canResume} onClick={onRematch}>
                 Spela igen <span>↗</span>
@@ -214,6 +238,26 @@ export function MatchView({ session, onExit, onRematch }: { session: MatchSessio
               Fortsätt matchen <span>▶</span>
             </button>
             <SoundSettings />
+            {state.lineups && (
+              <details className='match-lineups'>
+                <summary>Matchens spelare och betyg</summary>
+                {clubs.map((club, team) => (
+                  <section key={club.id}>
+                    <h3>{club.name}</h3>
+                    <ul>
+                      {state.lineups?.[team].map((id) => {
+                        const player = footballer(id);
+                        return player ? (
+                          <li key={id}>
+                            {player.name} · {player.keeper ? 'MV' : 'UT'} · <strong>{player.overall}</strong>
+                          </li>
+                        ) : null;
+                      })}
+                    </ul>
+                  </section>
+                ))}
+              </details>
+            )}
             {network && !session.canResume && (
               <p className='control-warning' role='status'>
                 Båda behöver vara kvar i spelet med anslutna kontroller och fungerande Wi-Fi. Vid bruten anslutning: avsluta och koppla ihop igen.
