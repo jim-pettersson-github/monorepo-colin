@@ -10,11 +10,12 @@ import {
   type GameState,
   layout,
   type Passenger,
+  type Player,
   playerLevel,
   stairProgress,
   streetBuildings,
 } from './model';
-import type { PaintedAssets } from './painted-assets';
+import type { CompanionAsset, PaintedAssets, PaintedName } from './painted-assets';
 import { drawDigit, drawFloorPlaque, drawIndicator } from './room-details';
 import { drawFloorProps } from './room-props';
 import type { SimulationUI } from './simulation';
@@ -35,32 +36,57 @@ export function actorBounds(point: FloorPoint, colin = false) {
   return { ...feet, height: (colin ? 400 : 470) * depthScale(point.depth) };
 }
 
+// Everyone this device draws as a child character: its own first, then the companions in shared play.
+export interface Character {
+  slot: number;
+  player: Player;
+  ui: Pick<SimulationUI, 'reach' | 'idle'>;
+  self: boolean;
+}
+export const characters = (state: GameState, ui: Pick<SimulationUI, 'reach' | 'idle'>): Character[] => [
+  { slot: state.slot ?? 0, player: state.player, ui, self: true },
+  ...(state.companions ?? []).map((companion) => ({ slot: companion.slot, player: companion.player, ui: companion.ui, self: false })),
+];
+// Where another character's name tag goes, in world coordinates.
+export interface NameTag {
+  slot: number;
+  x: number;
+  y: number;
+}
+
+// Slot 0 is Colin with his idle poses; companions have their own painted look (loaded once shared play starts).
+export function characterTexture(assets: PaintedAssets, slot: number, frame: number, reach: boolean, away: boolean, idle?: ColinIdle) {
+  const step = frame as 0 | 1 | 2 | 3;
+  if (slot > 0) {
+    const look = slot as 1 | 2 | 3;
+    const key: CompanionAsset = reach ? `kompis-${look}-reach` : away ? `kompis-${look}-back` : `kompis-${look}-${step}`;
+    return assets[key];
+  }
+  const rest = colinIdleFrame(idle);
+  const key: PaintedName = reach ? 'reach' : rest.pose !== 'standing' ? `colin-${rest.pose}` : away ? 'colin-back' : `colin-${step}`;
+  return assets[key];
+}
+
+// `slot` is null for passengers.
 function actor(
   g: Graphics,
   assets: PaintedAssets,
   point: FloorPoint,
   time: number,
   walking: boolean,
-  colin: boolean,
+  slot: number | null,
   id: number,
   facing: number,
   reach: boolean,
   away: boolean,
   idle?: ColinIdle,
 ) {
-  const { x, y, height } = actorBounds(point, colin);
-  const rest = colinIdleFrame(colin && !walking && !reach ? idle : undefined);
+  const { x, y, height } = actorBounds(point, slot !== null);
+  const resting = slot === 0 && !walking && !reach ? idle : undefined;
+  const rest = colinIdleFrame(resting);
   const frame = walking ? [1, 2, 3, 2][Math.floor(time * 7) % 4] : 0;
-  const key: keyof PaintedAssets = colin
-    ? reach
-      ? 'reach'
-      : rest.pose !== 'standing'
-        ? `colin-${rest.pose}`
-        : away
-          ? 'colin-back'
-          : `colin-${frame as 0 | 1 | 2 | 3}`
-    : `passenger-${(id % 3) as 0 | 1 | 2}`;
-  const texture = assets[key];
+  const texture = slot === null ? assets[`passenger-${(id % 3) as 0 | 1 | 2}`] : characterTexture(assets, slot, frame, reach, away, resting);
+  if (!texture) return;
   const poseHeight = height * rest.height;
   const width = (poseHeight * texture.width) / texture.height;
   const bob = walking ? Math.sin(time * 12) * 1.4 : 0;
@@ -72,19 +98,22 @@ function actor(
     .restore();
 }
 
-export function drawRoom(g: Graphics, state: GameState, ui: SimulationUI, assets: PaintedAssets, floor: number) {
+export function drawRoom(g: Graphics, state: GameState, ui: SimulationUI, assets: PaintedAssets, floor: number): NameTag[] {
   g.clear();
   g.setFillStyle({ color: 'white', alpha: 1 });
   const building = currentBuilding(state);
-  if (!building) return;
+  if (!building) return [];
   if (building.id === 'cafe') return drawCafe(g, state, ui, assets);
   const texture = assets[`room-${building.id}-${floor === 0 ? 'entry' : 'upper'}`];
   g.texture(texture, 'white', 0, 0, roomSpace.width, roomSpace.height);
   const lift = building.lift;
   const player = state.player;
-  const playerHere = Math.round(playerLevel(state)) === floor;
   const carHere = lift.destination === null && lift.position === floor;
-  const reach = ui.reach?.building === building.id && ui.reach.floor === floor ? ui.reach : null;
+  const here = characters(state, ui).filter(
+    (character) => character.player.place === building.id && Math.round(playerLevel(state, character.player)) === floor,
+  );
+  const reachOf = (character: Character) => (character.ui.reach?.building === building.id && character.ui.reach.floor === floor ? character.ui.reach : null);
+  const tags: NameTag[] = [];
 
   drawFloorPlaque(g, floor);
   drawFloorProps(g, assets, building.id, floor);
@@ -151,13 +180,15 @@ export function drawRoom(g: Graphics, state: GameState, ui: SimulationUI, assets
       person,
       state.time,
       ['waiting', 'boarding', 'leaving', 'returning', 'departing'].includes(person.phase),
-      false,
+      null,
       person.id,
       ['leaving', 'returning', 'departing'].includes(person.phase) ? -1 : 1,
       false,
       person.phase === 'boarding' || person.phase === 'departing',
     );
-  const drawColin = () => {
+  const drawCharacter = (character: Character) => {
+    const { player } = character;
+    const reach = reachOf(character);
     const next = player.waypoints[0] ?? { x: player.targetX ?? player.x, depth: player.targetDepth ?? player.depth };
     const point = player.stairs ? { x: layout.stairs, depth: 0.025 - Math.sin(stairProgress(player.stairs) * Math.PI) * 0.09 } : player;
     actor(
@@ -166,16 +197,21 @@ export function drawRoom(g: Graphics, state: GameState, ui: SimulationUI, assets
       point,
       state.time,
       player.targetX !== null || !!player.stairs,
-      true,
+      character.slot,
       0,
       reach ? 1 : next.x < player.x ? -1 : 1,
       reach?.type === 'call',
       next.depth < player.depth,
-      ui.idle,
+      character.ui.idle,
     );
+    if (!character.self) {
+      const bounds = actorBounds(point, true);
+      tags.push({ slot: character.slot, x: bounds.x, y: bounds.y - bounds.height - 18 });
+    }
   };
+  const inCabin = (character: Character) => carHere && character.player.depth < -0.035;
   for (const person of visible.filter((p) => carHere && p.depth < -0.035).sort((a, b) => a.depth - b.depth)) drawPerson(person);
-  if (carHere && playerHere && player.depth < -0.035) drawColin();
+  for (const character of here.filter(inCabin).sort((a, b) => a.player.depth - b.player.depth)) drawCharacter(character);
 
   const opening = carHere ? lift.landing.open : 0;
   const half = (portal.right - portal.left) / 2;
@@ -230,14 +266,16 @@ export function drawRoom(g: Graphics, state: GameState, ui: SimulationUI, assets
   const outsideActors: Array<{ depth: number; draw: () => void }> = visible
     .filter((p) => p.depth >= -0.035)
     .map((person) => ({ depth: person.depth, draw: () => drawPerson(person) }));
-  if (playerHere && player.depth >= -0.035) outsideActors.push({ depth: player.depth, draw: drawColin });
+  for (const character of here.filter((c) => c.player.depth >= -0.035))
+    outsideActors.push({ depth: character.player.depth, draw: () => drawCharacter(character) });
   for (const item of outsideActors.sort((a, b) => a.depth - b.depth)) item.draw();
-  if (reach?.type === 'call' || lift.queue.includes(floor) || lift.destination === floor) {
+  if (here.some((character) => reachOf(character)?.type === 'call') || lift.queue.includes(floor) || lift.destination === floor) {
     g.circle(654, 416, 13).fill({ color: p.light, alpha: 0.16 });
     g.circle(654, 416, 6).fill(p.light);
   }
   if (ui.alarmRemaining > 0 && floor === player.floor) g.circle(488, 329, 7).fill(p.light);
-  if (playerHere && atThreshold(player)) g.ellipse(projectPoint(player).x, roomSpace.sill + 3, 42, 7).stroke({ color: p.light, width: 3 });
+  for (const character of here.filter((c) => atThreshold(c.player)))
+    g.ellipse(projectPoint(character.player).x, roomSpace.sill + 3, 42, 7).stroke({ color: p.light, width: 3 });
   for (const person of visible.filter((p) => ['idle', 'waiting', 'riding'].includes(p.phase))) {
     if (person.depth < 0 && opening < 0.95) continue;
     const bounds = actorBounds(person);
@@ -249,9 +287,10 @@ export function drawRoom(g: Graphics, state: GameState, ui: SimulationUI, assets
     const point = projectPoint(target);
     g.ellipse(point.x, point.y, 12, 5).stroke({ color: p.surface, width: 2 });
   }
+  return tags;
 }
 
-export function drawStreet(g: Graphics, state: GameState, assets: PaintedAssets, idle?: ColinIdle) {
+export function drawStreet(g: Graphics, state: GameState, assets: PaintedAssets, ui: Pick<SimulationUI, 'reach' | 'idle'>): NameTag[] {
   g.clear();
   g.setFillStyle({ color: 'white', alpha: 1 });
   g.texture(assets['outside-sky'], 'white', 0, 0, 1448, 700);
@@ -274,18 +313,26 @@ export function drawStreet(g: Graphics, state: GameState, assets: PaintedAssets,
       .stroke({ color: p.ink, width: 5 });
     g.circle(x + 177, 560, 5).fill(p.light);
   }
-  const point = { x: 629 + (55 + (state.player.x * 350) / 205 - 724) / (1.21 * depthScale(state.player.depth)), depth: state.player.depth };
-  actor(
-    g,
-    assets,
-    point,
-    state.time,
-    state.player.targetX !== null,
-    true,
-    0,
-    (state.player.targetX ?? state.player.x) < state.player.x ? -1 : 1,
-    false,
-    false,
-    idle,
-  );
+  const tags: NameTag[] = [];
+  const outside = characters(state, ui).filter((character) => character.player.place === 'outside');
+  for (const character of outside.sort((a, b) => a.player.depth - b.player.depth)) {
+    const { player } = character;
+    const point = { x: 629 + (55 + (player.x * 350) / 205 - 724) / (1.21 * depthScale(player.depth)), depth: player.depth };
+    actor(
+      g,
+      assets,
+      point,
+      state.time,
+      player.targetX !== null,
+      character.slot,
+      0,
+      (player.targetX ?? player.x) < player.x ? -1 : 1,
+      false,
+      false,
+      character.ui.idle,
+    );
+    const bounds = actorBounds(point, true);
+    if (!character.self) tags.push({ slot: character.slot, x: bounds.x, y: bounds.y - bounds.height - 18 });
+  }
+  return tags;
 }

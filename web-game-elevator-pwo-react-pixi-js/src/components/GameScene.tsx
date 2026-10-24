@@ -3,11 +3,12 @@ import { Container, Graphics, Text, type Ticker } from 'pixi.js';
 import { type RefObject, useCallback, useEffect, useRef, useState } from 'react';
 import { cafePlayerFeet, cafeSpace } from '../game/cafe-spatial';
 import { colinIdleFrame } from '../game/colin-idle';
-import { currentBuilding, definition, floorLabel, floors, playerLevel, streetBuildings } from '../game/model';
-import { type PaintedAssets, usePaintedAssets } from '../game/painted-assets';
+import { characterName, currentBuilding, definition, floorLabel, floors, playerLevel, streetBuildings } from '../game/model';
+import { loadCompanionAssets, type PaintedAssets, usePaintedAssets } from '../game/painted-assets';
 import { actorBounds, drawRoom, drawStreet } from '../game/room-art';
 import { roomAction } from '../game/room-interaction';
 import type { GameSession } from '../game/session';
+import { othersOnFloor } from '../game/shared';
 import { projectPoint, roomSpace } from '../game/spatial';
 import { worldPalette as p } from '../palette';
 
@@ -43,6 +44,7 @@ function World({
   const world = useRef<Container>(null);
   const art = useRef<Graphics>(null);
   const numbers = useRef<(Text | null)[]>([]);
+  const names = useRef<(Text | null)[]>([]);
   const viewedFloor = useRef(floor);
   viewedFloor.current = floor;
   const camera = useRef({ zoom, manual: false, x: 0, y: 0 });
@@ -78,8 +80,21 @@ function World({
       const ease = !state.settings.smoothCamera || camera.current.manual || delta === 0 ? 1 : 1 - Math.exp(-12 * delta);
       root.x += ((camera.current.zoom === 1 ? center.x : targetX) - root.x) * ease;
       root.y += ((camera.current.zoom === 1 ? center.y : targetY) - root.y) * ease;
-      if (state.player.place === 'outside') drawStreet(art.current, state, assets, session.ui.idle);
-      else drawRoom(art.current, state, session.ui, assets, floor);
+      const tags =
+        state.player.place === 'outside' ? drawStreet(art.current, state, assets, session.ui) : drawRoom(art.current, state, session.ui, assets, floor);
+      // In shared play, everyone else wears a small name tag.
+      for (let i = 0; i < 3; i++) {
+        const text = names.current[i];
+        const tag = tags[i];
+        if (!text) continue;
+        text.visible = !!tag;
+        if (!tag) continue;
+        text.text = characterName(tag.slot);
+        text.position.set(tag.x, tag.y);
+        art.current
+          .roundRect(tag.x - text.width / 2 - 10, tag.y - text.height / 2 - 4, text.width + 20, text.height + 8, 12)
+          .fill({ color: p.surface, alpha: 0.92 });
+      }
       if (host.current) host.current.dataset.colinPose = colinIdleFrame(session.ui.idle).pose;
       const building = currentBuilding(state);
       for (let i = 0; i < 3; i++) {
@@ -285,6 +300,18 @@ function World({
           style={{ fontFamily: 'Trebuchet MS', fontSize: 23, fill: p.ink, fontWeight: 'bold' }}
         />
       ))}
+      {[0, 1, 2].map((index) => (
+        <pixiText
+          key={`name-${index}`}
+          ref={(text) => {
+            names.current[index] = text;
+          }}
+          text=''
+          visible={false}
+          anchor={0.5}
+          style={{ fontFamily: 'Trebuchet MS', fontSize: 21, fill: p.ink, fontWeight: 'bold' }}
+        />
+      ))}
     </pixiContainer>
   );
 }
@@ -310,6 +337,10 @@ export function GameScene({ session, paused }: { session: GameSession; paused: b
   const colinFloor = Math.round(playerLevel(state));
   const inspecting = preview?.place === state.player.place;
   const floor = inspecting ? preview.floor : colinFloor;
+  const together = !!state.companions?.length;
+  useEffect(() => {
+    if (together && assets) void loadCompanionAssets(assets);
+  }, [together, assets]);
   useEffect(() => {
     const save = window.setTimeout(() => {
       if (session.state.settings.cameraZoom === zoom) session.save();
@@ -340,7 +371,7 @@ export function GameScene({ session, paused }: { session: GameSession; paused: b
                 <span>
                   {definition(building.id).rooms[level]}
                   <small>
-                    {colinFloor === level ? 'Colin här' : ' '}
+                    {[...(colinFloor === level ? [`${session.name} här`] : []), ...othersOnFloor(state, building.id, level)].join(' · ') || ' '}
                     {Math.round(building.lift.position) === level ? ' · ↕ Hiss' : ''}
                   </small>
                 </span>
@@ -414,7 +445,7 @@ export function GameScene({ session, paused }: { session: GameSession; paused: b
             setFollowRequest((v) => v + 1);
           }}
         >
-          ◎ Följ Colin
+          ◎ Följ {session.name}
         </button>
       )}
     </>

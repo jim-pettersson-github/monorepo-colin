@@ -6,6 +6,12 @@ Implemented: the Swedish menu and playable four-building world, independent elev
 
 Automated acceptance covers simulation rules and desktop/phone browser flows, including offline gameplay and save restore. A local pre-commit hook runs formatting, a fresh Pages-path build, and the full test suite. GitHub Actions only checks formatting, builds, and publishes passing `main` builds to Pages; tests stay local to keep releases quick. The root README links to the hosted game. Physical-phone installation, restart/update behavior, and Colin's comfort with controls and synthesized sounds still need hands-on review.
 
+## Playing together
+
+Implemented: **Spela tillsammans** pairs two to four devices by a four-character room code through the shared room server; game traffic then goes directly between devices over WebRTC. The host plays Colin and runs the one simulation; guests play Kompis 2–4 with clearly different hair, clothes and socks, send their commands, and draw the streamed world. Lifts, doors, doorway blocking, lights, passengers and call buttons are shared; each device's camera follows its own character. Late joiners arrive beside Colin. A leaving guest just disappears; a guest whose connection ends returns calmly to single play with their own save untouched. Without the server or internet, single play stays fully available.
+
+Automated checks cover the snapshot/command rules and two browsers paired through a local room server. Still to review by hand: real phones on different networks (strict mobile networks may need a TURN relay, which is not configured), four simultaneous devices, and whether the shared sounds and name tags feel calm for Colin. Companion art is a recolour of Colin's poses; dedicated painted companions are a possible later step.
+
 ## Colin and the experience
 
 Built for Colin, an autistic child around eight years old who loves elevators. His character has blond-brown hair, brown eyes, and bare feet: no shoes or socks, because he dislikes socks. Tailor the experience to Colin's preferences rather than assuming these apply to all autistic children.

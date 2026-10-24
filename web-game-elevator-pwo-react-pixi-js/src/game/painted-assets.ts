@@ -54,8 +54,26 @@ const names = [
   'reach',
   'colin-back',
 ] as const;
-export type PaintedAssets = Record<(typeof names)[number], Texture>;
+export type CompanionAsset = `kompis-${1 | 2 | 3}-${0 | 1 | 2 | 3 | 'back' | 'reach'}`;
+// Companion sprites only load once someone plays together; until then they are simply absent.
+export type PaintedName = (typeof names)[number];
+export type PaintedAssets = Record<PaintedName, Texture> & Partial<Record<CompanionAsset, Texture>>;
+const companionNames = [1, 2, 3].flatMap((slot) => [0, 1, 2, 3, 'back', 'reach'].map((pose) => `kompis-${slot}-${pose}` as CompanionAsset));
 let pending: Promise<PaintedAssets> | undefined;
+let companions: Promise<void> | undefined;
+
+export function loadCompanionAssets(assets: PaintedAssets) {
+  companions ??= Promise.all(
+    companionNames.map(async (name) => {
+      assets[name] = await Assets.load<Texture>(`${import.meta.env.BASE_URL}painted/${name}.webp`);
+    }),
+  )
+    .then(() => undefined)
+    .catch(() => {
+      companions = undefined;
+    });
+  return companions;
+}
 
 export function loadPaintedAssets() {
   pending ??= Promise.all(names.map(async (name) => [name, await Assets.load<Texture>(`${import.meta.env.BASE_URL}painted/${name}.webp`)] as const))

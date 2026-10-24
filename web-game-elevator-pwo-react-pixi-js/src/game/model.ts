@@ -1,3 +1,5 @@
+import type { SimulationUI } from './simulation';
+
 export const buildings = [
   {
     id: 'hotel',
@@ -98,7 +100,18 @@ export interface GameState {
   player: Player;
   buildings: Building[];
   settings: Settings;
+  // Shared play only, never saved. `slot` is this device's character (0 or absent: Colin); companions are everyone else.
+  slot?: number;
+  companions?: Companion[];
 }
+// A shared-play character. The host simulates its rules; guests only draw it.
+export interface Companion {
+  slot: number;
+  player: Player;
+  ui: SimulationUI;
+}
+export const maxPlayers = 4;
+export const characterName = (slot = 0) => (slot === 0 ? 'Colin' : `Kompis ${slot + 1}`);
 export type SoundEvent = { type: 'click' | 'door' | 'arrival' | 'alarm'; building: BuildingId };
 
 export function random(state: GameState) {
@@ -143,8 +156,8 @@ export function createGame(seed = Date.now() >>> 0): GameState {
   };
 }
 
-export function currentBuilding(state: GameState): Building | undefined {
-  return state.buildings.find((building) => building.id === state.player.place);
+export function currentBuilding(state: GameState, player = state.player): Building | undefined {
+  return state.buildings.find((building) => building.id === player.place);
 }
 
 export const floorLabel = (floor: number) => (floor === 0 ? 'E' : String(floor));
@@ -154,11 +167,13 @@ export const validFloor = (id: BuildingId, floor: number) => Number.isInteger(fl
 export const stairDuration = (gap: number) => timing.stairs / Math.min(1.6, 1 + 0.1 * Math.max(0, gap - 1));
 export const stairProgress = (stairs: NonNullable<Player['stairs']>) => Math.min(1, stairs.elapsed / stairs.duration);
 
-export function playerLevel(state: GameState) {
-  const player = state.player;
+export function playerLevel(state: GameState, player = state.player) {
   if (player.stairs) return player.stairs.from + (player.stairs.to - player.stairs.from) * stairProgress(player.stairs);
-  return player.riding ? (currentBuilding(state)?.lift.position ?? player.floor) : player.floor;
+  return player.riding ? (currentBuilding(state, player)?.lift.position ?? player.floor) : player.floor;
 }
+
+// Everyone walking in this world: this device's character first.
+export const everyone = (state: GameState) => [state.player, ...(state.companions ?? []).map((companion) => companion.player)];
 
 export function isOpen(lift: Elevator) {
   return lift.destination === null && lift.landing.open > 0.98 && lift.gate.open > 0.98;

@@ -10,6 +10,7 @@ test('boots the illustrated menu and opens a keyboard-accessible information pan
   await expect(page.locator('.scene')).toHaveAttribute('aria-busy', 'false');
   await expect(page.locator('.scene-painted img')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Spela', exact: true })).toBeEnabled();
+  await expect(page.getByRole('link', { name: '← Alla spel' })).toHaveAttribute('href', /\.\.\/$/);
 
   const about = page.getByRole('button', { name: 'Om spelet' });
   await about.click();

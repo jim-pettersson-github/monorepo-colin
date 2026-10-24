@@ -6,6 +6,7 @@ import {
   currentBuilding,
   type Door,
   definition,
+  everyone,
   exitPosition,
   floorCount,
   floorLabel,
@@ -13,6 +14,7 @@ import {
   type Intent,
   isOpen,
   layout,
+  type Player,
   playerLevel,
   random,
   type SoundEvent,
@@ -46,6 +48,20 @@ export const createUI = (): SimulationUI => ({
 });
 const move = (value: number, target: number, amount: number) => value + Math.sign(target - value) * Math.min(Math.abs(target - value), amount);
 const near = (a: number, b: number, distance = 20) => Math.abs(a - b) < distance;
+
+// The rules below speak about state.player. Shared play runs them for each companion in turn.
+export function asPlayer<T>(state: GameState, player: Player, run: () => T): T {
+  const own = state.player;
+  state.player = player;
+  try {
+    return run();
+  } finally {
+    state.player = own;
+  }
+}
+
+const inDoorway = (state: GameState, building: Building, player: Player) =>
+  player.place === building.id && !player.stairs && near(playerLevel(state, player), building.lift.position, 0.01) && atThreshold(player);
 
 export function requestFloor(building: Building, floor: number) {
   if (!validFloor(building.id, floor)) return false;
@@ -309,7 +325,7 @@ function stepPlayer(state: GameState, ui: SimulationUI, dt: number) {
 
 function stepPeople(state: GameState, building: Building, dt: number) {
   const lift = building.lift;
-  const colinAtDoor = state.player.place === building.id && !state.player.stairs && near(playerLevel(state), lift.position, 0.01) && atThreshold(state.player);
+  const colinAtDoor = everyone(state).some((player) => inDoorway(state, building, player));
   const count = floorCount(building.id);
   let crossing = building.people.some((person) => person.phase === 'boarding' || person.phase === 'leaving');
   // Unload before admitting another passenger. Only one passenger uses the doorway at a time.
@@ -392,14 +408,20 @@ function stepLift(state: GameState, building: Building, ui: SimulationUI, dt: nu
     }
     return;
   }
-  const player = state.player;
-  const playerBlocks = player.place === building.id && !player.stairs && near(playerLevel(state), lift.position, 0.01) && atThreshold(player);
+  // Doors stop with clearance around the widest character standing in the doorway.
+  const blockers = everyone(state).filter((player) => inDoorway(state, building, player));
+  const playerBlocks = blockers.length > 0;
   const personBlocks = building.people.some((person) => (person.phase === 'boarding' || person.phase === 'leaving') && person.floor === lift.position);
   const wasBlocked = lift.blocked;
   lift.blocked = playerBlocks || personBlocks;
   if (wasBlocked && !lift.blocked) lift.dwell = timing.dwell;
-  const landingLimit = building.id === 'cafe' ? cafeDoorClearance(player) : doorClearance(player);
-  const gateLimit = building.id === 'cafe' ? landingLimit : doorClearance(player, definition(building.id).manual);
+  const clearance = (gate: boolean) =>
+    Math.max(
+      0,
+      ...blockers.map((player) => (building.id === 'cafe' ? cafeDoorClearance(player) : doorClearance(player, gate && definition(building.id).manual))),
+    );
+  const landingLimit = clearance(false);
+  const gateLimit = clearance(true);
   const contact =
     playerBlocks &&
     ((lift.landing.target === 0 && lift.landing.open <= landingLimit + dt / timing.door) ||
@@ -430,15 +452,23 @@ function stepLift(state: GameState, building: Building, ui: SimulationUI, dt: nu
   }
 }
 
-export function step(state: GameState, ui: SimulationUI, dt: number) {
-  if (!Number.isFinite(dt) || dt <= 0 || dt > 0.05) return;
-  state.time += dt;
+function stepTimers(ui: SimulationUI, dt: number) {
   ui.alarmRemaining = Math.max(0, ui.alarmRemaining - dt);
   if (ui.reach) {
     ui.reach.remaining -= dt;
     if (ui.reach.remaining <= 0) ui.reach = null;
   }
+}
+
+export function step(state: GameState, ui: SimulationUI, dt: number) {
+  if (!Number.isFinite(dt) || dt <= 0 || dt > 0.05) return;
+  state.time += dt;
+  stepTimers(ui, dt);
   stepPlayer(state, ui, dt);
+  for (const companion of state.companions ?? []) {
+    stepTimers(companion.ui, dt);
+    asPlayer(state, companion.player, () => stepPlayer(state, companion.ui, dt));
+  }
   for (const building of state.buildings) {
     stepPeople(state, building, dt);
     stepLift(state, building, ui, dt);

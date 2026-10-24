@@ -1,8 +1,16 @@
 import { GameAudio } from './audio';
 import { resetColinIdle } from './colin-idle';
-import { type Command, createGame, currentBuilding, type GameState, liftPhase, type Settings } from './model';
+import { type Command, characterName, createGame, currentBuilding, type GameState, liftPhase, type Settings } from './model';
+import { createCompanion, type SharedSound } from './shared';
 import { command, createUI, step } from './simulation';
 import { loadGame, type Storage, saveGame } from './storage';
+
+// Shared play attaches to the host's session without changing single play.
+export interface SessionLink {
+  tick(seconds: number): void;
+  sounds(events: SharedSound[]): void;
+  paused(): void;
+}
 
 export class GameSession {
   state: GameState;
@@ -16,6 +24,7 @@ export class GameSession {
   accumulator = 0;
   saveElapsed = 0;
   signature = '';
+  link: SessionLink | null = null;
 
   constructor(public storage: Storage) {
     const saved = loadGame(storage);
@@ -32,6 +41,9 @@ export class GameSession {
     return () => this.listeners.delete(listener);
   };
   getSnapshot = () => this.revision;
+  get name() {
+    return characterName(this.state.slot);
+  }
   notify() {
     this.revision++;
     for (const listener of this.listeners) listener();
@@ -55,9 +67,20 @@ export class GameSession {
       this.saveElapsed += 1 / 60;
     }
     this.flush();
+    this.link?.tick(seconds);
+    this.refresh();
+    if (this.saveElapsed >= 1) {
+      this.save();
+      this.saveElapsed = 0;
+    }
+  }
+
+  // Re-render the HTML controls only when something they show has changed.
+  refresh() {
     const building = currentBuilding(this.state);
     const player = this.state.player;
     const signature = JSON.stringify([
+      this.state.companions?.map((companion) => [companion.slot, companion.player.place, companion.player.floor, companion.player.riding]),
       player.place,
       player.floor,
       player.riding,
@@ -82,17 +105,21 @@ export class GameSession {
       this.save();
       this.notify();
     }
-    if (this.saveElapsed >= 1) {
-      this.save();
-      this.saveElapsed = 0;
-    }
   }
 
   flush() {
     this.audio.sync(this.state, this.paused || this.hidden, this.ui.alarmRemaining);
-    for (const event of this.ui.sounds.splice(0)) {
+    const own = this.state.slot ?? 0;
+    const events: SharedSound[] = [
+      ...this.ui.sounds.splice(0).map((event) => ({ slot: own, event })),
+      ...(this.state.companions ?? []).flatMap((companion) => companion.ui.sounds.splice(0).map((event) => ({ slot: companion.slot, event }))),
+    ];
+    for (const { slot, event } of events) {
+      // Other players' alarm samples stay on their own devices.
+      if (slot !== own && event.type === 'alarm') continue;
       if (this.state.player.place === event.building && !this.state.settings.muted && !this.paused && !this.hidden) this.audio.play(event);
     }
+    if (events.length) this.link?.sounds(events);
   }
 
   save() {
@@ -114,6 +141,7 @@ export class GameSession {
       this.audio.pause();
       this.save();
     } else if (this.audio.context) this.audio.unlock();
+    this.link?.paused();
     this.notify();
   }
 
@@ -132,9 +160,12 @@ export class GameSession {
   restart() {
     const settings = this.state.settings;
     const reducedMotion = this.ui.reducedMotion;
+    const companions = this.state.companions;
     this.state = createGame();
     this.state.started = true;
     this.state.settings = settings;
+    // Companions playing along start over beside Colin.
+    if (companions) this.state.companions = companions.map((companion) => createCompanion(this.state, companion.slot));
     this.ui = createUI();
     this.ui.reducedMotion = reducedMotion;
     this.save();

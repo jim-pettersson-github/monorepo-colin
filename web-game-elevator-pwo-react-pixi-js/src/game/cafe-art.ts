@@ -4,6 +4,7 @@ import { cafeButton, cafeCall, cafeDoorButton, cafeLift, cafePlayerFeet, cafePro
 import { type ColinIdle, colinIdleFrame } from './colin-idle';
 import { currentBuilding, type FloorPoint, floorLabel, type GameState } from './model';
 import type { PaintedAssets } from './painted-assets';
+import { type Character, characters, characterTexture, type NameTag } from './room-art';
 import { drawDigit } from './room-details';
 import type { SimulationUI } from './simulation';
 
@@ -57,21 +58,16 @@ function drawActor(
   height: number,
   time: number,
   walking: boolean,
-  colin: boolean,
+  slot: number | null,
   facing: number,
   reaching = false,
   idle?: ColinIdle,
 ) {
-  const rest = colinIdleFrame(colin && !walking && !reaching ? idle : undefined);
+  const resting = slot === 0 && !walking && !reaching ? idle : undefined;
+  const rest = colinIdleFrame(resting);
   const frame = walking ? [1, 2, 3, 2][Math.floor(time * 7) % 4] : 0;
-  const key: keyof PaintedAssets = colin
-    ? reaching
-      ? 'reach'
-      : rest.pose !== 'standing'
-        ? `colin-${rest.pose}`
-        : `colin-${frame as 0 | 1 | 2 | 3}`
-    : 'passenger-0';
-  const texture = assets[key];
+  const texture = slot === null ? assets['passenger-0'] : characterTexture(assets, slot, frame, reaching, false, resting);
+  if (!texture) return;
   const poseHeight = height * rest.height;
   const width = (poseHeight * texture.width) / texture.height;
   g.ellipse(feet.x, feet.y + 2, height * 0.09, height * 0.023).fill({ color: p.ink, alpha: 0.2 });
@@ -82,11 +78,11 @@ function drawActor(
     .restore();
 }
 
-export function drawCafe(g: Graphics, state: GameState, ui: SimulationUI, assets: PaintedAssets) {
+export function drawCafe(g: Graphics, state: GameState, ui: SimulationUI, assets: PaintedAssets): NameTag[] {
   g.clear().setFillStyle({ color: 'white', alpha: 1 });
   g.texture(assets['room-cafe'], 'white', 0, 0, cafeSpace.width, cafeSpace.height);
   const building = currentBuilding(state);
-  if (!building) return;
+  if (!building) return [];
   const { lift } = building;
   const { player } = state;
   const offset = lift.position * cafeLift.rise;
@@ -134,21 +130,28 @@ export function drawCafe(g: Graphics, state: GameState, ui: SimulationUI, assets
     }
   }
 
-  const reaching = ui.reach?.building === 'cafe' && ui.reach.type === 'call';
-  const next = player.waypoints[0] ?? { x: player.targetX ?? player.x, depth: player.targetDepth ?? player.depth };
-  const colin = () =>
+  const here = characters(state, ui).filter((character) => character.player.place === 'cafe');
+  const tags: NameTag[] = [];
+  const drawCharacter = (character: Character) => {
+    const { player } = character;
+    const reach = character.ui.reach?.building === 'cafe' && character.ui.reach.type === 'call';
+    const next = player.waypoints[0] ?? { x: player.targetX ?? player.x, depth: player.targetDepth ?? player.depth };
+    const feet = cafePlayerFeet(state, player);
+    const height = 190 + Math.max(0, player.depth) * 26;
     drawActor(
       g,
       assets,
-      cafePlayerFeet(state),
-      190 + Math.max(0, player.depth) * 26,
+      feet,
+      height,
       state.time,
       player.targetX !== null || !!player.stairs,
-      true,
-      reaching || next.x > player.x ? -1 : 1,
-      reaching,
-      ui.idle,
+      character.slot,
+      reach || next.x > player.x ? -1 : 1,
+      reach,
+      character.ui.idle,
     );
+    if (!character.self) tags.push({ slot: character.slot, x: feet.x, y: feet.y - height - 14 });
+  };
   const personFeet = (point: FloorPoint, floor: number, riding: boolean) => {
     const feet = cafeProject(point, riding ? 0 : floor);
     if (riding) feet.y -= offset;
@@ -156,14 +159,14 @@ export function drawCafe(g: Graphics, state: GameState, ui: SimulationUI, assets
   };
   const personDraw = (person: (typeof building.people)[number]) => {
     const feet = personFeet(person, person.floor, person.phase === 'riding' || person.depth < -0.035);
-    drawActor(g, assets, feet, 214 + Math.max(0, person.depth) * 20, state.time, !['idle', 'riding', 'away'].includes(person.phase), false, 1);
+    drawActor(g, assets, feet, 214 + Math.max(0, person.depth) * 20, state.time, !['idle', 'riding', 'away'].includes(person.phase), null, 1);
     if (['idle', 'waiting', 'riding'].includes(person.phase)) {
       g.roundRect(feet.x - 17, feet.y - 251, 34, 31, 9).fill(p.surface);
       drawDigit(g, floorLabel(person.wanted), feet.x - 5, feet.y - 245, 20, p.ink, 2);
     }
   };
   for (const person of building.people.filter((person) => person.phase !== 'away' && person.depth < -0.035)) personDraw(person);
-  if (player.riding) colin();
+  for (const character of here.filter((c) => c.player.riding)) drawCharacter(character);
   if (lift.destination !== null) doors(g, lift.position, 0);
   for (const floor of [0, 1]) doors(g, floor, lift.destination === null && lift.position === floor ? lift.landing.open : 0);
   // Fixed shaft columns remain in front of the moving cabin and its occupants.
@@ -177,7 +180,10 @@ export function drawCafe(g: Graphics, state: GameState, ui: SimulationUI, assets
       .fill(p.cafeBronze)
       .stroke({ color: p.trim, width: 1 });
     drawDigit(g, floorLabel(floor), call.x - 5, call.y - 37, 20, p.ink, 2.5);
-    const lit = lift.queue.includes(floor) || lift.destination === floor || (reaching && player.floor === floor);
+    const lit =
+      lift.queue.includes(floor) ||
+      lift.destination === floor ||
+      here.some((c) => c.ui.reach?.building === 'cafe' && c.ui.reach.type === 'call' && c.player.floor === floor);
     g.circle(call.x, call.y, 10)
       .fill(lit ? p.light : p.surface)
       .stroke({ color: p.ink, width: 2 });
@@ -205,7 +211,8 @@ export function drawCafe(g: Graphics, state: GameState, ui: SimulationUI, assets
   const actors: Array<{ y: number; draw: () => void }> = building.people
     .filter((person) => person.phase !== 'away' && person.depth >= -0.035)
     .map((person) => ({ y: cafeProject(person, person.floor).y, draw: () => personDraw(person) }));
-  if (!player.riding) actors.push({ y: cafePlayerFeet(state).y, draw: colin });
+  for (const character of here.filter((c) => !c.player.riding))
+    actors.push({ y: cafePlayerFeet(state, character.player).y, draw: () => drawCharacter(character) });
   for (const actor of actors.sort((a, b) => a.y - b.y)) actor.draw();
 
   for (const floor of [0, 1]) {
@@ -226,4 +233,5 @@ export function drawCafe(g: Graphics, state: GameState, ui: SimulationUI, assets
     const point = cafeProject(target, target.floor);
     g.ellipse(point.x, point.y, 10, 4).stroke({ color: p.surface, width: 2 });
   }
+  return tags;
 }

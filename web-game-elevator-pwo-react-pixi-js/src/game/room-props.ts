@@ -1,7 +1,7 @@
 import type { Graphics } from 'pixi.js';
 import { worldPalette as p } from '../palette';
 import type { BuildingId } from './model';
-import type { PaintedAssets } from './painted-assets';
+import type { PaintedAssets, PaintedName } from './painted-assets';
 
 interface PropPlacement {
   index: number;
@@ -67,7 +67,7 @@ function flowerTable(g: Graphics, assets: PaintedAssets) {
 export function drawFloorProps(g: Graphics, assets: PaintedAssets, building: BuildingId, floor: number) {
   if (building === 'house') {
     const index = floor + 15;
-    const prop = assets[`prop-${index}` as keyof PaintedAssets];
+    const prop = assets[`prop-${index}` as PaintedName];
     const width = floor === 0 ? 125 : 215;
     const height = Math.min(240, (width * prop.height) / prop.width);
     const drawWidth = (height * prop.width) / prop.height;
@@ -77,7 +77,7 @@ export function drawFloorProps(g: Graphics, assets: PaintedAssets, building: Bui
   if (building === 'hotel' && floor === 3) flowerTable(g, assets);
   for (const placement of (building === 'hotel' ? hotel : mall)[floor] ?? []) {
     const { index, x, bottom, height, surface } = placement;
-    const prop = assets[`prop-${index}` as keyof PaintedAssets];
+    const prop = assets[`prop-${index}` as PaintedName];
     const width = (height * prop.width) / prop.height;
     if (surface === 'floor') floorShadow(g, x, bottom, width);
     if (surface === 'wall') {

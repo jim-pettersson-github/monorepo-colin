@@ -18,6 +18,7 @@ export const copy = {
   sceneLabel: 'Colin står barfota i en lugn lobby, bredvid en hiss och en dörr med grön utgångsskylt.',
   loading: 'Öppnar hisshallen…',
   edition: '01 — HISSÄVENTYRET',
+  allGames: '← Alla spel',
   welcome: 'VÄLKOMMEN IN',
   floor: 'VÅNING 0',
   caption: 'En liten början på ett stort äventyr.',

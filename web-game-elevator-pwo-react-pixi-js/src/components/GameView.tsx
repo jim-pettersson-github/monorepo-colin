@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { type ReactNode, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { currentBuilding, definition, exitPosition, floorCount, floorLabel, floors, isOpen, liftPhase, playerLevel, streetBuildings } from '../game/model';
 import type { GameSession } from '../game/session';
 import { FullscreenButton } from './FullscreenButton';
@@ -6,13 +6,17 @@ import { GameScene } from './GameScene';
 import { GameUpdate } from './GameUpdate';
 import '../game.css';
 
-export function GameView({ session, onMenu }: { session: GameSession; onMenu: () => void }) {
+// `together` is the shared-play panel, shown while this device hosts or visits a shared world.
+export function GameView({ session, onMenu, together }: { session: GameSession; onMenu: () => void; together?: ReactNode }) {
   useSyncExternalStore(session.subscribe, session.getSnapshot);
   const [tab, setTab] = useState<'lift' | 'room'>('lift');
   const [confirmRestart, setConfirmRestart] = useState(false);
   const [offline, setOffline] = useState(false);
   const [controlsOpen, setControlsOpen] = useState(false);
   const settings = useRef<HTMLDialogElement>(null);
+  const togetherPanel = useRef<HTMLDialogElement>(null);
+  const visiting = !!session.state.slot;
+  const players = 1 + (session.state.companions?.length ?? 0);
   const sign = useRef<HTMLDialogElement>(null);
   const floorPanel = useRef<HTMLElement>(null);
   const player = session.state.player;
@@ -86,6 +90,17 @@ export function GameView({ session, onMenu }: { session: GameSession; onMenu: ()
           <span>{building ? `${definition(building.id).rooms[currentFloor]} · Våning ${floorLabel(currentFloor)}` : 'Välj ett hus att besöka'}</span>
         </div>
         <div className='header-actions'>
+          {together && (
+            <button
+              type='button'
+              className='round-control together-control'
+              aria-label={`Spela tillsammans, ${players} spelare`}
+              onClick={() => togetherPanel.current?.showModal()}
+            >
+              <span aria-hidden='true'>☺</span>
+              {players}
+            </button>
+          )}
           <FullscreenButton compact />
           <button
             type='button'
@@ -337,7 +352,9 @@ export function GameView({ session, onMenu }: { session: GameSession; onMenu: ()
           <input type='checkbox' checked={session.state.settings.smoothCamera} onChange={(event) => session.settings({ smoothCamera: event.target.checked })} />
         </label>
         <p className='save-status' role='status'>
-          {session.storageMessage || 'Spelet sparas automatiskt på den här enheten.'}
+          {visiting
+            ? `Du spelar som ${session.name} i Colins värld. Ditt eget spel på den här enheten ändras inte.`
+            : session.storageMessage || 'Spelet sparas automatiskt på den här enheten.'}
           {offline && (
             <>
               <br />
@@ -359,7 +376,7 @@ export function GameView({ session, onMenu }: { session: GameSession; onMenu: ()
           </p>
           <p>Tryck på en person med en siffra för att hjälpa till. Personen väntar tills du trycker på hissknapparna.</p>
         </details>
-        {confirmRestart ? (
+        {visiting ? null : confirmRestart ? (
           <section className='restart-confirm' aria-label='Bekräfta omstart'>
             <p>Börja om i hotellets lobby? Dina ljudinställningar behålls.</p>
             <button
@@ -382,6 +399,19 @@ export function GameView({ session, onMenu }: { session: GameSession; onMenu: ()
           </button>
         )}
       </dialog>
+
+      {together && (
+        <dialog ref={togetherPanel} className='info-panel' aria-labelledby='together-game-title'>
+          <form method='dialog'>
+            <button className='close-button' type='submit' aria-label='Stäng spela tillsammans'>
+              ×
+            </button>
+          </form>
+          <p className='eyebrow'>EN SPELARE PÅ VARJE ENHET</p>
+          <h2 id='together-game-title'>Spela tillsammans</h2>
+          {together}
+        </dialog>
+      )}
     </main>
   );
 }

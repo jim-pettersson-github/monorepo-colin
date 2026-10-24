@@ -26,8 +26,7 @@ export function cafeProject(point: FloorPoint, floor: number) {
   return { x, y: corridorY + point.depth * (upper ? 68 : 180) };
 }
 
-export function cafePlayerFeet(state: GameState) {
-  const { player } = state;
+export function cafePlayerFeet(state: GameState, player = state.player) {
   if (player.stairs) {
     const from = cafeStairFeet[player.stairs.from];
     const to = cafeStairFeet[player.stairs.to];

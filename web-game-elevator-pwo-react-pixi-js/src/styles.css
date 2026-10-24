@@ -90,6 +90,20 @@ button {
   font-weight: 700;
   letter-spacing: 0.17em;
 }
+/* Route out of this game to the monorepo's game selector. */
+.all-games-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 0 16px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-decoration: none;
+}
 .brand img {
   border-radius: 10px;
 }
@@ -488,4 +502,122 @@ figcaption {
     padding-top: 6px;
     letter-spacing: 0.06em;
   }
+}
+
+/* Spela tillsammans: right-side panel in the menu and in the game. */
+.together {
+  display: grid;
+  gap: 12px;
+}
+.together button,
+.together input {
+  min-height: 48px;
+  font: inherit;
+}
+.together button {
+  border: 1px solid var(--trim);
+  border-radius: 6px;
+  padding: 8px 14px;
+  color: var(--ink);
+  background: var(--button-finish);
+  background-size: cover;
+}
+.together button:disabled {
+  opacity: 0.45;
+}
+.together .together-primary {
+  color: var(--menu-engraving);
+  background: var(--brass-finish);
+  background-size: cover;
+  font-weight: 700;
+}
+.together-roles {
+  display: grid;
+  gap: 10px;
+}
+.together-roles button {
+  display: grid;
+  gap: 4px;
+  text-align: left;
+  padding: 12px 16px;
+}
+.together-roles strong {
+  font-size: 18px;
+}
+.together-roles span {
+  font-size: 13px;
+  font-weight: 400;
+}
+.room-card {
+  text-align: center;
+  border: 1px solid var(--trim);
+  border-radius: 10px;
+  padding: 10px 14px;
+  background: color-mix(in srgb, var(--surface) 12%, transparent);
+}
+.room-card p {
+  margin: 4px 0;
+  font-size: 14px;
+}
+.room-code {
+  display: block;
+  font-family: Georgia, serif;
+  font-size: 56px;
+  letter-spacing: 0.18em;
+  line-height: 1.1;
+  color: var(--menu-gold);
+}
+.room-join {
+  display: grid;
+  gap: 10px;
+}
+.room-join label {
+  display: grid;
+  gap: 6px;
+  font-weight: 700;
+}
+.room-join input {
+  font-size: 30px;
+  letter-spacing: 0.3em;
+  text-align: center;
+  text-transform: uppercase;
+  border: 2px solid var(--trim);
+  border-radius: 6px;
+  color: var(--ink);
+  background: var(--paper);
+}
+.together-players {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.together-players li {
+  padding: 8px 10px;
+  border-left: 3px solid var(--exit);
+}
+.together-players li.waiting {
+  border-left-color: var(--trim);
+  color: var(--muted);
+}
+.together-note,
+.together-farewell {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.together-farewell {
+  text-align: center;
+  color: var(--ink);
+}
+.menu-actions > .together-button {
+  width: 100%;
+  justify-content: center;
+  margin: 10px auto 0;
+  font-size: 15px;
+}
+.game .together-control {
+  font-size: 17px;
+  font-weight: 700;
 }

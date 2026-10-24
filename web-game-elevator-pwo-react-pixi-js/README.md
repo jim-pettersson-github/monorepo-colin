@@ -1,6 +1,6 @@
 # Colins hissäventyr
 
-React + PixiJS, TypeScript, Vite, and an offline Android PWA. A playable Swedish exploration game for Colin: four buildings, independent elevators, manual gates, stairs, patient passengers, light switches, signs, and optional sound. Progress saves locally; there is no backend.
+React + PixiJS, TypeScript, Vite, and an offline Android PWA. A playable Swedish exploration game for Colin: four buildings, independent elevators, manual gates, stairs, patient passengers, light switches, signs, and optional sound. Progress saves locally. Playing together uses a small room server only to pair devices; single play needs no backend.
 
 See [PLAN.md](PLAN.md) for Colin's preferences, game rules, and acceptance scenarios.
 
@@ -15,6 +15,14 @@ Tap the perspective floor to walk sideways, closer, or farther away, or use the 
 Tap a person with a number to help them ride; they wait for Colin to choose their floor. Explore room lights, doors, warning signs, and green exits. Settings pause play and provide separate sound volumes, mute, camera motion, and a confirmed restart.
 
 The cabin's back-wall buttons show 0/1/2 and light up when selected. Modern lifts have **Stäng dörrarna / Öppna dörrarna** controls. Stand in the doorway and close the doors to watch them approach Colin and bounce open; queued automatic lifts pause and retry until he steps away.
+
+## Playing together
+
+**Spela tillsammans** in the menu lets two to four devices play in Colin's world, one player per device. The host chooses **Jag är värd**, which opens a room and shows a four-character room code; each friend chooses **Jag går med** and types it. Friends can also join while Colin is already playing. The host is Colin; guests are Kompis 2–4, recoloured from Colin's painted sprites with other hair, clothes and socks. Everyone sees the same lifts, doors, lights, passengers and call buttons, and each camera follows its own character. Other players wear a small name tag, and the building overview lists who is on each floor.
+
+The host's device runs the one simulation. Guests send their taps and buttons over a WebRTC data channel and draw the world snapshots (15 per second) that the host streams back, gliding between them. When the host pauses or returns to the menu, guests see a calm pause message. A guest who leaves just disappears from the host's world; if the host stops or the connection breaks, the guest calmly returns to single play. A guest's own save is left untouched while visiting (only its sound and camera settings are used), and companions are never stored in the host's save.
+
+The room server is the shared PHP app in `../game-server/public/api.php`; it only swaps pairing codes. Builds read its address from `VITE_ROOM_SERVER` (set by the Pages workflow). Without it, or without internet, the panel explains that playing together needs internet and single play continues as usual. A `colin-game:room-server` localStorage entry overrides the address for tests.
 
 ## Development
 
@@ -40,13 +48,13 @@ npm test
 
 Local `npm ci` automatically installs [the pre-commit hook](../.githooks/pre-commit). It runs Biome, builds with `/monorepo-colin/`, then runs the full suite; any failure blocks the commit. `npm test` first ensures the matching Chromium headless browser is installed, downloading it only if missing (internet needed on first use or after a browser upgrade). Run `git hook run pre-commit` to check without committing, or `npm run prepare` to reinstall the hook. Checks use the working tree; stage the intended, verified changes before committing. Hook installation is skipped in CI.
 
-Tests cover queues, gate interlocks, doorway obstruction, passengers, offscreen simulation, pause, and save recovery, plus desktop/phone play and fresh offline launch. `npm test` builds automatically before starting its own preview on port 4011, which must be free. Build and tests share `VITE_BASE_PATH` (default `/`); no manual build or environment setup is needed. Three local workers run tests in parallel; Windows uses Direct3D 11 so WebGL can use the graphics card instead of CPU-based SwiftShader. Use `npm test -- --workers=2` on machines with fewer resources. Long movement checks use small Playwright clock advances while preserving fixed simulation steps; offline, update, and layout checks use normal time. Use `npm run preview` for manual production review afterward, matching the build's base path.
+Tests cover shared-play snapshots and commands, a two-browser game paired through a local PHP room server, queues, gate interlocks, doorway obstruction, passengers, offscreen simulation, pause, and save recovery, plus desktop/phone play and fresh offline launch. `npm test` builds automatically before starting its own preview on port 4011, which must be free, and a local room server with `php -S` on port 4021 (PHP 8.4 with pdo_sqlite; its throwaway database is `test-results/room-server.sqlite`). If another checkout's preview holds 4011, set `ELEVATOR_TEST_PORT` to another free port for a manual run. Build and tests share `VITE_BASE_PATH` (default `/`); no manual build or environment setup is needed. Three local workers run tests in parallel; Windows uses Direct3D 11 so WebGL can use the graphics card instead of CPU-based SwiftShader. Use `npm test -- --workers=2` on machines with fewer resources. Long movement checks use small Playwright clock advances while preserving fixed simulation steps; offline, update, and layout checks use normal time. Use `npm run preview` for manual production review afterward, matching the build's base path.
 
 ## Structure
 
 `src/game/model.ts` defines the world; `simulation.ts` advances it independently of rendering. `spatial.ts` handles projection, depth movement and doorway crossing; `room-interaction.ts` maps room taps to commands. `room-art.ts` layers the painted rooms and characters. `session.ts` owns simulation lifetime, local audio and saving. `storage.ts` validates version-3 snapshots, migrates versions 1/2 and recovers a valid backup.
 
-`GameScene.tsx` connects the ticker, floor overview, pointer interaction and camera to Pixi; `GameView.tsx` provides accessible HTML controls and panels. `App.tsx` owns the menu/session and background handling. Colors live in `src/palette.ts`. `src/pwa.ts` registers the worker. Regenerate icons with `npm run icons`. `node scripts/prepare-painted-art.mjs` exports 20 local WebP assets; new prompts are in [art-source/perspective-game.md](art-source/perspective-game.md). The original `?view=depth` prototype remains available without changing saves.
+`GameScene.tsx` connects the ticker, floor overview, pointer interaction and camera to Pixi; `GameView.tsx` provides accessible HTML controls and panels. `App.tsx` owns the menu/session and background handling. Shared play: `shared.ts` holds the pure snapshot/command rules, `shared-host.ts` the host's room, invitations and streaming, `shared-guest.ts` the guest session; `peer-link.ts`, `room-server.ts` and `RoomPairing.tsx` come from the racing game, and `Together.tsx` is the panel. Colors live in `src/palette.ts`. `src/pwa.ts` registers the worker. Regenerate icons with `npm run icons`. `node scripts/prepare-painted-art.mjs` exports 20 local WebP assets, then `node scripts/prepare-companion-art.mjs` recolours Colin's poses into the three `kompis-*` companions (loaded only during shared play); new prompts are in [art-source/perspective-game.md](art-source/perspective-game.md). The original `?view=depth` prototype remains available without changing saves.
 
 ## Offline and hosting
 
