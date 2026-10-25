@@ -1,12 +1,14 @@
 # Game server
 
-A small PHP 8 + SQLite room server at https://games.charliecare.se. It lets game devices find each other with a four-character room code. The server only passes WebRTC pairing codes between the devices. The game traffic then goes directly between them, using public STUN servers to find each device's internet address.
+A small PHP 8 + SQLite room server at https://games.charliecare.se. It lets game devices find each other with a four-character room code. The server only passes WebRTC pairing codes between the devices. The game traffic then goes directly between them, using public STUN servers to find each device's internet address. When two networks block direct contact, the server's own TURN relay (coturn, in the same container) forwards the traffic instead.
 
 ## Files
 
 - `public/api.php`: the JSON API. It creates `games.sqlite` next to itself on first use, or at the path in `GAME_DB`.
 - `public/.htaccess`: blocks direct downloads of the database.
 - `public/index.html`: a short info page.
+- `Dockerfile`, `docker/entrypoint.sh`: Apache + PHP 8.5 and coturn in one container. The database lives in the `/data` volume.
+- `docker-compose.yaml`: the Dokploy stack on the home dev host.
 
 ## API
 
@@ -29,7 +31,11 @@ Each room holds one open invitation at a time. A guest's claim reserves it for 3
 
 ## Relay for strict networks
 
-Some networks, often mobile data, block direct contact between two devices. A TURN relay forwards the game traffic for them. With a Cloudflare Realtime TURN key, `ice` hands out day-long Cloudflare credentials, cached on the server; without one, devices get STUN only and those networks cannot connect. The key is the `CLOUDFLARE_TURN_KEY_ID` and `CLOUDFLARE_TURN_API_TOKEN` repository secrets. The deploy writes them to `public/config.php`, which is ignored by Git and blocked from download. After changing the secrets, run the workflow again.
+Some networks block direct contact between two devices: mobile data behind carrier NAT, or Wi-Fi that isolates its clients from each other. A TURN relay forwards the game traffic for them, and the games use it on their own when nothing else gets through.
+
+The container runs coturn next to the API. Both read `TURN_SECRET`. `ice` hands each device credentials that expire after a day: the user name is `<expiry>:game` and the password is its HMAC-SHA1 with the secret, the standard TURN REST scheme, so coturn never stores users. `TURN_URLS` lists the relay addresses handed out, and `TURN_PUBLIC_HOST` is a name for the public IP that coturn puts in its relay candidates. The relay refuses to forward to private, loopback and Tailscale addresses, because it sits inside the home network.
+
+Without `TURN_SECRET`, `ice` falls back to a Cloudflare Realtime TURN key (`cloudflare_turn_key_id` and `cloudflare_turn_api_token` in the environment or `public/config.php`), and then to STUN only.
 
 ## Run locally
 
@@ -39,6 +45,28 @@ php -S 127.0.0.1:4019 -t game-server/public
 
 The Charlie for Speed Playwright tests start this server themselves.
 
-## Deploy
+## Hosting
+
+The server runs on the home dev host (the NUC behind `vps.academy.charliecare.se`) as the Dokploy stack `game-server` in the project `games`. Dokploy builds `docker-compose.yaml` from this public repository's `main` branch. Traefik serves `games.charliecare.se` over HTTPS with a Let's Encrypt certificate. The TURN ports bypass Traefik:
+
+| Port | Use |
+| --- | --- |
+| 3478 UDP and TCP | TURN, and STUN |
+| 49160–49259 UDP | relayed traffic, one port per allocation |
+
+Each port is published 1:1 from the container and forwarded on the home router to the NUC (192.168.1.221). Docker opens published ports past ufw by itself. The Dokploy variable `GAMES_TURN_SECRET` holds the secret (`openssl rand -hex 32`). DNS: `games.charliecare.se` is a CNAME to `vps.academy.charliecare.se`.
+
+When the home IP changes, the container notices within five minutes and restarts with the new address.
+
+Run the container locally:
+
+```bash
+docker build -t game-server game-server
+docker run --rm -p 18190:80 -p 3478:3478/udp -p 3478:3478/tcp -e TURN_SECRET=test -e "TURN_URLS=turn:127.0.0.1:3478?transport=udp" -e TURN_ALLOW_PRIVATE_PEERS=1 game-server
+```
+
+`TURN_ALLOW_PRIVATE_PEERS=1` is for local tests only, where every relay address is a container address.
+
+## Deploy (one.com, before the move)
 
 `.github/workflows/game-server.yml` uploads `public/` over FTPS to the `games.charliecare.se` webroot (`webroots/0e182b4e`) on pushes to `main` that change this folder. It then checks `?a=health` and that the database cannot be downloaded. The FTP host and users are set in the workflow (it tries the games user, then the main user); the password is the `GAMES_FTP_PASSWORD` repository secret. The upload never overwrites the live database.

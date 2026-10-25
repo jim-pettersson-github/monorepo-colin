@@ -94,13 +94,34 @@ function hostRoom(PDO $db, array $body): array
 const STUN = [['urls' => ['stun:stun.cloudflare.com:3478', 'stun:stun.l.google.com:19302']]];
 const ICE_TTL = 24 * 3600;
 
-// TURN relays the game traffic when two networks block direct contact. The relay key stays on the server
-// (config.php, written by the deploy workflow); devices get short-lived credentials, cached for a few hours.
+// Settings come from the container's environment (TURN_SECRET), or from config.php on plain PHP hosting.
+function setting(string $name): string
+{
+    static $config = null;
+    $config ??= is_file(__DIR__ . '/config.php') ? require __DIR__ . '/config.php' : [];
+    $value = getenv(strtoupper($name));
+    return is_string($value) && $value !== '' ? $value : (string) ($config[$name] ?? '');
+}
+
+function ownRelay(): bool
+{
+    return setting('turn_secret') !== '' && setting('turn_urls') !== '';
+}
+
+// TURN relays the game traffic when two networks block direct contact. The relay secret stays on the server;
+// devices get credentials that expire after a day.
 function iceServers(PDO $db): array
 {
-    $config = is_file(__DIR__ . '/config.php') ? require __DIR__ . '/config.php' : [];
-    $key = $config['cloudflare_turn_key_id'] ?? '';
-    $token = $config['cloudflare_turn_api_token'] ?? '';
+    // Our own coturn, which shares the secret: the standard TURN REST scheme, expiry:name signed with HMAC-SHA1.
+    if (ownRelay()) {
+        $username = (time() + ICE_TTL) . ':game';
+        $urls = array_values(array_filter(array_map('trim', explode(',', setting('turn_urls')))));
+        return [...STUN, ['urls' => $urls, 'username' => $username, 'credential' => base64_encode(hash_hmac('sha1', $username, setting('turn_secret'), true))]];
+    }
+
+    // Otherwise Cloudflare's relay, whose day-long credentials are cached for a few hours.
+    $key = setting('cloudflare_turn_key_id');
+    $token = setting('cloudflare_turn_api_token');
     if (!$key || !$token) return STUN;
 
     $db->exec('CREATE TABLE IF NOT EXISTS ice (id INTEGER PRIMARY KEY, servers TEXT NOT NULL, expires INTEGER NOT NULL)');
@@ -134,7 +155,7 @@ try {
     switch ($action) {
         case 'health':
             $count = (int) $db->query('SELECT COUNT(*) FROM rooms WHERE updated > ' . ($now - ROOM_TTL))->fetchColumn();
-            $relay = is_file(__DIR__ . '/config.php') && !empty((require __DIR__ . '/config.php')['cloudflare_turn_key_id']);
+            $relay = ownRelay() || setting('cloudflare_turn_key_id') !== '';
             reply(['ok' => true, 'php' => PHP_VERSION, 'rooms' => $count, 'relay' => $relay]);
 
         case 'ice':

@@ -1,0 +1,47 @@
+# games.charliecare.se on the home dev host (Dokploy): the room server and its TURN relay, one container.
+#
+# HTTP goes through Dokploy's Traefik like every other stack there. TURN is not HTTP: its ports are
+# published straight from the container, and forwarded on the home router to this host. Every mapping
+# is 1:1 because coturn tells each device which relay port to use, and it names the port it is bound to.
+# The relay range must match TURN_MIN_PORT/TURN_MAX_PORT (49160-49259 by default).
+
+services:
+  game-server:
+    build: .
+    restart: unless-stopped
+    environment:
+      # Shared by coturn and api.php, which signs day-long relay credentials with it. openssl rand -hex 32
+      - TURN_SECRET=${GAMES_TURN_SECRET:?the relay secret, openssl rand -hex 32}
+      - TURN_URLS=turn:${GAMES_TURN_HOST:-games.charliecare.se}:3478?transport=udp,turn:${GAMES_TURN_HOST:-games.charliecare.se}:3478?transport=tcp
+      # A name that always resolves to the home IP; coturn advertises that address in relay candidates.
+      - TURN_PUBLIC_HOST=${GAMES_PUBLIC_HOST:-vps.academy.charliecare.se}
+    ports:
+      - "3478:3478/udp"
+      - "3478:3478/tcp"
+      - "49160-49259:49160-49259/udp"
+    volumes:
+      - game-data:/data
+    labels:
+      - traefik.enable=true
+      - traefik.http.services.games-charliecare-se.loadbalancer.server.port=80
+      - traefik.http.routers.games-charliecare-se.rule=Host(`games.charliecare.se`)
+      - traefik.http.routers.games-charliecare-se.entrypoints=websecure
+      - traefik.http.routers.games-charliecare-se.tls.certresolver=letsencrypt
+      - traefik.http.routers.games-charliecare-se.service=games-charliecare-se
+      - traefik.http.routers.games-charliecare-se-http.rule=Host(`games.charliecare.se`)
+      - traefik.http.routers.games-charliecare-se-http.entrypoints=web
+      - traefik.http.routers.games-charliecare-se-http.middlewares=redirect-to-https@file
+      - traefik.http.routers.games-charliecare-se-http.service=games-charliecare-se
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  game-data:
+
+networks:
+  default:
+    name: dokploy-network
+    external: true

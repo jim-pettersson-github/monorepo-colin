@@ -31,6 +31,9 @@ jobs:
           persist-credentials: false
       - name: Check the PHP syntax
         run: php -l game-server/public/api.php
+      # Dokploy builds this image on the home dev host; a broken build fails here first.
+      - name: Build the container image
+        run: docker build --quiet --tag game-server game-server
       - name: Write the relay key
         env:
           TURN_KEY_ID: ${{ secrets.CLOUDFLARE_TURN_KEY_ID }}
