@@ -1,10 +1,9 @@
 # games.charliecare.se on the home dev host (Dokploy): the room server and its TURN relay, one container.
 #
 # HTTP goes through Dokploy's Traefik like every other stack there. TURN is not HTTP: its ports are
-# published straight from the container; the home router forwards 3478 to this host. Every mapping
+# published straight from the container, and forwarded on the home router to this host. Every mapping
 # is 1:1 because coturn tells each device which relay port to use, and it names the port it is bound to.
-# The relay range must match TURN_MIN_PORT/TURN_MAX_PORT (49160-49259 by default). It is not forwarded:
-# relayed devices meet inside coturn, so the range only serves peers on this network.
+# The relay range must match TURN_MIN_PORT/TURN_MAX_PORT (49160-49259 by default).
 
 services:
   game-server:
