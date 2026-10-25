@@ -6,7 +6,6 @@ import { cupProblems, type Session, type SessionMode, sessionTrack } from '../ga
 import type { Settings } from '../game/storage';
 import { trackById } from '../game/tracks';
 import { DealerTab, GarageTab, type Shop } from './CareerHub';
-import { InviteSteps } from './QrExchange';
 import { RaceView } from './RaceView';
 import { RoomCodeCard, RoomInvite } from './RoomPairing';
 import './career.css';
@@ -35,14 +34,13 @@ export function WifiCareerStart({ identity, onIdentity, sessions, onCreate, onRe
         <button type='button' onClick={onBack}>
           ◀ Meny
         </button>
-        <h2>Wi-Fi-karriär</h2>
+        <h2>Online-karriär</h2>
       </header>
       <div className='career-body'>
         <section className='panel career-stack'>
           <p>
-            En karriär för flera enheter, via rumskod eller på samma Wi-Fi. Alla har egna pengar, bilar och uppgraderingar i sessionen, och ni kör cuperna
-            tillsammans mot datorförarna. Värdens enhet sparar sessionen så att ni kan fortsätta senare. Nya spelare kan gå med när som helst men börjar från
-            början.
+            En karriär för flera enheter online. Alla har egna pengar, bilar och uppgraderingar i sessionen, och ni kör cuperna tillsammans mot datorförarna.
+            Värdens enhet sparar sessionen så att ni kan fortsätta senare. Nya spelare kan gå med när som helst men börjar från början.
           </p>
           <label className='field'>
             Ditt namn
@@ -77,7 +75,7 @@ export function WifiCareerStart({ identity, onIdentity, sessions, onCreate, onRe
 
           <section className='panel'>
             <h3>Gå med</h3>
-            <p>Värden skapar eller fortsätter en session och visar en QR-kod. Har du varit med förut känns du igen och får tillbaka dina bilar och pengar.</p>
+            <p>Värden skapar eller fortsätter en session och visar en rumskod. Har du varit med förut känns du igen och får tillbaka dina bilar och pengar.</p>
             <button type='button' className='primary' disabled={!identity.name.trim()} onClick={onJoin}>
               Gå med i en session
             </button>
@@ -137,7 +135,7 @@ export function WifiCareerHub({ controller, onExit }: HubProps) {
           <button type='button' onClick={onExit}>
             ◀ Meny
           </button>
-          <h2>Wi-Fi-karriär</h2>
+          <h2>Online-karriär</h2>
         </header>
         <section className='panel career-intro' role='status'>
           {controller.error || (controller.ended ? 'Sessionen är avslutad.' : 'Ansluter till värdens session…')}
@@ -169,7 +167,7 @@ export function WifiCareerHub({ controller, onExit }: HubProps) {
           {formatMoney(me.money)}
         </span>
       </header>
-      <nav className='career-tabs' aria-label='Wi-Fi-karriär'>
+      <nav className='career-tabs' aria-label='Online-karriär'>
         {(
           [
             ['cups', 'Turneringar'],
@@ -213,33 +211,16 @@ export function WifiCareerHub({ controller, onExit }: HubProps) {
                 <>
                   <RoomInvite room={controller.room} link={controller.invite} onError={() => {}} />
                   <p role='status'>Väntar på att spelare {controller.present.length + 1} skriver rumskoden…</p>
-                  <details className='code-details'>
-                    <summary>Ingen internet? Para ihop med QR-kod</summary>
-                    <InviteSteps
-                      code={controller.invite.code}
-                      player={controller.present.length + 1}
-                      onAnswer={(value) => controller.invite?.acceptAnswer(value) ?? Promise.resolve()}
-                    />
-                  </details>
                   <button type='button' onClick={() => controller.cancelInvite()}>
-                    Avbryt inbjudan
-                  </button>
-                </>
-              ) : controller.invite ? (
-                <>
-                  <InviteSteps
-                    code={controller.invite.code}
-                    player={controller.present.length + 1}
-                    onAnswer={(value) => controller.invite?.acceptAnswer(value) ?? Promise.resolve()}
-                  />
-                  <button type='button' onClick={() => controller.cancelInvite()}>
-                    Avbryt inbjudan
+                    Stäng den lediga platsen
                   </button>
                 </>
               ) : (
-                <button type='button' onClick={() => void controller.inviteGuest()}>
-                  Bjud in en spelare till
-                </button>
+                controller.room && (
+                  <button type='button' onClick={() => void controller.inviteGuest()}>
+                    Öppna en plats till
+                  </button>
+                )
               )}
             </div>
           )}

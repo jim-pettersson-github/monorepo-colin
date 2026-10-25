@@ -19,7 +19,7 @@ import {
 import { type CarClass, carById, cars, classOrder, MAX_UPGRADE, type Upgrades } from './cars';
 import type { ResultRow } from './race';
 
-// A Wi-Fi career shared by several devices. The host's device keeps the session; each device is a member by its player id.
+// An online career shared by several devices. The host's device keeps the session; each device is a member by its player id.
 
 export type SessionMode = 'fresh' | 'own';
 
@@ -50,12 +50,12 @@ export function newSession(name: string, mode: SessionMode, seed = Date.now()): 
   return {
     version: 1,
     id: `s${seed.toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`,
-    name: name.trim().slice(0, 24) || 'Wi-Fi-karriär',
+    name: name.trim().slice(0, 24) || 'Online-karriär',
     mode,
     updated: Date.now(),
     members: [],
     rivals: newCareer(seed).rivals,
-    news: ['Ny Wi-Fi-karriär. Köp bilar och anmäl er till Klubbcupen.'],
+    news: ['Ny online-karriär. Köp bilar och anmäl er till Klubbcupen.'],
   };
 }
 

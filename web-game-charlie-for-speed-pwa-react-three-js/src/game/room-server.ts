@@ -9,7 +9,7 @@ export function roomServer() {
   } catch {
     /* Storage can be blocked; fall back to the built-in address. */
   }
-  return (import.meta.env.VITE_ROOM_SERVER as string | undefined) ?? '';
+  return (import.meta.env.VITE_ROOM_SERVER as string | undefined) || 'https://games.charliecare.se/api.php';
 }
 
 // STUN lets devices on different networks find each other's public address. Strict mobile networks may still need a relay.
@@ -43,7 +43,7 @@ async function call<T>(action: string, body?: unknown, query: Record<string, str
       signal: AbortSignal.timeout(8000),
     });
   } catch {
-    throw new Error('Spelservern svarar inte. Kolla internet, eller använd QR-koden.');
+    throw new Error('Spelservern svarar inte. Kolla internet.');
   }
   const value = (await response.json().catch(() => ({}))) as T & { error?: string };
   if (!response.ok) throw new ServerError(value.error || 'Spelservern kunde inte svara.', response.status);

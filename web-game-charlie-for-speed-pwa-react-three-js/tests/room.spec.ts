@@ -33,7 +33,7 @@ test('room code: three devices join at once, see each other in the lobby and rac
   for (const p of [host, ...guests]) p.on('pageerror', (e) => errors.push(e.message));
   try {
     await host.getByRole('button', { name: /^Spela online/ }).click();
-    await expect(host.getByText('WI-FI ELLER INTERNET · EN ENHET PER SPELARE')).toBeVisible();
+    await expect(host.getByText('ONLINE · EN ENHET PER SPELARE')).toBeVisible();
     await host.getByRole('textbox', { name: 'Ditt namn', exact: true }).fill('Charlie');
     await host.getByRole('button', { name: /^Jag är värd/ }).click();
     const code = (await host.getByTestId('room-code').textContent()) ?? '';
@@ -46,7 +46,7 @@ test('room code: three devices join at once, see each other in the lobby and rac
       await guest.getByRole('button', { name: 'Jag är redo', exact: true }).click();
     }
     await expect(host.getByText(/Spelare 3 \((Alva|Cleo)\) – Ansluten · Redo/)).toBeVisible();
-    await expect(host.getByText(/Spelare 4 – Väntar på att någon skriver rumskoden/)).toBeVisible();
+    await expect(host.getByText(/Spelare 4 – Väntar på att någon går med/)).toBeVisible();
 
     // Everyone sees the same lobby, with names and who is ready.
     const lobby = guests[0].getByRole('list', { name: 'Spelare i rummet' });
@@ -56,19 +56,19 @@ test('room code: three devices join at once, see each other in the lobby and rac
     await expect(lobby).toContainText('Cleo – Redo ✓');
 
     // Closing the open place keeps everyone's Redo, so the race can still start.
-    await host.getByRole('button', { name: 'Avbryt inbjudan', exact: true }).click();
-    await expect(host.getByRole('button', { name: 'Starta Wi-Fi-tävling', exact: true })).toBeEnabled();
+    await host.getByRole('button', { name: 'Stäng den lediga platsen', exact: true }).click();
+    await expect(host.getByRole('button', { name: 'Starta racet', exact: true })).toBeEnabled();
 
-    await host.getByRole('button', { name: 'Starta Wi-Fi-tävling', exact: true }).click();
+    await host.getByRole('button', { name: 'Starta racet', exact: true }).click();
     for (const p of [host, ...guests]) await expect(p.locator('.race-canvas')).toHaveAttribute('data-rendered', 'true');
-    await expect(guests[1].getByText(/WI-FI · DU ÄR P\d/)).toBeVisible();
+    await expect(guests[1].getByText(/ONLINE · DU ÄR P\d/)).toBeVisible();
     expect(errors).toEqual([]);
   } finally {
     for (const p of [host, ...guests]) await p.context().close();
   }
 });
 
-test('room code: a wrong code says so, and a missing server falls back to QR', async ({ browser, baseURL }, info) => {
+test('room code: a wrong code says so, and a missing server offers to try again', async ({ browser, baseURL }, info) => {
   test.skip(info.project.name !== 'desktop', 'Pairing is the same on every layout.');
   if (!baseURL) throw new Error('No preview URL');
   const guest = await device(browser, baseURL, true);
@@ -79,8 +79,8 @@ test('room code: a wrong code says so, and a missing server falls back to QR', a
 
     await offline.getByRole('button', { name: /^Spela online/ }).click();
     await offline.getByRole('button', { name: /^Jag är värd/ }).click();
-    await expect(offline.getByText(/Spelservern svarar inte.*Para ihop med QR-koden istället/)).toBeVisible({ timeout: 15000 });
-    await expect(offline.locator('.connection-qr')).toBeVisible();
+    await expect(offline.getByText(/Spelservern svarar inte.*försök igen/)).toBeVisible({ timeout: 15000 });
+    await expect(offline.getByRole('button', { name: 'Försök igen', exact: true })).toBeVisible();
   } finally {
     for (const p of [guest, offline]) await p.context().close();
   }

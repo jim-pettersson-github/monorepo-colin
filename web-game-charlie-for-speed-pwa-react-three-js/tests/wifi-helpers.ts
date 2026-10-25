@@ -1,5 +1,9 @@
 import type { Browser, BrowserContext, Page } from '@playwright/test';
 import { expect } from '@playwright/test';
+
+// The local room server that Playwright starts next to the preview (see playwright.config.ts).
+export const roomServer = `http://127.0.0.1:${process.env.CFS_ROOM_PORT || 4024}/api.php`;
+
 export async function peers(browser: Browser, url: string | undefined) {
   if (!url) throw new Error('No preview URL');
   const contexts: BrowserContext[] = [];
@@ -9,6 +13,7 @@ export async function peers(browser: Browser, url: string | undefined) {
       isMobile: mobile,
       hasTouch: mobile,
     });
+    await context.addInitScript((server) => localStorage.setItem('charlie-for-speed:room-server', server), roomServer);
     contexts.push(context);
     const page = await context.newPage();
     await page.goto(url);
@@ -24,35 +29,24 @@ export async function peers(browser: Browser, url: string | undefined) {
     },
   };
 }
-export async function imageTransfer(from: Page, to: Page) {
-  await expect(from.locator('.connection-qr')).toBeVisible();
-  const src = await from.locator('.connection-qr').getAttribute('src');
-  if (!src) throw new Error('No QR');
-  await to.locator('input[type=file]').setInputFiles({ name: 'pair.png', mimeType: 'image/png', buffer: Buffer.from(src.split(',')[1], 'base64') });
-}
-export async function paste(to: Page, code: string) {
-  await to.getByRole('textbox', { name: 'Klistra in anslutningskod', exact: true }).fill(code);
-  await to.getByRole('button', { name: 'Läs in koden', exact: true }).click();
-}
-export async function connect(host: Page, guest: Page, manual = false) {
-  await guest.getByRole('button', { name: /^Spela via Wi-Fi/ }).click();
-  await guest.getByRole('button', { name: /^Jag går med/ }).click();
-  await expect(host.locator('.connection-qr')).toBeVisible();
-  if (manual) {
-    await paste(guest, await codeOf(host, 'Din matchkod'));
-  } else await imageTransfer(host, guest);
-  await expect(guest.locator('.connection-qr')).toBeVisible();
-  if (manual) {
-    await paste(host, await codeOf(guest, 'Din svarskod'));
-  } else await imageTransfer(guest, host);
-  await expect(guest.getByText(/Enheterna är anslutna!/)).toBeVisible({ timeout: 15000 });
-  await expect(guest.getByRole('button', { name: 'Jag är redo', exact: true })).toBeEnabled();
+
+// Only the room server stays reachable, so the race itself has to run between the devices.
+export async function onlyRoomServer(page: Page) {
+  await page.context().route('**/*', (route) => (route.request().url().startsWith(new URL(roomServer).origin) ? route.continue() : route.abort()));
 }
 
-// Reads a device's pairing code from the text shown under its QR image.
-export async function codeOf(page: Page, name: 'Din matchkod' | 'Din svarskod') {
-  await page.getByText('Visa koden som text', { exact: true }).click();
-  const box = page.getByRole('textbox', { name, exact: true });
-  await expect(box).not.toHaveValue('');
-  return box.inputValue();
+export async function roomCode(host: Page) {
+  const code = host.getByTestId('room-code');
+  await expect(code).toHaveText(/^[A-Z0-9]{4}$/, { timeout: 15000 });
+  return (await code.textContent()) ?? '';
+}
+
+// The guest joins the host's open room by its code; the host must already be hosting. A late career guest skips the lobby.
+export async function connect(host: Page, guest: Page, menu: RegExp | null = /^Spela online/, lobby = true) {
+  const code = await roomCode(host);
+  if (menu) await guest.getByRole('button', { name: menu }).click();
+  await guest.getByRole('button', { name: /^Jag går med/ }).click();
+  await guest.getByRole('textbox', { name: 'Rumskod', exact: true }).fill(code);
+  await guest.getByRole('button', { name: 'Gå med i rummet', exact: true }).click();
+  if (lobby) await expect(guest.getByText(/Enheterna är anslutna!/)).toBeVisible({ timeout: 30000 });
 }

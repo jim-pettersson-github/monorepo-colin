@@ -169,7 +169,7 @@ function CupsTab({ career, onChange, onRace }: { career: Career; onChange: Props
   );
 }
 
-// A player's wallet and garage plus what they can do with them; shared by solo and Wi-Fi careers.
+// A player's wallet and garage plus what they can do with them; shared by solo and online careers.
 export type Shop = {
   money: number;
   garage: OwnedCar[];

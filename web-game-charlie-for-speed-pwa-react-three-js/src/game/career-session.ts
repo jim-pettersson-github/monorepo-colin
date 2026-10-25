@@ -17,14 +17,14 @@ import {
 } from './multi-career';
 import type { Connection } from './network-play';
 import { NetworkRace, type RaceConfig, validRaceConfig } from './network-race';
-import { PeerLink } from './peer-link';
+import type { PeerLink } from './peer-link';
 import type { ResultRow } from './race';
 import type { Room } from './room-server';
 
 export type Identity = { id: string; name: string };
 export type OwnGarage = { garage: OwnedCar[]; activeCarId: string };
 
-// What the Wi-Fi lobby agrees on before the hub opens.
+// What the online lobby agrees on before the hub opens.
 export type CareerLobbyConfig = { kind: 'career'; session: string; mode: SessionMode };
 
 export function validLobbyConfig(value: unknown): value is CareerLobbyConfig {
@@ -45,7 +45,7 @@ type Options = {
 };
 
 /**
- * One device's view of a Wi-Fi career. The host keeps the authoritative session, applies everyone's shop actions and runs
+ * One device's view of an online career. The host keeps the authoritative session, applies everyone's shop actions and runs
  * each race; guests send requests and mirror what the host broadcasts.
  */
 export class CareerSession {
@@ -268,10 +268,12 @@ export class CareerSession {
     return this.options.room;
   }
 
-  // Host: open an invitation for one more device between races, by room code or QR.
+  // Host: open the room for one more device between races.
   async inviteGuest() {
     if (!this.host || this.invite) return;
-    const link = this.options.room ? this.options.room.link() : new PeerLink('host');
+    const room = this.options.room;
+    if (!room) return;
+    const link = room.link();
     this.invite = link;
     const slot = this.nextSlot++;
     const unsubscribe = link.subscribe(() => {

@@ -33,7 +33,7 @@ async function transform(bytes: Uint8Array, decompress: boolean) {
 }
 
 // Compact codes carry only what differs between connections (keys, fingerprint, candidates) and rebuild the
-// data-channel SDP from a template, so the QR image stays coarse enough to scan from another phone's screen.
+// data-channel SDP from a template, so the pairing codes the room server passes along stay small.
 type Compact = { t: 'o' | 'a'; i: string; u: string; p: string; f: string; s: string; m: string; c: string[] };
 
 const lineValue = (sdp: string, prefix: string) =>
@@ -143,7 +143,7 @@ export async function decodeSignal(code: string): Promise<Signal> {
       if (!validCompact(value)) throw new Error();
       return expandSignal(value);
     } catch {
-      throw new Error('Koden kunde inte läsas. Kopiera hela koden eller skanna QR-bilden igen.');
+      throw new Error('Anslutningskoden kunde inte läsas. Försök igen.');
     }
   }
   if (text.length > 6000 || !/^CFS1\.[ZP]\.[A-Za-z0-9_-]+$/.test(text)) throw new Error('Det här är ingen anslutningskod från Charlie for Speed.');
@@ -163,7 +163,7 @@ export async function decodeSignal(code: string): Promise<Signal> {
       throw new Error();
     return value;
   } catch {
-    throw new Error('Koden kunde inte läsas. Kopiera hela koden eller skanna QR-bilden igen.');
+    throw new Error('Anslutningskoden kunde inte läsas. Försök igen.');
   }
 }
 
@@ -180,7 +180,7 @@ export class PeerLink {
   private timer?: ReturnType<typeof setTimeout>;
   private readonly online: boolean;
   private disposed = false;
-  // Wi-Fi pairing needs no ICE servers; internet pairing passes STUN servers.
+  // Online pairing passes the room's STUN and relay servers.
   constructor(
     public readonly role: PeerRole,
     iceServers: RTCIceServer[] = [],
@@ -316,7 +316,7 @@ export class PeerLink {
     if (this.status === 'connected') return;
     const message = this.online
       ? 'Enheterna fick ingen kontakt via internet. Försök igen, eller byt nät, till exempel från mobildata till Wi-Fi.'
-      : 'Enheterna fick ingen kontakt. Använd samma vanliga Wi-Fi, undvik gästnätverk och skapa nya koder.';
+      : 'Enheterna fick ingen kontakt. Försök igen.';
     this.timer = setTimeout(() => this.fail(message), this.timeout);
   }
   close() {

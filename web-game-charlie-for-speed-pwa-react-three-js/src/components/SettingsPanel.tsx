@@ -6,7 +6,7 @@ import { VolumeControl } from './VolumeControl';
 type Props = {
   settings: Settings;
   onChange: (settings: Settings) => void;
-  // The player's name in online lobbies, on the standings and above the car; shared with the Wi-Fi career.
+  // The player's name in online lobbies, on the standings and above the car; shared with the online career.
   name: string;
   onName: (name: string) => void;
   onClose: () => void;

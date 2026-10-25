@@ -161,7 +161,7 @@ export function App() {
       {screen === 'wifi-career-lobby' && (
         <WifiLobby
           name='Charlie for Speed'
-          title='Wi-Fi-karriär'
+          title='Online-karriär'
           maxPlayers={MAX_PLAYERS}
           config={careerLobby}
           validConfig={validLobbyConfig}
@@ -171,7 +171,7 @@ export function App() {
           listing={(c) => `Online-karriär · ${c.session || 'ny session'} · ${c.mode === 'fresh' ? 'ny start' : 'egna bilar'}`}
           summary={(c) => (
             <p>
-              Wi-Fi-karriär: {c.session || 'ny session'} · {c.mode === 'fresh' ? 'Ny start' : 'Egna bilar'}
+              Online-karriär: {c.session || 'ny session'} · {c.mode === 'fresh' ? 'Ny start' : 'Egna bilar'}
             </p>
           )}
           controls={

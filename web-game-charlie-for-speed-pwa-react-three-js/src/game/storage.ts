@@ -92,7 +92,7 @@ export function saveCareer(career: Career | undefined) {
 const IDENTITY_KEY = 'charlie-for-speed:identity';
 const SESSIONS_KEY = 'charlie-for-speed:wifi-careers';
 
-// A stable id per device lets a Wi-Fi career recognise returning players.
+// A stable id per device lets an online career recognise returning players.
 export function loadIdentity(): Identity {
   try {
     const raw = localStorage.getItem(IDENTITY_KEY);

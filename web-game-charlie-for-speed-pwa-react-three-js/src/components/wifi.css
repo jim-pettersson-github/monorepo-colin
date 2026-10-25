@@ -10,26 +10,32 @@
   color: var(--ink);
   background: var(--background, #f8f3e7);
 }
+
 .wifi-shell > button {
   align-self: flex-start;
 }
+
 .wifi-shell h1 {
   font-size: clamp(28px, 5vw, 42px);
   margin: 12px 0;
 }
+
 .wifi-shell h2 {
   font-size: 21px;
   margin: 0 0 12px;
 }
+
 .wifi-shell p {
   line-height: 1.6;
 }
+
 .wifi-shell label {
   display: grid;
   gap: 8px;
   margin: 12px 0;
   min-width: 0;
 }
+
 .wifi-shell :is(select, textarea) {
   width: 100%;
   min-height: 48px;
@@ -40,23 +46,23 @@
   border-radius: 8px;
   padding: 10px;
 }
+
 .wifi-shell textarea {
   min-height: 100px;
   font-size: 12px;
   overflow-wrap: anywhere;
   resize: vertical;
 }
-.wifi-role-options,
-.qr-exchange {
+
+.wifi-role-options {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
 }
+
 .wifi-connection-state,
 .wifi-settings,
-.wifi-start,
-.qr-output,
-.qr-input {
+.wifi-start {
   flex-shrink: 0;
   padding: 20px;
   border: 1px solid var(--border, #cec6bb);
@@ -64,78 +70,34 @@
   background: var(--surface, #fff9ef);
   min-width: 0;
 }
+
 .wifi-shell summary {
   min-height: 48px;
   padding: 14px 0;
   cursor: pointer;
 }
-.connection-qr {
-  display: block;
-  width: min(100%, 340px);
-  height: auto;
-  margin: 16px auto;
-  border-radius: 6px;
-}
-.qr-input-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-.qr-input-actions .qr-file-button {
-  position: relative;
-  display: grid;
-  place-items: center;
-  min-height: 48px;
-  padding: 10px 16px;
-  margin: 0;
-  border: 1px solid var(--border, #cec6bb);
-  border-radius: 8px;
-  cursor: pointer;
-}
-.qr-file-button input {
-  position: absolute;
-  opacity: 0;
-  width: 100%;
-  height: 100%;
-  inset: 0;
-  cursor: pointer;
-}
-.qr-file-button:focus-within {
-  outline: 3px solid var(--accent, #e4bd40);
-}
-.qr-input video {
-  width: 100%;
-  max-height: 300px;
-  margin-top: 16px;
-}
-.qr-exchange:has(> :only-child) {
-  grid-template-columns: minmax(0, 1fr);
-}
+
 .wifi-shell [role="alert"] {
   color: var(--danger, #a83241);
   overflow-wrap: anywhere;
 }
+
 .wifi-start button {
   width: 100%;
 }
+
 .wifi-entry {
   margin-top: 12px;
 }
+
 @media (max-width: 680px) {
-  .wifi-role-options,
-  .qr-exchange {
+  .wifi-role-options {
     grid-template-columns: minmax(0, 1fr);
   }
+
   .wifi-shell {
     padding-top: 16px;
   }
-}
-
-.code-text {
-  width: 100%;
-  font-family: ui-monospace, Consolas, monospace;
-  font-size: 0.75rem;
-  word-break: break-all;
 }
 
 /* Guided pairing: one clear card per step. */
@@ -278,40 +240,6 @@
   color: var(--ink);
 }
 
-.code-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin: 8px 0;
-}
-
-.code-actions button {
-  flex: 1 1 150px;
-}
-
-.code-actions .qr-file-button {
-  position: relative;
-  display: grid;
-  place-items: center;
-  flex: 1 1 150px;
-  min-height: 48px;
-  margin: 0;
-  border: 1px solid var(--border, #cec6bb);
-  border-radius: 8px;
-  cursor: pointer;
-}
-
-.code-read video {
-  width: 100%;
-  max-height: 300px;
-  margin-top: 8px;
-}
-
-.code-details summary {
-  color: var(--muted);
-  font-size: 0.9rem;
-}
-
 @media (max-width: 680px) {
   .invite-steps {
     grid-template-columns: minmax(0, 1fr);
@@ -334,19 +262,23 @@
   border-radius: 8px;
   text-align: center;
 }
+
 .room-card p {
   margin: 0;
 }
+
 .room-code {
   font-size: clamp(2.6rem, 14vw, 4rem);
   font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
   letter-spacing: 0.18em;
   line-height: 1.1;
 }
+
 .room-join {
   display: grid;
   gap: 10px;
 }
+
 .room-join input {
   min-height: 56px;
   padding: 0 12px;
@@ -363,9 +295,11 @@
   text-align: center;
   text-transform: uppercase;
 }
+
 .room-join p {
   margin: 0;
 }
+
 .lobby-name {
   display: grid;
   gap: 6px;
@@ -373,6 +307,7 @@
   margin: 0 0 12px;
   font-weight: 700;
 }
+
 .lobby-name input {
   min-height: 48px;
   padding: 0 12px;
@@ -383,6 +318,7 @@
   font: inherit;
   font-weight: 400;
 }
+
 .lobby-preview {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
@@ -390,27 +326,32 @@
   align-items: center;
   margin-top: 10px;
 }
+
 .lobby-showroom {
   width: 100%;
   height: 170px;
   border-radius: 6px;
   background: radial-gradient(ellipse at 50% 70%, #2c3a6a 0%, var(--background, #0b0f1e) 75%);
 }
+
 .lobby-track {
   display: grid;
   justify-items: center;
   gap: 4px;
   margin: 0;
 }
+
 .lobby-track svg {
   width: 100%;
   max-width: 150px;
   height: auto;
 }
+
 .lobby-track figcaption {
   font-size: 0.85rem;
   text-align: center;
 }
+
 .game-list ul {
   display: grid;
   gap: 8px;
@@ -418,6 +359,7 @@
   padding: 0;
   list-style: none;
 }
+
 .game-list li {
   display: flex;
   flex-wrap: wrap;
@@ -428,17 +370,21 @@
   border: 1px solid var(--border, #cec6bb);
   border-radius: 6px;
 }
+
 .game-list li > span {
   display: grid;
   gap: 2px;
   min-width: 0;
 }
+
 .game-list small {
   color: var(--muted);
 }
+
 .player-list .kick {
   margin-left: 8px;
 }
+
 .wifi-shell .list-toggle {
   display: flex;
   gap: 10px;
@@ -446,17 +392,20 @@
   margin: 0 0 12px;
   cursor: pointer;
 }
+
 .wifi-shell .list-toggle input {
   flex: none;
   width: 24px;
   height: 24px;
   margin: 2px 0 0;
 }
+
 .wifi-shell .list-toggle > span {
   display: grid;
   gap: 2px;
   font-weight: 700;
 }
+
 .wifi-shell .list-toggle small {
   color: var(--muted);
   font-weight: 400;

@@ -188,6 +188,8 @@ export function stepRace(race: Race, playerControls: Controls, humanControls?: R
       const gap = racer.isPlayer ? 0 : raceDistance(race, racer) - playerDistance;
       const pace = racer.finishTime ? 0.8 : Math.max(0.9, Math.min(1.05, 1 - gap * 0.00035));
       controls = driveAi(racer.state, racer.spec, racer.driver, track, states, pace, STEP);
+      // Cars stand still on the grid; that is not being stuck, so the AI must not start by backing out of a wall.
+      if (frozen) racer.driver.stuck = 0;
     }
 
     stepCar(racer.state, racer.spec, controls, track, STEP, racer.isPlayer ? settings.transmission : 'auto', frozen);

@@ -332,7 +332,7 @@ import {
   validSession,
 } from '../src/game/multi-career';
 
-test('Wi-Fi career: fresh and own-car members, fair names, cup entry and a shared grid', () => {
+test('online career: fresh and own-car members, fair names, cup entry and a shared grid', () => {
   let session = newSession('Fredagsracet', 'fresh', 5);
   session = joinSession(session, 'host', 'Charlie', { garage: [{ carId: 'skarv', upgrades: { engine: 3, tyres: 3, brakes: 3 } }], activeCarId: 'skarv' });
   session = joinSession(session, 'guest', 'Charlie');
@@ -382,7 +382,7 @@ test('Wi-Fi career: fresh and own-car members, fair names, cup entry and a share
   expect(validSession(JSON.parse(JSON.stringify(session)))).toBe(true);
 });
 
-test('Wi-Fi career: races pay every member and a finished cup crowns a winner and upgrades rivals', () => {
+test('online career: races pay every member and a finished cup crowns a winner and upgrades rivals', () => {
   let session = newSession('Cup', 'fresh', 9);
   for (const [id, name] of [
     ['a', 'Alva'],
@@ -460,4 +460,16 @@ test('online quick races keep one class, carry lobby names and arcade-balance th
     expect(spread(peers.map((car) => arcadeSpec(car).grip))).toBeLessThan(spread(peers.map((car) => car.grip)) * 0.3);
   }
   expect(race.racers[0].spec.grip).toBeCloseTo(arcadeSpec(cars.find((car) => car.id === race.racers[0].spec.id) ?? cars[0]).grip, 5);
+});
+
+test('AI cars drive forward from the grid instead of first backing up', () => {
+  const race = createRace({ trackId: 'vaxjo', carId: 'sting', laps: 1, difficulty: 'normal', transmission: 'auto' }, 3);
+  while (race.phase === 'countdown') stepRace(race, idle);
+  const atGo = new Map(race.racers.map((racer) => [racer.id, raceDistance(race, racer)]));
+  // Two seconds after the start every AI car is in a forward gear and has moved up the road.
+  for (let step = 0; step < 240; step++) {
+    stepRace(race, idle);
+    for (const racer of race.racers) if (!racer.isPlayer) expect(racer.state.gear).toBeGreaterThan(0);
+  }
+  for (const racer of race.racers) if (!racer.isPlayer) expect(raceDistance(race, racer) - (atGo.get(racer.id) ?? 0)).toBeGreaterThan(5);
 });

@@ -258,7 +258,7 @@ export function RaceView({ settings, onSettings, onExit, career, network }: Prop
       <div className='race-fullscreen'>
         <FullscreenButton compact />
       </div>
-      {network && <span className='network-race-label'>WI-FI · DU ÄR P{network.localSlot + 1}</span>}
+      {network && <span className='network-race-label'>ONLINE · DU ÄR P{network.localSlot + 1}</span>}
 
       <div className='race-buttons'>
         <button type='button' className='round-button' aria-label='Pausa' onClick={() => setPausedState(true)}>

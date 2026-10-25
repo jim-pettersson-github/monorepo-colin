@@ -10,7 +10,7 @@ export function RoomCodeCard({ room }: { room: Room }) {
       <strong className='room-code' data-testid='room-code'>
         {room.code}
       </strong>
-      <p>Kompisarna väljer Jag går med och skriver koden. Det fungerar på samma Wi-Fi och via internet.</p>
+      <p>Kompisarna väljer ditt spel i listan eller skriver koden, var de än är.</p>
     </div>
   );
 }
@@ -26,7 +26,7 @@ export function RoomInvite({ room, link, onError }: { room: Room; link: PeerLink
     room
       .invite(link, () => cancelled)
       .catch((error) => {
-        if (!cancelled) report.current(error instanceof Error ? error.message : 'Rumskoden slutade fungera. Använd QR-koden.');
+        if (!cancelled) report.current(error instanceof Error ? error.message : 'Rumskoden slutade fungera. Försök igen.');
       });
     return () => {
       cancelled = true;

@@ -1,5 +1,4 @@
 import { carById, carName } from '../game/cars';
-import { roomServer } from '../game/room-server';
 import type { Settings } from '../game/storage';
 import { trackById } from '../game/tracks';
 import { Showroom } from './Showroom';
@@ -44,11 +43,11 @@ export function TitleScreen({ settings, onRace, onGarage, onCareer, onSettings, 
           </small>
         </button>
         <button type='button' onClick={onWifi}>
-          {roomServer() ? 'Spela online' : 'Spela via Wi-Fi'}
-          <small>{roomServer() ? 'Upp till 8 enheter · rumskod, eller QR på samma Wi-Fi' : 'Upp till 8 enheter · QR eller kod'}</small>
+          Spela online
+          <small>Upp till 8 enheter · öppna spel eller rumskod</small>
         </button>
         <button type='button' onClick={onWifiCareer}>
-          {roomServer() ? 'Online-karriär' : 'Wi-Fi-karriär'}
+          Online-karriär
           <small>Cuper och uppgraderingar med kompisar</small>
         </button>
         <button type='button' onClick={onSettings}>
