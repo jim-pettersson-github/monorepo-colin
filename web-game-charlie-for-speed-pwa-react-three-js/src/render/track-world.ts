@@ -327,14 +327,19 @@ function buildGround(track: Track, look: ThemeLook): Ground & { geometry: THREE.
 function buildSky(look: ThemeLook, disposables: { dispose: () => void }[]) {
   const sky = new THREE.Group();
   sky.userData.dynamic = true;
-  const dome = new THREE.SphereGeometry(1900, 24, 14);
+  const dome = new THREE.SphereGeometry(1900, 32, 18);
   const top = new THREE.Color(look.skyTop);
   const horizon = new THREE.Color(look.skyHorizon);
+  const sunHaze = new THREE.Color(look.sunColor);
+  const direction = new THREE.Vector3();
   const colors: number[] = [];
   const color = new THREE.Color();
   for (let i = 0; i < dome.attributes.position.count; i++) {
     const y = dome.attributes.position.getY(i) / 1900;
     color.copy(horizon).lerp(top, THREE.MathUtils.clamp(y * 2.2, 0, 1) ** 0.8);
+    direction.fromBufferAttribute(dome.attributes.position, i).normalize();
+    const glow = Math.max(0, direction.dot(look.sun)) ** 12 * (1 - THREE.MathUtils.clamp(y, 0, 1)) * 0.28;
+    color.lerp(sunHaze, glow);
     colors.push(color.r, color.g, color.b);
   }
   dome.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));

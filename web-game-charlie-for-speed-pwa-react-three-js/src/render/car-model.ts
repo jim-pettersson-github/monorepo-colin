@@ -119,7 +119,7 @@ export function buildCarModel(spec: CarSpec, headlightsOn = false): CarModel {
   const trim = new THREE.MeshStandardMaterial({ color: spec.trim, roughness: 0.35, metalness: 0.4 });
   const chrome = new THREE.MeshStandardMaterial({ color: 0xe4e6e8, roughness: 0.12, metalness: 1 });
   const head = new THREE.MeshStandardMaterial({ color: 0xf2f0e8, emissive: 0xfff3d6, emissiveIntensity: headlightsOn ? 2.4 : 0.4, roughness: 0.12 });
-  const tail = new THREE.MeshStandardMaterial({ color: 0x4a0406, emissive: 0xff1a12, emissiveIntensity: 0.55, roughness: 0.18 });
+  const tail = new THREE.MeshStandardMaterial({ color: 0x650810, emissive: 0xff1a12, emissiveIntensity: headlightsOn ? 0.4 : 0.12, roughness: 0.24 });
   const amber = new THREE.MeshStandardMaterial({ color: 0x6a3000, emissive: 0xff8a10, emissiveIntensity: 0.5, roughness: 0.18 });
   const caliperColor = spec.carClass === 'A' ? 0xf2c400 : spec.carClass === 'B' ? 0xc8141c : 0x5c6066;
   const caliper = new THREE.MeshStandardMaterial({ color: caliperColor, roughness: 0.35, metalness: 0.3 });
@@ -555,7 +555,7 @@ export function buildCarModel(spec: CarSpec, headlightsOn = false): CarModel {
       for (const pivot of steerers) pivot.rotation.y = -state.steer * 0.45;
       if (detailed) updateWheels();
       for (const glow of brakeGlows) glow.visible = state.braking;
-      tail.emissiveIntensity = state.braking ? 2.6 : 0.55;
+      tail.emissiveIntensity = state.braking ? 1.65 : headlightsOn ? 0.4 : 0.12;
     },
     dispose() {
       group.traverse((child) => {

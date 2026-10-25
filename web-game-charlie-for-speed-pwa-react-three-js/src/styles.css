@@ -417,6 +417,29 @@ h3 {
   accent-color: var(--accent);
 }
 
+.sound-volume {
+  display: grid;
+  gap: 4px;
+  font-weight: 700;
+}
+
+.sound-volume span {
+  display: flex;
+  justify-content: space-between;
+}
+
+.sound-volume output {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.sound-volume input {
+  width: 100%;
+  min-height: 48px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
 .toggle small {
   display: block;
   color: var(--muted);

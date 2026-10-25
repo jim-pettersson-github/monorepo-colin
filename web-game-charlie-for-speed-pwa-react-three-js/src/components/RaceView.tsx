@@ -11,6 +11,7 @@ import { cameraModes, RaceRenderer } from '../render/race-renderer';
 import { FullscreenButton } from './FullscreenButton';
 import { Hud, type HudController } from './Hud';
 import { TouchControls } from './TouchControls';
+import { VolumeControl } from './VolumeControl';
 
 type Props = {
   network?: NetworkRace;
@@ -103,8 +104,9 @@ export function RaceView({ settings, onSettings, onExit, career, network }: Prop
     renderer.mode = settingsRef.current.camera;
     rendererRef.current = renderer;
     if (import.meta.env.DEV) Object.assign(window, { charlieRace: race, charlieRenderer: renderer, charlieNetwork: network });
-    const audio = new RaceAudio();
+    const audio = new RaceAudio(race.player.spec);
     audio.muted = !settingsRef.current.sound;
+    audio.volume = settingsRef.current.volume;
     audio.start();
     audioRef.current = audio;
     const input = new DriverInput((action) => actionRef.current(action), touch.current);
@@ -143,7 +145,8 @@ export function RaceView({ settings, onSettings, onExit, career, network }: Prop
           lastBeep = 0;
           audio.beep(true);
         }
-        audio.update(race.player.state, race.player.finishTime ? 0.3 : controls.throttle);
+        const inside = Math.min(race.player.state.s - race.track.tunnel.start, race.track.tunnel.end - race.player.state.s);
+        audio.update(race.player.state, race.player.finishTime ? 0.3 : controls.throttle, Math.max(0, Math.min(1, inside / 16)));
         renderer.render(delta);
         hud.current?.update(race);
         canvas.dataset.rendered = 'true';
@@ -188,6 +191,7 @@ export function RaceView({ settings, onSettings, onExit, career, network }: Prop
     frame = requestAnimationFrame(loop);
 
     const pauseWhenHidden = () => {
+      if (document.hidden) audio.suspend();
       if (network) {
         network.wire.setForeground(!document.hidden);
         return;
@@ -202,6 +206,12 @@ export function RaceView({ settings, onSettings, onExit, career, network }: Prop
     window.addEventListener('focus', focus);
     window.addEventListener('pagehide', blur);
     const noticeTouch = () => setTouchMode(true);
+    // Retry audio unlock from a real gesture when a browser suspended the initial context.
+    const unlockAudio = () => {
+      if (!pausedRef.current && !document.hidden) audio.start();
+    };
+    window.addEventListener('pointerdown', unlockAudio);
+    window.addEventListener('keydown', unlockAudio);
     document.addEventListener('visibilitychange', pauseWhenHidden);
     window.addEventListener('touchstart', noticeTouch, { once: true });
 
@@ -218,6 +228,8 @@ export function RaceView({ settings, onSettings, onExit, career, network }: Prop
       observer.disconnect();
       document.removeEventListener('visibilitychange', pauseWhenHidden);
       window.removeEventListener('touchstart', noticeTouch);
+      window.removeEventListener('pointerdown', unlockAudio);
+      window.removeEventListener('keydown', unlockAudio);
       input.dispose();
       audio.dispose();
       renderer.dispose();
@@ -302,6 +314,13 @@ export function RaceView({ settings, onSettings, onExit, career, network }: Prop
             >
               Ljud: {settings.sound ? 'På' : 'Av'}
             </button>
+            <VolumeControl
+              value={settings.volume}
+              onChange={(volume) => {
+                audioRef.current?.setVolume(volume);
+                onSettings({ ...settingsRef.current, volume });
+              }}
+            />
             <button type='button' onClick={() => (career ? career.onQuit() : onExit('title'))}>
               Avsluta racet
             </button>

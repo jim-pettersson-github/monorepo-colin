@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Race } from '../game/race';
 import { buildCarModel, type CarModel } from './car-model';
+import { DrivingEffects } from './driving-effects';
 import { Particles, skyEnvironment } from './effects';
 import { setRetroLook } from './textures';
 import { buildTrackWorld, type TrackWorld } from './track-world';
@@ -25,7 +26,7 @@ export class RaceRenderer {
   private lookTarget = new THREE.Vector3();
   private retro: boolean;
   private elapsed = 0;
-  private smoke = new Particles({ capacity: 600, opacity: 0.5, gravity: -0.8, growth: 2.4 });
+  private smoke = new Particles({ capacity: 600, opacity: 0.28, gravity: -0.8, growth: 1.7 });
   private sparks = new Particles({ capacity: 240, opacity: 1, gravity: 9, growth: -0.4 });
   private emitPosition = new THREE.Vector3();
   private emitVelocity = new THREE.Vector3();
@@ -37,6 +38,7 @@ export class RaceRenderer {
   private pixelRatio: number;
   private frameAverage = 1 / 60;
   private qualityTimer = 0;
+  private drivingEffects: DrivingEffects;
   mode: CameraMode = 'chase';
 
   constructor(canvas: HTMLCanvasElement, race: Race, retro: boolean) {
@@ -81,6 +83,8 @@ export class RaceRenderer {
       this.world.scene.add(model.group);
       return model;
     });
+    this.drivingEffects = new DrivingEffects(race.racers.length);
+    this.world.scene.add(this.drivingEffects.marks, this.drivingEffects.lights);
     this.world.scene.add(this.smoke.points, this.sparks.points);
     this.cameraYaw = race.player.state.yaw;
   }
@@ -137,6 +141,7 @@ export class RaceRenderer {
     const inside = Math.min(s - tunnel.start, tunnel.end - s);
     this.world.setShade(THREE.MathUtils.smoothstep(inside, -5, 18));
     this.world.update(this.camera, this.elapsed);
+    this.drivingEffects.update(race, this.elapsed, this.world.look.headlights, this.camera);
     this.renderer.render(this.world.scene, this.camera);
   }
 
@@ -158,7 +163,7 @@ export class RaceRenderer {
           if (Math.random() > Math.min(1, (dusty ? 0.6 : (car.slip - 3) / 5) * rate)) continue;
           this.emitPosition.set(car.x - fx * 1.3 - fz * side, car.y + 0.3, car.z - fz * 1.3 + fx * side);
           this.emitVelocity.set(car.vx * 0.12 + (Math.random() - 0.5), 0.5 + Math.random() * 0.6, car.vz * 0.12 + (Math.random() - 0.5));
-          this.smoke.emit(this.emitPosition, this.emitVelocity, dusty ? this.colors.dust : this.colors.smoke, dusty ? 0.9 : 1.2, dusty ? 0.9 : 1.5);
+          this.smoke.emit(this.emitPosition, this.emitVelocity, dusty ? this.colors.dust : this.colors.smoke, 0.65, dusty ? 0.9 : 1.25);
         }
       }
       if ((car.scraping && speed > 6) || car.impact > 3) {
@@ -231,6 +236,7 @@ export class RaceRenderer {
   }
 
   dispose() {
+    this.drivingEffects.dispose();
     for (const model of this.models) model.dispose();
     this.smoke.dispose();
     this.environment.dispose();

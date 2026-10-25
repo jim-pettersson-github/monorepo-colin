@@ -1,6 +1,7 @@
 import type { Settings } from '../game/storage';
 import { FullscreenButton } from './FullscreenButton';
 import { GameUpdate } from './GameUpdate';
+import { VolumeControl } from './VolumeControl';
 
 type Props = { settings: Settings; onChange: (settings: Settings) => void; onClose: () => void };
 
@@ -37,6 +38,7 @@ export function SettingsPanel({ settings, onChange, onClose }: Props) {
           <input type='checkbox' checked={settings.sound} onChange={(event) => onChange({ ...settings, sound: event.target.checked })} />
           <span>Ljud</span>
         </label>
+        <VolumeControl value={settings.volume} onChange={(volume) => onChange({ ...settings, volume })} />
         <h3>Kontroller</h3>
         <dl className='control-list'>
           {controls.map(([action, keys]) => (

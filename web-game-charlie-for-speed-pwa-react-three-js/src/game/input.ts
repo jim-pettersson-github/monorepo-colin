@@ -45,6 +45,7 @@ export class DriverInput {
 
   private keyDown = (event: KeyboardEvent) => {
     if (!gameKeys.has(event.code)) return;
+    if (event.code !== 'Escape' && event.target instanceof HTMLElement && event.target.closest('input, select, textarea, [contenteditable="true"]')) return;
     event.preventDefault();
     if (!event.repeat && keyActions[event.code]) this.onAction(keyActions[event.code]);
     this.keys.add(event.code);

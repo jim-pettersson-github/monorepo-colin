@@ -54,10 +54,10 @@ export function asphaltTexture(edge: string) {
   const size = 128 * k;
   return texture(
     canvas(size, size, (context) => {
-      context.fillStyle = '#4b4d52';
+      context.fillStyle = '#48494b';
       context.fillRect(0, 0, size, size);
-      speckle(context, size, size, ['#45474c', '#505257', '#484a4f', '#55575c'], 9000 * k * k, 11);
-      speckle(context, size, size, ['#3f4146', '#5a5c61'], 500 * k * k, 12, 2);
+      speckle(context, size, size, ['#454648', '#4c4d4f', '#47484a', '#505153'], 9000 * k * k, 11);
+      speckle(context, size, size, ['#414244', '#555658'], 500 * k * k, 12);
       if (k > 1) {
         // Soft patches and rubbered-in tyre lines read as real tarmac up close.
         const random = seeded(19);
@@ -71,11 +71,17 @@ export function asphaltTexture(edge: string) {
           context.fillStyle = patch;
           context.fillRect(x - radius, y - radius, radius * 2, radius * 2);
         }
-        context.fillStyle = 'rgba(18,18,22,0.22)';
-        for (const lane of [0.36, 0.42, 0.58, 0.64]) context.fillRect(lane * size, 0, 0.035 * size, size);
+        for (const lane of [0.36, 0.42, 0.58, 0.64]) {
+          const wear = context.createLinearGradient((lane - 0.03) * size, 0, (lane + 0.03) * size, 0);
+          wear.addColorStop(0, 'rgba(18,18,22,0)');
+          wear.addColorStop(0.5, 'rgba(18,18,22,0.12)');
+          wear.addColorStop(1, 'rgba(18,18,22,0)');
+          context.fillStyle = wear;
+          context.fillRect((lane - 0.03) * size, 0, size * 0.06, size);
+        }
       }
       // Darker racing line worn into the middle of the road.
-      context.fillStyle = 'rgba(20, 20, 24, 0.16)';
+      context.fillStyle = 'rgba(20, 20, 24, 0.07)';
       context.fillRect(40 * k, 0, 48 * k, size);
       context.fillStyle = edge;
       context.fillRect(3 * k, 0, 3 * k, size);
@@ -190,12 +196,13 @@ export function fenceTexture() {
 }
 
 export function checkerTexture() {
+  const cell = isRetro() ? 1 : 16;
   return texture(
-    canvas(16, 4, (context) => {
+    canvas(16 * cell, 4 * cell, (context) => {
       for (let x = 0; x < 16; x++) {
         for (let y = 0; y < 4; y++) {
           context.fillStyle = (x + y) % 2 ? '#111' : '#f4f4f4';
-          context.fillRect(x, y, 1, 1);
+          context.fillRect(x * cell, y * cell, cell, cell);
         }
       }
     }),

@@ -6,7 +6,7 @@ import { type Session, validSession } from './multi-career';
 import type { RaceSettings } from './race';
 import { trackDefs } from './tracks';
 
-export type Settings = RaceSettings & { retro: boolean; sound: boolean; camera: CameraMode };
+export type Settings = RaceSettings & { retro: boolean; sound: boolean; volume: number; camera: CameraMode };
 export type LapRecord = { time: number; carId: string };
 
 const SETTINGS_KEY = 'charlie-for-speed:settings';
@@ -20,6 +20,7 @@ export const defaultSettings: Settings = {
   transmission: 'auto',
   retro: false,
   sound: true,
+  volume: 0.7,
   camera: 'chase',
 };
 
@@ -44,6 +45,8 @@ export function loadSettings(): Settings {
   const settings = read(SETTINGS_KEY, defaultSettings);
   if (!cars.some((car) => car.id === settings.carId)) settings.carId = defaultSettings.carId;
   if (!trackDefs.some((track) => track.id === settings.trackId)) settings.trackId = defaultSettings.trackId;
+  settings.volume =
+    typeof settings.volume === 'number' && Number.isFinite(settings.volume) ? Math.max(0, Math.min(1, settings.volume)) : defaultSettings.volume;
   return settings;
 }
 

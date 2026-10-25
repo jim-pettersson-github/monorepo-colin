@@ -271,7 +271,7 @@ export function App() {
         <RaceView
           network={network}
           settings={{ ...settings, ...network.config.settings }}
-          onSettings={(next) => update({ ...settings, camera: next.camera, sound: next.sound })}
+          onSettings={(next) => update({ ...settings, camera: next.camera, sound: next.sound, volume: next.volume })}
           onExit={() => {
             setNetwork(undefined);
             setScreen('wifi');

@@ -229,7 +229,13 @@ export function buildScenery(scene: THREE.Scene, track: Track, ground: Ground, l
   gantry.add(beam);
   const lamps = [0, 1, 2, 3, 4].map((index) => {
     const lamp = keep(new THREE.MeshBasicMaterial({ color: '#2a0a0a' }));
-    gantry.add(new THREE.Mesh(keep(new THREE.BoxGeometry(0.7, 0.7, 0.7)), lamp).translateY(5.9).translateZ((index - 2) * 1.2));
+    const housing = new THREE.Mesh(keep(new THREE.CylinderGeometry(0.44, 0.44, 0.34, 20)), steel);
+    housing.rotation.z = Math.PI / 2;
+    housing.position.set(0, 5.9, (index - 2) * 1.2);
+    const lens = new THREE.Mesh(keep(new THREE.CylinderGeometry(0.32, 0.32, 0.36, 20)), lamp);
+    lens.rotation.copy(housing.rotation);
+    lens.position.copy(housing.position);
+    gantry.add(housing, lens);
     return lamp;
   });
   const start = path.samples[0];
