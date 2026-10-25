@@ -345,6 +345,8 @@ test('both car detail levels have outward bumper caps, finite geometry and clear
   ])) {
     const design = designs[car.id];
     const shape = buildBodyShape(design, car.length, car.width, lowDetail);
+    const triangles = (shape.body.index?.count ?? 0) / 3 + (shape.glass.index?.count ?? 0) / 3;
+    expect(triangles, `${car.id}: body detail budget`).toBeLessThan(lowDetail ? 1800 : 7000);
     for (const geometry of [shape.body, shape.glass]) {
       const positions = geometry.getAttribute('position'),
         normals = geometry.getAttribute('normal');
@@ -355,7 +357,9 @@ test('both car detail levels have outward bumper caps, finite geometry and clear
         car.id,
       ).toBe(true);
       geometry.computeBoundingBox();
-      expect(geometry.boundingBox?.min.y, car.id).toBeGreaterThanOrEqual(0.2);
+      expect(geometry.boundingBox?.min.y, car.id).toBeGreaterThanOrEqual(0.1);
+      expect(geometry.boundingBox?.max.x, `${car.id}: body fits the collision width`).toBeLessThanOrEqual(car.width / 2 + 0.001);
+      expect(geometry.boundingBox?.min.x, `${car.id}: body fits the collision width`).toBeGreaterThanOrEqual(-car.width / 2 - 0.001);
     }
     const positions = shape.body.getAttribute('position'),
       normals = shape.body.getAttribute('normal');

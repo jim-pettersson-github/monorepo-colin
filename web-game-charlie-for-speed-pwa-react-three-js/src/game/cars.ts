@@ -110,7 +110,7 @@ const definitions: Omit<CarSpec, 'topKmh' | 'zeroTo100' | 'grip' | 'braking' | '
     make: 'Mercedes-Benz',
     model: 'SL600',
     origin: 'Tyskland',
-    blurb: 'En kantig roadster med öppet tak, lång huv och raka sidolinjer.',
+    blurb: 'Kantig roadster med avtagbar hårdtopp, lång huv och raka sidolinjer.',
     color: '#c2c6c9',
     trim: '#41464d',
     length: 4.5,

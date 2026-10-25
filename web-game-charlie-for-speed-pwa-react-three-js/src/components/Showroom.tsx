@@ -107,7 +107,7 @@ export function Showroom({ carId, className = 'showroom' }: { carId: string; cla
     if (!stage) return;
     stage.model?.dispose();
     if (stage.model) stage.turntable.remove(stage.model.group);
-    const model = buildCarModel(carById(carId), true);
+    const model = buildCarModel(carById(carId), false);
     // A parked state at the origin, with the wheels turned slightly for character.
     const parked = { ...placeCar(trackById('vaxjo'), 0, 0), x: 0, y: 0, z: 0, yaw: 0, steer: -0.5 };
     model.update(parked, 1);
