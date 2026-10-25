@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { PeerLink } from '../game/peer-link';
-import { joinRoom, normalizeRoomCode, type Room } from '../game/room-server';
+import { joinRoom, listGames, normalizeRoomCode, type OpenGame, type Room } from '../game/room-server';
 
 // Host: the room code everyone types to join.
 export function RoomCodeCard({ room }: { room: Room }) {
@@ -35,38 +35,97 @@ export function RoomInvite({ room, link, onError }: { room: Room; link: PeerLink
   return null;
 }
 
-// Guest: types the host's room code and waits for a free place.
-export function RoomJoin({ onLink, initialCode = '' }: { onLink: (link: PeerLink, code: string) => void; initialCode?: string }) {
+// Guest: the games people are hosting right now, refreshed every few seconds. Picking one joins it.
+export function GameList({ onPick }: { onPick: (code: string) => void }) {
+  const [games, setGames] = useState<OpenGame[] | null>(null);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    let active = true;
+    const load = () =>
+      listGames().then(
+        (found) => {
+          if (!active) return;
+          setGames(found);
+          setError('');
+        },
+        (e) => active && setError(e instanceof Error ? e.message : 'Listan kunde inte hämtas.'),
+      );
+    void load();
+    const timer = window.setInterval(load, 3000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, []);
+  return (
+    <div className='game-list'>
+      {error && <p role='alert'>{error}</p>}
+      {games === null && !error && <p role='status'>Hämtar öppna spel…</p>}
+      {games?.length === 0 && <p role='status'>Inga öppna spel just nu. Be en kompis bli värd, eller skriv en rumskod.</p>}
+      {!!games?.length && (
+        <ul aria-label='Öppna spel'>
+          {games.map((game) => (
+            <li key={game.code}>
+              <span>
+                <strong>{game.title}</strong>
+                <small>{game.info}</small>
+              </span>
+              <button type='button' className='primary' onClick={() => onPick(game.code)}>
+                Gå med · {game.players}/{game.capacity}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+// Guest: types the host's room code and waits for a free place; a pick from the game list joins straight away.
+export function RoomJoin({
+  onLink,
+  initialCode = '',
+  pick,
+}: {
+  onLink: (link: PeerLink, code: string) => void;
+  initialCode?: string;
+  pick?: { code: string; at: number };
+}) {
   const [code, setCode] = useState(initialCode);
   const [state, setState] = useState<'idle' | 'joining' | 'waiting'>('idle');
   const [error, setError] = useState('');
-  const cancel = useRef(false);
+  // Each attempt has its own number: a new pick, Avbryt or leaving the screen retires the one in progress.
+  const attempt = useRef(0);
   const done = useRef(onLink);
   done.current = onLink;
   useEffect(
     () => () => {
-      cancel.current = true;
+      attempt.current++;
     },
     [],
   );
-  const join = async () => {
-    cancel.current = false;
+  const join = async (value = code) => {
+    const id = ++attempt.current;
+    const cancelled = () => attempt.current !== id;
     setError('');
     setState('joining');
     try {
-      const link = await joinRoom(
-        code,
-        () => cancel.current,
-        () => setState('waiting'),
-      );
-      if (cancel.current) link.close();
-      else done.current(link, code);
+      const link = await joinRoom(value, cancelled, () => !cancelled() && setState('waiting'));
+      if (cancelled()) link.close();
+      else done.current(link, value);
     } catch (e) {
-      if (!cancel.current) setError(e instanceof Error ? e.message : 'Det gick inte att gå med.');
+      if (!cancelled()) setError(e instanceof Error ? e.message : 'Det gick inte att gå med.');
     } finally {
-      if (!cancel.current) setState('idle');
+      if (!cancelled()) setState('idle');
     }
   };
+  const joinRef = useRef(join);
+  joinRef.current = join;
+  useEffect(() => {
+    if (!pick) return;
+    setCode(pick.code);
+    void joinRef.current(pick.code);
+  }, [pick]);
   return (
     <form
       className='room-join'
@@ -96,7 +155,7 @@ export function RoomJoin({ onLink, initialCode = '' }: { onLink: (link: PeerLink
         <button
           type='button'
           onClick={() => {
-            cancel.current = true;
+            attempt.current++;
             setState('idle');
           }}
         >

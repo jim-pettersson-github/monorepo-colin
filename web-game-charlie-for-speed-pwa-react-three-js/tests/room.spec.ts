@@ -113,3 +113,37 @@ test('room code: a network that blocks direct contact gets a clear message and t
     await blockedBrowser.close();
   }
 });
+
+test('game list: a hosted game is listed, a guest joins with one tap and the host can kick them', async ({ browser, baseURL }, info) => {
+  test.skip(info.project.name !== 'desktop', 'Pairing is the same on every layout.');
+  test.setTimeout(90000);
+  if (!baseURL) throw new Error('No preview URL');
+  const host = await device(browser, baseURL, false);
+  const guest = await device(browser, baseURL, true);
+  try {
+    await host.getByRole('button', { name: /^Spela online/ }).click();
+    await host.getByRole('textbox', { name: 'Ditt namn', exact: true }).fill('Listo');
+    await host.getByRole('button', { name: /^Jag är värd/ }).click();
+    await expect(host.getByTestId('room-code')).toHaveText(/^[A-Z0-9]{4}$/);
+
+    await guest.getByRole('button', { name: /^Spela online/ }).click();
+    await guest.getByRole('button', { name: /^Jag går med/ }).click();
+    const listed = guest.getByRole('list', { name: 'Öppna spel' }).getByRole('listitem').filter({ hasText: 'Listos spel' });
+    await expect(listed).toContainText('Växjö Motorring · 3 varv · klass C', { timeout: 10000 });
+    await guest.screenshot({ path: info.outputPath('game-list.png') });
+    await listed.getByRole('button', { name: /^Gå med · 1\/8/ }).click();
+    await expect(guest.getByText('Enheterna är anslutna!')).toBeVisible({ timeout: 30000 });
+
+    await host.screenshot({ path: info.outputPath('host-lobby.png'), fullPage: true });
+    await host.getByRole('button', { name: 'Sparka', exact: true }).click();
+    await expect(guest.getByRole('alert')).toContainText('Värden tog bort dig från spelet.', { timeout: 10000 });
+    await expect(guest.getByRole('heading', { name: 'Öppna spel' })).toBeVisible();
+    await expect(host.getByText(/Spelare 2 – Ansluten/)).toHaveCount(0);
+
+    // Taking the game off the list hides it; the room code still works.
+    await host.getByRole('checkbox', { name: /Visa i listan över öppna spel/ }).uncheck();
+    await expect(listed).toHaveCount(0, { timeout: 10000 });
+  } finally {
+    for (const p of [host, guest]) await p.context().close();
+  }
+});

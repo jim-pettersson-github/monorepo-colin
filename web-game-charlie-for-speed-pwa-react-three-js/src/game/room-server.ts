@@ -66,6 +66,27 @@ export function onlineIce() {
   return ice.servers;
 }
 
+// A hosted game as the open-game list shows it.
+export type OpenGame = { code: string; title: string; info: string; players: number; capacity: number };
+
+const validGame = (value: unknown): value is OpenGame => {
+  const game = value as OpenGame;
+  return (
+    !!game &&
+    typeof game.code === 'string' &&
+    /^[A-Z0-9]{4}$/.test(game.code) &&
+    typeof game.title === 'string' &&
+    typeof game.info === 'string' &&
+    Number.isInteger(game.players) &&
+    Number.isInteger(game.capacity)
+  );
+};
+
+export async function listGames() {
+  const result = await call<{ games?: unknown[] }>('list', undefined, { game: GAME });
+  return Array.isArray(result.games) ? result.games.filter(validGame) : [];
+}
+
 export const normalizeRoomCode = (value: string) => value.toUpperCase().replace(/[^A-Z0-9]/g, '');
 
 export class Room {
@@ -79,6 +100,12 @@ export class Room {
   static async open() {
     const [{ code, host }, servers] = await Promise.all([call<{ code: string; host: string }>('create', { game: GAME }), onlineIce()]);
     return new Room(code, host, servers);
+  }
+
+  // Keeps the room on the open-game list (or takes it off); the server drops rooms that stop announcing.
+  announce(listing: { listed: boolean; title: string; info: string; players: number; capacity: number }) {
+    if (this.closed) return Promise.resolve();
+    return call('announce', { code: this.code, host: this.host, ...listing }).then(() => undefined);
   }
 
   // A host link for the next guest, using the room's STUN and relay servers.

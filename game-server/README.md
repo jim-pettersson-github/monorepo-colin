@@ -21,6 +21,8 @@ Every call is `api.php?a=<action>`. POST bodies are JSON sent as `text/plain`, w
 | `answer` | host | GET `code`, `host`, `id` | `{ answer }` or `{ waiting: true }` |
 | `claim` | guest | `{ code }` | `{ offer, claim, game }` or `{ waiting: true }` |
 | `reply` | guest | `{ code, claim, answer }` | `{ ok }`, or 409 if the claim expired |
+| `announce` | host | `{ code, host, listed, title, info, players, capacity }` | `{ ok }`; a heartbeat every few seconds keeps the game on the list |
+| `list` | anyone | GET `game` | `{ games: [{ code, title, info, players, capacity }] }`: listed, not full, announced in the last 20 seconds |
 | `close` | host | `{ code, host }` | `{ ok }` |
 
 Each room holds one open invitation at a time. A guest's claim reserves it for 30 seconds. Rooms expire 12 hours after their last use.

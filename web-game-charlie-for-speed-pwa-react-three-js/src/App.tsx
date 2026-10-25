@@ -168,6 +168,7 @@ export function App() {
           validStart={validLobbyConfig}
           startLabel='Öppna sessionen'
           playerName={identity.name}
+          listing={(c) => `Online-karriär · ${c.session || 'ny session'} · ${c.mode === 'fresh' ? 'ny start' : 'egna bilar'}`}
           summary={(c) => (
             <p>
               Wi-Fi-karriär: {c.session || 'ny session'} · {c.mode === 'fresh' ? 'Ny start' : 'Egna bilar'}
@@ -212,6 +213,7 @@ export function App() {
           readyKey={(c) => JSON.stringify(c.settings)}
           playerName={identity.name}
           onPlayerName={(name) => changeIdentity({ ...identity, name })}
+          listing={(c) => `${trackById(c.settings.trackId).name} · ${c.settings.laps} varv · klass ${carById(c.settings.carId).carClass}`}
           configure={(c, count, picks, names) => ({
             ...c,
             names: Array.from({ length: count }, (_, player) => (names[player] ?? '').slice(0, 16)),
@@ -241,7 +243,7 @@ export function App() {
                 {c.cars.map((id, player) => (
                   // biome-ignore lint/suspicious/noArrayIndexKey: players are identified by their slot
                   <li key={player}>
-                    Spelare {player + 1}: {carLabel(id)}
+                    {c.names?.[player] || `Spelare ${player + 1}`}: {carLabel(id)}
                   </li>
                 ))}
               </ol>

@@ -9,6 +9,7 @@ const ROOM_TTL = 12 * 3600;
 const CLAIM_TTL = 30;
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const MAX_SIGNAL = 6000;
+const LIST_STALE = 20;
 
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
@@ -48,6 +49,11 @@ function database(): PDO
             updated INTEGER NOT NULL
         )'
     );
+    // Open-game listing, added after the first release; older databases get the columns on first use.
+    $columns = array_column($db->query('PRAGMA table_info(rooms)')->fetchAll(), 'name');
+    foreach (['listed INTEGER NOT NULL DEFAULT 0', 'title TEXT', 'info TEXT', 'players INTEGER NOT NULL DEFAULT 1', 'capacity INTEGER NOT NULL DEFAULT 2', 'seen INTEGER NOT NULL DEFAULT 0'] as $column) {
+        if (!in_array(strtok($column, ' '), $columns, true)) $db->exec("ALTER TABLE rooms ADD COLUMN $column");
+    }
     return $db;
 }
 
@@ -184,6 +190,35 @@ try {
             $update->execute([text($body, 'answer', $signal), $now, $room['code'], $claim, $now - CLAIM_TTL]);
             if ($update->rowCount() !== 1) reply(['error' => 'Inbjudan gick ut. Försök igen.'], 409);
             reply(['ok' => true]);
+
+        // Host heartbeat for the open-game list; a room that stops announcing drops off within LIST_STALE seconds.
+        case 'announce':
+            $body = input();
+            $room = hostRoom($db, $body);
+            $players = (int) ($body['players'] ?? 1);
+            $capacity = (int) ($body['capacity'] ?? 2);
+            if ($players < 1 || $capacity < 2 || $capacity > 8 || $players > $capacity) reply(['error' => 'Ogiltigt antal spelare.'], 400);
+            $db->prepare('UPDATE rooms SET listed = ?, title = ?, info = ?, players = ?, capacity = ?, seen = ?, updated = ? WHERE code = ?')->execute([
+                empty($body['listed']) ? 0 : 1,
+                text($body, 'title', '/^[^ -]{1,40}$/u'),
+                text($body, 'info', '/^[^ -]{0,120}$/u'),
+                $players,
+                $capacity,
+                $now,
+                $now,
+                $room['code'],
+            ]);
+            reply(['ok' => true]);
+
+        case 'list':
+            $game = $_GET['game'] ?? '';
+            if (!is_string($game) || !preg_match('/^[a-z0-9-]{2,32}$/', $game)) reply(['error' => 'Ogiltigt spel.'], 400);
+            $statement = $db->prepare(
+                'SELECT code, title, info, players, capacity FROM rooms
+                 WHERE game = ? AND listed = 1 AND seen > ? AND players < capacity ORDER BY seen DESC LIMIT 30'
+            );
+            $statement->execute([$game, $now - LIST_STALE]);
+            reply(['games' => array_map(fn ($row) => [...$row, 'players' => (int) $row['players'], 'capacity' => (int) $row['capacity']], $statement->fetchAll())]);
 
         case 'close':
             $room = hostRoom($db, input());
