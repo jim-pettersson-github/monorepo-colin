@@ -1,0 +1,13 @@
+# NFS III PC car references
+
+Open [index.html](index.html) to browse the downloaded pictures for all 19 cars in the supplied [PC roster](https://nfs.fandom.com/wiki/Need_for_Speed_III:_Hot_Pursuit/Cars_(PC)).
+
+- `nfs3/`: the 19 racer pictures from the individual car pages' galleries, labelled **Need for Speed III: Hot Pursuit (PC)**.
+- `nfs3/police/`: the three additional PC police variants found in those galleries (Corvette, El Niño and Diablo SV).
+- `sources.json`: car pages, image pages, original image URLs, download URLs, dimensions, file sizes and SHA-256 checksums for every picture.
+- `contact-sheet.jpg`: an overview of the 19 racer pictures.
+- `user-roster.png`: the original screenshot supplied in the chat.
+
+Downloaded on 25 October 2026 using Fandom's public MediaWiki API to select the gallery files and its `images.wikia.com` image host to retrieve them. All 22 downloaded images are 1920 × 1080 pixels. The host returns WebP images, so the local files use `.webp` extensions. No thumbnails, PlayStation pictures or pictures from other NFS games are included.
+
+The images are reference material from EA's Need for Speed III, obtained through the Need for Speed Wiki. They are separate from the game's procedural car models and are not imported into the game or its offline asset cache. Check the linked image pages for their source and rights information.
