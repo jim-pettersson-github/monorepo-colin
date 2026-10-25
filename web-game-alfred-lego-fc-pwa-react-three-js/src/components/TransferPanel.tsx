@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { type ClubId, clubs, getClub } from '../game/clubs';
-import { type Footballer, footballers, playerPrice, startingFive } from '../game/players';
+import { type Footballer, footballers, playerPrice } from '../game/players';
 import { starRoleNames, stars } from '../game/stars';
-import { buyPlayer, type DomesticClub, domesticClub, sellPlayer, squadFor, type TransferSave } from '../game/transfers';
+import { buyPlayer, type DomesticClub, domesticClub, lineupFor, sellPlayer, squadFor, type TransferSave } from '../game/transfers';
+import { LineupPicker } from './LineupPicker';
 import './transfers.css';
 
 const coins = (amount: number) => `${amount.toLocaleString('sv-SE')} mynt`;
@@ -69,7 +70,7 @@ export function TransferPanel({ save, onChange, locked }: { save: TransferSave; 
   }, [deal]);
   const club = save.activeClub;
   const squad = squadFor(save, club);
-  const lineup = startingFive(squad);
+  const lineup = lineupFor(save, club);
   const closed = locked || !!save.pending;
   const selected = footballers.find((p) => p.id === deal?.id);
   const swap = squad.find((p) => p.id === offer);
@@ -175,14 +176,15 @@ export function TransferPanel({ save, onChange, locked }: { save: TransferSave; 
           </a>
         </p>
         <p>
-          Startfemman väljs automatiskt: en målvakt och de fyra andra med högst betyg. Varje trupp behöver minst en målvakt och fyra utespelare. Försäljningar
-          ger 80 % av värdet. Byten använder fullt värde åt båda håll.
+          Välj startfemma själv eller använd automatvalet. En målvakt och fyra utespelare. Gör fria byten i pausmenyn. Varje trupp behöver minst en målvakt och
+          fyra utespelare. Försäljningar ger 80 % av värdet. Byten använder fullt värde åt båda håll.
         </p>
         <p>
           AI gör bara enstaka köp. Nya värvningar är skyddade i tre färdigspelade matcher. AI kan köpa högst en av dina spelare per fem matcher, till minst
           fullt värde. Landslagens trupper är fasta.
         </p>
       </details>
+      <LineupPicker save={save} club={club} onChange={onChange} disabled={closed} />
       <nav className='market-tabs' aria-label='Spelare'>
         <button
           type='button'

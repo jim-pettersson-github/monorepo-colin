@@ -148,6 +148,18 @@ body:has(.match-shell) {
 .player-badge.team-1 {
   color: var(--away);
 }
+.player-badge {
+  max-width: 44%;
+}
+.player-badge small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  letter-spacing: 0;
+  margin-top: 3px;
+}
 .match-controls-hint {
   min-height: 52px;
   padding: 14px 26px;

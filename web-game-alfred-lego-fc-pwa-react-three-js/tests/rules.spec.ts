@@ -31,6 +31,7 @@ import {
   standings,
   validSeason,
 } from '../src/game/league';
+import { applySubstitution, familyFive, pickStarter, validFive } from '../src/game/lineups';
 import { attackDirection, createMatch, ensureMatchRules, FIELD, neutralControls, resetPositions, STEP, screenToWorld, type Team } from '../src/game/model';
 import { nations } from '../src/game/nations';
 import { NetworkSession, validNetworkMatch } from '../src/game/network-session';
@@ -45,11 +46,13 @@ import {
   buyPlayer,
   createTransfers,
   domesticClub,
+  lineupFor,
   loadTransfers,
   migrateTransfers,
   prepareTransferMatch,
   saveTransfers,
   sellPlayer,
+  setLineup,
   settleTransfers,
   squadFor,
   validTransfers,
@@ -1488,6 +1491,107 @@ function requiredTransfer<T>(value: T | undefined): T {
   if (value === undefined) throw new Error('Missing transfer test fixture');
   return value;
 }
+
+test('manual family starters persist through preparation, transfers repair only missing selections, and automatic choices remain optional', () => {
+  let save = createTransfers();
+  const squad = squadFor(save, 'katona');
+  const geza = requiredTransfer(squad.find((p) => p.name === 'Geza Katona'));
+  const jan = requiredTransfer(squad.find((p) => p.name === 'Jan Katona'));
+  expect(lineupFor(save, 'katona')).not.toContain(geza.id);
+  save = setLineup(save, 'katona', familyFive(squad));
+  const five = pickStarter(squad, lineupFor(save, 'katona'), 1, geza.id);
+  if (!five) throw new Error('Missing legal lineup');
+  save = setLineup(save, 'katona', five);
+  expect(lineupFor(save, 'katona')).toContain(geza.id);
+  expect(lineupFor(save, 'katona')[0]).toBe(jan.id);
+  expect(validTransfers(JSON.parse(JSON.stringify(save)))).toBe(true);
+  const prepared = prepareTransferMatch(save, createMatch('solo', 60, 'easy', ['katona', 'petterssons']));
+  expect(prepared.state.lineups?.[0]).toEqual(five);
+  expect(prepared.state.squads?.[0]).toHaveLength(10);
+  expect(validMatch(prepared.state)).toBe(true);
+  expect(setLineup(prepared.save, 'katona', null)).toBe(prepared.save);
+  const before = [...five];
+  save.money.alfred = 100000;
+  save = sellPlayer(save, 'katona', geza.id, 'alfred').save;
+  expect(lineupFor(save, 'katona')).not.toContain(geza.id);
+  for (let i = 0; i < 5; i++) if (before[i] !== geza.id) expect(lineupFor(save, 'katona')[i]).toBe(before[i]);
+  expect(validTransfers(save)).toBe(true);
+  save.money.katona = 100000;
+  const target = requiredTransfer(squadFor(save, 'alfred').find((p) => !p.keeper));
+  const preferred = lineupFor(save, 'katona');
+  save = buyPlayer(save, 'katona', target.id).save;
+  expect(lineupFor(save, 'katona')).toEqual(preferred);
+  expect(setLineup(save, 'katona', null).lineups?.katona).toBeUndefined();
+  expect(setLineup(save, 'katona', [jan.id, jan.id, ...preferred.slice(2)])).toBe(save);
+  expect(pickStarter(squadFor(save, 'katona'), preferred, 1, jan.id)).toBeNull();
+});
+
+test('paused substitutions preserve positions, ball possession and personal cards, and snapshots retain the full bench', () => {
+  const prepared = prepareTransferMatch(createTransfers(), createMatch('versus', 60, 'easy', ['katona', 'petterssons']));
+  const state = prepared.state;
+  const input = fakePeer('host').input;
+  const session = new MatchSession(state, input);
+  const incoming = requiredTransfer(squadFor(prepared.save, 'katona').find((p) => !p.keeper && !state.lineups?.[0].includes(p.id)));
+  const outgoing = state.players[1].athlete;
+  expect(session.substitute(0, 1, incoming.id)).toBe(false);
+  session.pause();
+  state.players[1].yellowCards = 1;
+  const position = { x: state.players[1].x, z: state.players[1].z };
+  state.ball.owner = 1;
+  expect(session.substitute(0, 1, incoming.id)).toBe(true);
+  expect(state.players[1]).toMatchObject({ ...position, athlete: incoming.id, yellowCards: 0 });
+  expect(state.ball.owner).toBe(1);
+  expect(state.bookings?.[outgoing ?? '']).toBe(1);
+  expect(validMatch(JSON.parse(JSON.stringify(state)))).toBe(true);
+  expect(session.substitute(0, 1, outgoing ?? '')).toBe(true);
+  expect(state.players[1].yellowCards).toBe(1);
+  resetPositions(state);
+  expect(state.players[1].athlete).toBe(outgoing);
+  expect(state.players[1].yellowCards).toBe(1);
+  const keeper = requiredTransfer(squadFor(prepared.save, 'katona').find((p) => p.keeper && p.id !== state.lineups?.[0][0]));
+  expect(applySubstitution(state, 0, 1, keeper.id)).not.toBeNull();
+  expect(applySubstitution(state, 0, 0, keeper.id)).toBeNull();
+  state.phase = 'penalty-ready';
+  expect(applySubstitution(state, 0, 1, incoming.id)).not.toBeNull();
+  state.phase = 'playing';
+  state.players[1].fallen = 1;
+  expect(applySubstitution(state, 0, 1, incoming.id)).not.toBeNull();
+  const corrupt = structuredClone(state);
+  corrupt.squads?.[0].push(corrupt.squads[1][0]);
+  expect(validMatch(corrupt)).toBe(false);
+});
+
+test('only legal own-team peer substitutions apply on the host, and guests wait for authoritative snapshots', () => {
+  const save = createTransfers();
+  const state = prepareTransferMatch(save, createMatch('versus', 60)).state;
+  const peer = fakePeer('host');
+  const host = new NetworkSession(state, peer.input, peer.link);
+  const other = fakePeer('guest');
+  const guest = new NetworkSession(structuredClone(state), other.input, other.link);
+  const bench = requiredTransfer(squadFor(save, 'brick').find((p) => !p.keeper && !state.lineups?.[1].includes(p.id)));
+  host.pause();
+  guest.pause();
+  const before = structuredClone(state.lineups);
+  expect(guest.substitute(0, 1, bench.id)).toBe(false);
+  expect(guest.substitute(1, 1, bench.id)).toBe(true);
+  expect(guest.state.lineups).toEqual(before);
+  peer.receive(other.messages.at(-1));
+  expect(host.state.lineups?.[1][1]).toBe(bench.id);
+  for (const message of peer.messages.slice(-2)) other.receive(message);
+  expect(guest.state.lineups).toEqual(host.state.lineups);
+  expect(guest.substitutionPending).toBe(false);
+  const good = structuredClone(host.state);
+  const own = requiredTransfer(squadFor(save, 'alfred').find((p) => !p.keeper && !state.lineups?.[0].includes(p.id)));
+  peer.receive({ kind: 'substitute', athlete: own.id, slot: 1, round: 0 });
+  peer.receive({ kind: 'substitute', athlete: before?.[1][0], slot: 1, round: 0 });
+  peer.receive({ kind: 'substitute', athlete: bench.id, slot: 1, round: -1 });
+  expect(host.state).toEqual(good);
+  expect(validNetworkMatch(host.state)).toBe(true);
+  expect(validFive(host.state.lineups?.[1], squadFor(save, 'brick'))).toBe(true);
+  expect(host.substitute(1, 1, before?.[1][1] ?? '')).toBe(false);
+  host.dispose();
+  guest.dispose();
+});
 
 test('player stats change running, shooting and goalkeeper saves while keeping the same football rules', () => {
   const setup = (attribute: 'pace' | 'shooting' | 'goalkeeping', strong: boolean) => {

@@ -13,6 +13,7 @@ import { GameUpdate } from './GameUpdate';
 import { PitchOverview } from './PitchOverview';
 import { PlaybackSpeedSelect } from './PlaybackSpeedSelect';
 import { SoundSettings, SoundToggle } from './SoundControls';
+import { Substitutions } from './Substitutions';
 import { TouchControls } from './TouchControls';
 
 export function MatchView({
@@ -66,7 +67,11 @@ export function MatchView({
         : state.mode === 'versus' && input.sources[1] === 'touch'
           ? 1
           : null;
-  const cards = [0, 1].map((team) => state.players.filter((player) => player.team === team).reduce((sum, player) => sum + (player.yellowCards || 0), 0));
+  const cards = [0, 1].map(
+    (team) =>
+      state.players.filter((player) => player.team === team).reduce((sum, player) => sum + (player.yellowCards || 0), 0) +
+      (state.squads?.[team].filter((id) => !state.lineups?.[team].includes(id)).reduce((sum, id) => sum + (state.bookings?.[id] ?? 0), 0) ?? 0),
+  );
   return (
     <main className={`match-shell ${touchTeam !== null ? 'touch-active' : ''}`} style={{ '--home': clubs[0].shirt, '--away': clubs[1].shirt } as CSSProperties}>
       <header className='match-header'>
@@ -140,8 +145,14 @@ export function MatchView({
           </div>
         )}
         <div className='player-badges'>
-          <span className='player-badge team-0'>{state.watching ? clubs[0].code : `● P1 · #${(state.selected[0] % 5) + 1}`}</span>
-          <span className='player-badge team-1'>{state.mode === 'solo' ? 'DATOR' : `● P2 · #${(state.selected[1] % 5) + 1}`}</span>
+          <span className='player-badge team-0'>
+            {state.watching ? clubs[0].code : `● P1 · #${(state.selected[0] % 5) + 1}`}
+            <small>{footballer(state.players[state.selected[0]].athlete)?.name}</small>
+          </span>
+          <span className='player-badge team-1'>
+            {state.mode === 'solo' ? 'DATOR' : `● P2 · #${(state.selected[1] % 5) + 1}`}
+            <small>{footballer(state.players[state.selected[1]].athlete)?.name}</small>
+          </span>
         </div>
         {state.phase !== 'penalty' && state.phase !== 'penalty-ready' && <PitchOverview state={state} />}
       </div>
@@ -238,6 +249,7 @@ export function MatchView({
               Fortsätt matchen <span>▶</span>
             </button>
             <SoundSettings />
+            <Substitutions session={session} />
             {state.lineups && (
               <details className='match-lineups'>
                 <summary>Matchens spelare och betyg</summary>

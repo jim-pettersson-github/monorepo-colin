@@ -240,6 +240,8 @@ export function App() {
   if (wifi)
     return (
       <WifiLobby
+        transfers={transfers}
+        onTransfers={updateTransfers}
         input={input}
         fixture={wifiFixture}
         onBack={() => {

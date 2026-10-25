@@ -18,7 +18,9 @@ import type { InputManager } from '../game/input';
 import type { LeagueAction } from '../game/league';
 import { type CupKind, type Difficulty, difficultyNames, type MatchState, type PlaybackSpeed } from '../game/model';
 import { rankingSource } from '../game/nations';
+import type { TransferSave } from '../game/transfers';
 import { ControlSetup, controlsReady } from './ControlSetup';
+import { LineupPicker } from './LineupPicker';
 import { NationalFlag } from './NationalFlag';
 import { PlaybackSpeedSelect } from './PlaybackSpeedSelect';
 import { TeamSelection } from './TeamSelection';
@@ -51,6 +53,8 @@ function Trophy({ masters = false, world = false }: { masters?: boolean; world?:
   );
 }
 interface Props {
+  transfers: TransferSave;
+  onTransfers: (save: TransferSave) => void;
   input: InputManager;
   cups: Record<CupKind, Cup | null>;
   kind: CupKind;
@@ -62,7 +66,7 @@ interface Props {
   simulating: boolean;
   error: string;
 }
-export function CupPanel({ input, cups, kind, onKind, saved, onResume, onCreate, onPlay, simulating, error }: Props) {
+export function CupPanel({ transfers, onTransfers, input, cups, kind, onKind, saved, onResume, onCreate, onPlay, simulating, error }: Props) {
   const cup = cups[kind];
   const [setup, setSetup] = useState(false);
   const [club, setClub] = useState<ClubId>(cup?.club ?? (kind === 'world' ? 'swe' : 'alfred'));
@@ -132,6 +136,7 @@ export function CupPanel({ input, cups, kind, onKind, saved, onResume, onCreate,
             Starta {cupName(kind)}
           </button>
           <TeamSelection selected={pair} mode='solo' single roster={roster} onChange={(_, id) => setClub(id)} />
+          <LineupPicker save={transfers} club={club} onChange={onTransfers} disabled={!!saved || simulating} />
           <div className='match-options'>
             <label>
               Matchlängd
@@ -192,6 +197,10 @@ export function CupPanel({ input, cups, kind, onKind, saved, onResume, onCreate,
           ) : (
             fixture && (
               <section className='cup-next' aria-label='Nästa cupmatch'>
+                <LineupPicker save={transfers} club={cup.club} onChange={onTransfers} disabled={!!saved || simulating} />
+                {action === 'local' && (
+                  <LineupPicker save={transfers} club={cupOpponent(cup, fixture)} onChange={onTransfers} disabled={!!saved || simulating} />
+                )}
                 <span className='eyebrow'>{cupRoundName(cup, fixture.round)}</span>
                 <h2>
                   {getClub(cup.club).name} – {getClub(cupOpponent(cup, fixture)).name}

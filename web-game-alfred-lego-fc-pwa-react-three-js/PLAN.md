@@ -34,6 +34,8 @@
 
 - Persistent transfers and wallets: 200 players (129 modern stars, 52 classics, 19 family players), balanced ten-player squads with two GK/two DEF/three MID/three FWD, era/position filters, estimated prime-year stats and exact requested family ratings. IF Danielsson has a full ten-player Danielsson squad; IFK Katona and Petterssons FC have the other family players. Purchases, sales, swaps, protected new signings and infrequent AI moves respect money and squad minima. Match and trophy rewards are deduplicated; national squads remain fixed and earnings go to a domestic club. Old domestic slots keep IDs, keeper roles and purchased ownership when upgraded.
 
+- Saved manual starting fives per club, family-first and automatic shortcuts, setup selectors across quick/league/cup modes, and guest lineup selection from the host roster. Paused rolling substitutions preserve bench snapshots, positions and personal cards; shared-screen players manage either team and network peers only their own team.
+
 ## Verification
 
 Rules tests cover balanced star allocation, migration of old economies and schedules, promotion/relegation, the full home/away season, standings, instant/watched simulation equivalence, watch speed/pause, result deduplication, backups and invalid schedules, alongside close non-contact slides, late ball wins, three-way referee decisions, difficulty, pitch boundaries, cameras, scoring, penalties, input and save validation.

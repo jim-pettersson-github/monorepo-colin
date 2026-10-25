@@ -1,7 +1,7 @@
 import { defaultClubs, validClub } from './clubs';
 import type { MatchState } from './model';
 import { ensureMatchRules, FALL_DURATION, FIELD, SLIDE_DURATION } from './model';
-import { footballer } from './players';
+import { footballer, footballers } from './players';
 
 const key = 'alfred-fc-match-v1';
 const finite = (value: unknown, limit = 10_000): value is number => typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= limit;
@@ -15,8 +15,35 @@ export function validMatch(value: unknown): value is MatchState {
     s.lineups !== undefined &&
     (!Array.isArray(s.lineups) ||
       s.lineups.length !== 2 ||
-      !s.lineups.every((team) => Array.isArray(team) && team.length === 5 && team.every((id) => !!footballer(id)) && footballer(team[0])?.keeper) ||
+      !s.lineups.every(
+        (team) => Array.isArray(team) && team.length === 5 && team.every((id, slot) => !!footballer(id) && footballer(id)?.keeper === (slot === 0)),
+      ) ||
       new Set(s.lineups.flat()).size !== 10)
+  )
+    return false;
+  if (
+    s.squads !== undefined &&
+    (!Array.isArray(s.squads) ||
+      s.squads.length !== 2 ||
+      !s.lineups ||
+      !s.squads.every(
+        (squad, team) =>
+          Array.isArray(squad) &&
+          squad.length >= 5 &&
+          squad.length <= footballers.length &&
+          squad.every((id) => !!footballer(id)) &&
+          s.lineups?.[team].every((id) => squad.includes(id)),
+      ) ||
+      new Set(s.squads.flat()).size !== s.squads.flat().length)
+  )
+    return false;
+  if (
+    s.bookings !== undefined &&
+    (!s.bookings ||
+      typeof s.bookings !== 'object' ||
+      Array.isArray(s.bookings) ||
+      !s.squads ||
+      !Object.entries(s.bookings).every(([id, cards]) => s.squads?.flat().includes(id) && Number.isInteger(cards) && cards >= 0 && cards <= 1000))
   )
     return false;
   if (s.pitchScale !== FIELD.scale) return false;

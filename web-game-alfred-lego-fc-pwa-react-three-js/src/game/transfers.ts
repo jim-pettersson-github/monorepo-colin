@@ -1,6 +1,7 @@
-import { type ClubId, clubs, getClub, originalClubs } from './clubs';
+import { type ClubId, clubs, getClub, originalClubs, validClub } from './clubs';
+import { preferredFive, validFive } from './lineups';
 import type { MatchState } from './model';
-import { type Footballer, footballer, footballers, playerPrice, startingFive } from './players';
+import { type Footballer, footballer, footballers, playerPrice } from './players';
 
 export type DomesticClub = (typeof clubs)[number]['id'];
 export const domesticClub = (id: unknown): id is DomesticClub => clubs.some((club) => club.id === id);
@@ -18,6 +19,7 @@ export interface TransferSave {
   prizes: string[];
   news: { id: string; message: string }[];
   lastReward: { id: string; club: DomesticClub; game: number; prize: number } | null;
+  lineups?: Partial<Record<ClubId, string[]>>;
 }
 const accounts = (value: number) => Object.fromEntries(clubs.map((club) => [club.id, value])) as Record<DomesticClub, number>;
 export function createTransfers(): TransferSave {
@@ -38,6 +40,15 @@ export function createTransfers(): TransferSave {
 }
 export const squadFor = (save: TransferSave, club: ClubId) =>
   domesticClub(club) ? pool.filter((player) => save.owners[player.id] === club) : footballers.filter((player) => player.origin === club);
+export const lineupFor = (save: TransferSave, club: ClubId) => preferredFive(squadFor(save, club), save.lineups?.[club]);
+export function setLineup(save: TransferSave, club: ClubId, five: string[] | null): TransferSave {
+  if (!validClub(club) || save.pending || (five !== null && !validFive(five, squadFor(save, club)))) return save;
+  const next = structuredClone(save);
+  next.lineups ??= {};
+  if (five) next.lineups[club] = [...five];
+  else delete next.lineups[club];
+  return next;
+}
 const playable = (squad: Footballer[]) => squad.length >= 5 && squad.some((player) => player.keeper) && squad.filter((player) => !player.keeper).length >= 4;
 const notice = (save: TransferSave, message: string) => {
   save.news = [{ id: crypto.randomUUID(), message }, ...save.news].slice(0, 12);
@@ -69,6 +80,7 @@ function movePlayer(save: TransferSave, buyer: DomesticClub, id: string, offerId
   }
   next.money[buyer] -= cost;
   next.money[seller] += cost;
+  for (const club of [buyer, seller]) if (next.lineups?.[club]) next.lineups[club] = lineupFor(next, club);
   notice(
     next,
     offer
@@ -89,14 +101,20 @@ export function sellPlayer(save: TransferSave, seller: DomesticClub, id: string,
   result.save.news[0].message = `${getClub(seller).name} säljer ${player.name} till ${getClub(buyer).name} för ${price} mynt.`;
   return result;
 }
-export function prepareTransferMatch(save: TransferSave, state: MatchState): { save: TransferSave; state: MatchState } {
-  const match = structuredClone(state),
-    next = structuredClone(save);
-  if (!match.career) {
-    match.career = { id: crypto.randomUUID(), club: domesticClub(match.clubs[0]) ? match.clubs[0] : save.activeClub };
-    match.lineups = match.clubs.map((club) => startingFive(squadFor(save, club))) as [string[], string[]];
-    for (const player of match.players) player.athlete = match.lineups[player.team][player.role];
+export function withMatchSquads(save: TransferSave, state: MatchState): MatchState {
+  const match = structuredClone(state);
+  match.lineups ??= match.clubs.map((club) => lineupFor(save, club)) as [string[], string[]];
+  for (const player of match.players) player.athlete = match.lineups[player.team][player.role];
+  if (!match.squads && match.lineups) {
+    const lineups = match.lineups;
+    match.squads = match.clubs.map((club, team) => [...new Set([...squadFor(save, club).map((p) => p.id), ...lineups[team]])]) as [string[], string[]];
   }
+  return match;
+}
+export function prepareTransferMatch(save: TransferSave, state: MatchState): { save: TransferSave; state: MatchState } {
+  const match = withMatchSquads(save, state),
+    next = structuredClone(save);
+  match.career ??= { id: crypto.randomUUID(), club: domesticClub(match.clubs[0]) ? match.clubs[0] : save.activeClub };
   next.activeClub = domesticClub(match.career.club) ? match.career.club : save.activeClub;
   next.pending = match.career.id;
   return { save: next, state: match };
@@ -190,6 +208,14 @@ export function validTransfers(value: unknown): value is TransferSave {
       ![200, 300, 400].includes(s.lastReward.game) ||
       !Number.isSafeInteger(s.lastReward.prize) ||
       s.lastReward.prize < 0)
+  )
+    return false;
+  if (
+    s.lineups !== undefined &&
+    (!s.lineups ||
+      typeof s.lineups !== 'object' ||
+      Array.isArray(s.lineups) ||
+      !Object.entries(s.lineups).every(([club, ids]) => validClub(club) && validFive(ids, squadFor(s, club))))
   )
     return false;
   return clubs.every((club) => playable(squadFor(s, club.id)));

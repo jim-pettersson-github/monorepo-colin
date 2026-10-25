@@ -1,15 +1,19 @@
-import { type ReactNode, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { type ReactNode, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { MatchClubs } from '../game/clubs';
 import { defaultClubs, getClub, validClub } from '../game/clubs';
 import { cupName } from '../game/cups';
 import type { InputManager } from '../game/input';
+import { validFive } from '../game/lineups';
 import type { CupKind, MatchState } from '../game/model';
 import { createMatch } from '../game/model';
 import { validNetworkMatch } from '../game/network-session';
 import { decodeSignal, PeerLink } from '../game/peer-link';
+import { type Footballer, footballer } from '../game/players';
 import { ONLINE_ICE, Room, roomServer } from '../game/room-server';
+import { type TransferSave, withMatchSquads } from '../game/transfers';
 import { ControlSetup } from './ControlSetup';
 import { FullscreenButton } from './FullscreenButton';
+import { FiveEditor, LineupPicker } from './LineupPicker';
 import { QrExchange } from './QrExchange';
 import { RoomCodeCard, RoomInvite, RoomJoin } from './RoomPairing';
 import { SoundToggle } from './SoundControls';
@@ -40,11 +44,15 @@ function QrFallback({ folded, children }: { folded: boolean; children: ReactNode
 }
 
 export function WifiLobby({
+  transfers,
+  onTransfers,
   input,
   fixture = null,
   onBack,
   onLaunch,
 }: {
+  transfers: TransferSave;
+  onTransfers: (save: TransferSave) => void;
   input: InputManager;
   fixture?: MatchState | null;
   onBack: () => void;
@@ -59,6 +67,22 @@ export function WifiLobby({
   const [leagueMatch, setLeagueMatch] = useState(!!fixture?.league);
   const [guestReady, setGuestReady] = useState(false);
   const [ready, setReady] = useState(false);
+  const [guestChoice, setGuestChoice] = useState<{ club: string; five: string[] } | null>(null);
+  const [guestPreview, setGuestPreview] = useState<MatchState | null>(null);
+  const preview = useMemo(() => {
+    const match = withMatchSquads(transfers, fixture ?? createMatch('versus', duration, 'normal', clubs));
+    if (
+      !match.career &&
+      guestChoice?.club === match.clubs[1] &&
+      validFive(guestChoice.five, match.squads?.[1].map(footballer).filter((p): p is Footballer => !!p) ?? [])
+    ) {
+      if (match.lineups) match.lineups[1] = [...guestChoice.five];
+      for (const p of match.players) p.athlete = match.lineups?.[p.team][p.role];
+    }
+    return match;
+  }, [transfers, fixture, duration, clubs, guestChoice]);
+  const previewRef = useRef(preview);
+  previewRef.current = preview;
   const owned = useRef<PeerLink | null>(null);
   const [room, setRoom] = useState<Room | null>(null);
   const [viaRoom, setViaRoom] = useState(false);
@@ -86,6 +110,10 @@ export function WifiLobby({
       if (!message || typeof message !== 'object') return;
       const m = message as Record<string, unknown>;
       if (link.role === 'host' && m.kind === 'lobby-ready' && typeof m.ready === 'boolean') setGuestReady(m.ready);
+      if (link.role === 'host' && m.kind === 'lobby-lineup' && !previewRef.current.career) {
+        const squad = previewRef.current.squads?.[1].map(footballer).filter((p): p is Footballer => !!p) ?? [];
+        if (validFive(m.five, squad)) setGuestChoice({ club: previewRef.current.clubs[1], five: [...m.five] });
+      }
       if (
         link.role === 'guest' &&
         m.kind === 'settings' &&
@@ -99,6 +127,7 @@ export function WifiLobby({
         setDuration(m.duration as number);
         setLeagueMatch(m.league === true);
         setCupMatch(m.cup === 'alfred' || m.cup === 'masters' || m.cup === 'world' ? m.cup : null);
+        if (validNetworkMatch(m.preview)) setGuestPreview(m.preview);
       }
       if (link.role === 'guest' && m.kind === 'start' && m.version === 1 && validNetworkMatch(m.state) && link.status === 'connected') {
         transferred.current = true;
@@ -107,8 +136,9 @@ export function WifiLobby({
     });
   }, [link]);
   useEffect(() => {
-    if (link?.role === 'host' && connected) link.send({ kind: 'settings', clubs, duration, league: !!fixture?.league, cup: fixture?.cup?.kind ?? null });
-  }, [link, connected, clubs, duration, fixture]);
+    if (link?.role === 'host' && connected)
+      link.send({ kind: 'settings', clubs, duration, league: !!fixture?.league, cup: fixture?.cup?.kind ?? null, preview });
+  }, [link, connected, clubs, duration, fixture, preview]);
   useEffect(() => {
     if (link?.role === 'guest' && connected && ready && !available) {
       setReady(false);
@@ -133,6 +163,8 @@ export function WifiLobby({
     setError('');
     setGuestReady(false);
     setReady(false);
+    setGuestChoice(null);
+    setGuestPreview(null);
     setLeagueMatch(!!fixture?.league);
     setCupMatch(fixture?.cup?.kind ?? null);
   };
@@ -309,6 +341,21 @@ export function WifiLobby({
               />
             </QrFallback>
           )}
+          {role === 'host' && <LineupPicker save={transfers} club={clubs[0]} onChange={onTransfers} disabled={!!fixture?.career} />}
+          {role === 'guest' && guestPreview?.squads && guestPreview.lineups && (
+            <details className='lineup-picker'>
+              <summary>Välj startfemma · {getClub(clubs[1]).name}</summary>
+              <p>Välj ur värdens trupp. Din femma används i den här matchen. Under matchen gör du byten i pausmenyn.</p>
+              <FiveEditor
+                squad={guestPreview.squads[1].map(footballer).filter((p): p is Footballer => !!p)}
+                five={guestPreview.lineups[1]}
+                disabled={!!guestPreview.career}
+                onChange={(five) => {
+                  link?.send({ kind: 'lobby-lineup', five });
+                }}
+              />
+            </details>
+          )}
           <ControlSetup
             input={input}
             mode='solo'
@@ -328,7 +375,7 @@ export function WifiLobby({
                     onClick={() => {
                       if (!link) return;
                       transferred.current = true;
-                      onLaunch(link, fixture ? structuredClone(fixture) : createMatch('versus', duration, 'normal', clubs));
+                      onLaunch(link, structuredClone(preview));
                     }}
                   >
                     Starta Wi-Fi-match

@@ -3,6 +3,7 @@ import { expect, test } from '@playwright/test';
 import { createCup, cupName, nextCupFixture } from '../src/game/cups';
 import { createLeagueMatch, createSeason } from '../src/game/league';
 import { createMatch } from '../src/game/model';
+import { createTransfers, lineupFor, squadFor } from '../src/game/transfers';
 
 async function devices(browser: Browser, baseURL: string | undefined, viewport: { width: number; height: number } | null) {
   if (!baseURL || !viewport) throw new Error('Missing preview configuration');
@@ -88,6 +89,45 @@ async function start(host: Page, guest: Page, touch = false) {
 }
 const positions = (page: Page) =>
   page.locator('.overview-player').evaluateAll((nodes) => nodes.map((node) => [Number(node.getAttribute('cx')), Number(node.getAttribute('cy'))]));
+
+test('the guest chooses its starting five from the host roster and both peers see its paused substitution', async ({ browser, baseURL, page }) => {
+  test.setTimeout(60_000);
+  const pair = await devices(browser, baseURL, page.viewportSize());
+  const { host, guest } = pair;
+  try {
+    const save = createTransfers();
+    const squad = squadFor(save, 'brick');
+    const first = squad.find((p) => !p.keeper && !lineupFor(save, 'brick').includes(p.id));
+    if (!first) throw new Error('Missing guest starter');
+    await connect(host, guest);
+    await guest.getByText('Välj startfemma · IFK Göteborg', { exact: true }).click();
+    await guest.getByRole('combobox', { name: 'Startande utespelare 1', exact: true }).selectOption(first.id);
+    await expect(guest.getByRole('combobox', { name: 'Startande utespelare 1', exact: true })).toHaveValue(first.id);
+    await start(host, guest);
+    await guest.getByRole('button', { name: 'Pausa matchen' }).click();
+    for (const p of [host, guest]) await expect(p.getByRole('dialog', { name: 'Vi tar en paus.' })).toBeVisible();
+    for (const p of [host, guest]) {
+      await p.getByText('Matchens spelare och betyg', { exact: true }).click();
+      await expect(p.locator('.match-lineups')).toContainText(first.name);
+    }
+    await guest.getByText('Spelarbyten', { exact: true }).click();
+    const panel = guest.locator('.match-substitutions');
+    await expect(panel.getByRole('combobox', { name: 'Lag för bytet', exact: true })).toHaveCount(0);
+    await panel.getByRole('combobox', { name: 'Spelare ut', exact: true }).selectOption('1');
+    const incomingId = await panel.getByRole('combobox', { name: 'Spelare in', exact: true }).inputValue();
+    const incoming = squad.find((p) => p.id === incomingId);
+    if (!incoming) throw new Error('Missing guest substitute');
+    await panel.getByRole('button', { name: 'Genomför byte', exact: true }).click();
+    await expect(panel.getByRole('status')).toContainText('Bytet är klart');
+    for (const p of [host, guest]) {
+      await expect(p.locator('.match-lineups')).toContainText(incoming.name);
+      await expect(p.locator('.match-lineups')).not.toContainText(first.name);
+    }
+    expect(await guest.evaluate(() => JSON.parse(localStorage.getItem('alfred-fc-match-v1') || '{}'))).toEqual(pair.saved);
+  } finally {
+    await pair.close();
+  }
+});
 
 test('real peers connect through both QR images without HTTP services, control separate teams and preserve local saves', async ({
   browser,

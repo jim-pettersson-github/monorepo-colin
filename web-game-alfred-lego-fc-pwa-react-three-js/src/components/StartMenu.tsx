@@ -20,6 +20,7 @@ import { SoundSettings, SoundToggle } from './SoundControls';
 import { TeamSelection } from './TeamSelection';
 import './start-menu.css';
 import type { TransferSave } from '../game/transfers';
+import { LineupPicker } from './LineupPicker';
 import { TransferPanel } from './TransferPanel';
 
 interface Props {
@@ -136,6 +137,8 @@ export function StartMenu(props: Props) {
         <TransferPanel save={props.transfers} onChange={props.onTransfers} locked={!!saved || simulating} />
       ) : screen === 'cups' ? (
         <CupPanel
+          transfers={props.transfers}
+          onTransfers={props.onTransfers}
           input={input}
           cups={props.cups}
           kind={props.cupKind}
@@ -221,6 +224,10 @@ export function StartMenu(props: Props) {
                 </button>
               </div>
               <LeagueView season={season}>
+                <LineupPicker save={props.transfers} club={season.club} onChange={props.onTransfers} disabled={!!saved || simulating} />
+                {leagueAction === 'local' && next && (
+                  <LineupPicker save={props.transfers} club={opponentClub(season, next)} onChange={props.onTransfers} disabled={!!saved || simulating} />
+                )}
                 {next && (
                   <section className='league-match-choice' aria-label='Hur vill du spela ligamatchen?'>
                     <h2>Välj hur matchen spelas</h2>
@@ -315,6 +322,10 @@ export function StartMenu(props: Props) {
                   </fieldset>
                 )}
                 <TeamSelection key={league ? 'league' : 'quick'} selected={clubs} mode={activeMode} single={league} onChange={onClub} />
+                <LineupPicker save={props.transfers} club={clubs[0]} onChange={props.onTransfers} disabled={!!saved || simulating} />
+                {!league && mode === 'versus' && (
+                  <LineupPicker save={props.transfers} club={clubs[1]} onChange={props.onTransfers} disabled={!!saved || simulating} />
+                )}
                 {league && (
                   <p className='small-copy'>
                     Ditt lag börjar i division {initialDivisions().findIndex((group) => group.includes(clubs[0])) + 1}. Alla lag börjar med balanserade

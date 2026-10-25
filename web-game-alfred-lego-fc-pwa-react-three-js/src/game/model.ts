@@ -54,6 +54,8 @@ export interface Player {
 export interface MatchState {
   career?: { id: string; club: ClubId };
   lineups?: [string[], string[]];
+  squads?: [string[], string[]];
+  bookings?: Record<string, number>;
   cup?: { kind: CupKind; runId: string; fixtureId: number; knockout: boolean; extraTime: boolean; extraElapsed?: number } | null;
   watching: boolean;
   playbackSpeed: PlaybackSpeed;

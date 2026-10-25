@@ -1,4 +1,5 @@
 import type { InputManager } from './input';
+import { applySubstitution } from './lineups';
 import type { Controls, MatchState, PlaybackSpeed, Team } from './model';
 import { neutralControls, STEP } from './model';
 import { stepMatch } from './simulation';
@@ -10,6 +11,8 @@ export class MatchSession {
   paused = false;
   pauseReason = '';
   portrait = false;
+  substitutionNotice = '';
+  substitutionPending = false;
   private accumulator = 0;
   private notificationTime = 0;
   private saveTime = 0;
@@ -39,6 +42,20 @@ export class MatchSession {
   }
   get renderState() {
     return this.state;
+  }
+  canManageTeam(team: Team) {
+    return team === 0 || (this.state.mode === 'versus' && !this.state.watching);
+  }
+  substitute(team: Team, slot: number, id: string) {
+    const error = !this.paused
+      ? 'Pausa matchen före bytet.'
+      : !this.canManageTeam(team)
+        ? 'Du kan bara byta spelare i ditt eget lag.'
+        : applySubstitution(this.state, team, slot, id);
+    this.substitutionNotice = error ?? 'Bytet är klart. Startfemman inför nästa match ändras inte.';
+    if (!error) this.save();
+    this.publish();
+    return error === null;
   }
   setForeground(available: boolean) {
     if (!available) this.pause('Matchen pausades när du lämnade spelet.');

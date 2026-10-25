@@ -1,4 +1,5 @@
 import type { InputManager } from './input';
+import { applySubstitution, substitutionError } from './lineups';
 import type { Controls, MatchState, Team } from './model';
 import { createMatch, neutralControls } from './model';
 import type { PeerLink, PeerRole } from './peer-link';
@@ -58,6 +59,31 @@ export class NetworkSession extends MatchSession {
   override get canResume() {
     return this.link.status === 'connected' && this.localReady && this.remoteReady && !this.stalled;
   }
+  override canManageTeam(team: Team) {
+    return team === this.localTeam;
+  }
+  override substitute(team: Team, slot: number, id: string) {
+    if (this.networkRole === 'host') {
+      const changed = super.substitute(team, slot, id);
+      if (changed) this.snapshot();
+      return changed;
+    }
+    const error = !this.paused
+      ? 'Pausa matchen före bytet.'
+      : !this.canManageTeam(team)
+        ? 'Du kan bara byta spelare i ditt eget lag.'
+        : substitutionError(this.state, team, slot, id);
+    if (error || this.link.status !== 'connected') {
+      this.substitutionNotice = error ?? 'Anslut igen för att göra ett byte.';
+      this.publish();
+      return false;
+    }
+    this.substitutionPending = true;
+    this.substitutionNotice = 'Väntar på att värden bekräftar bytet…';
+    this.link.send({ kind: 'substitute', slot, athlete: id, round: this.round });
+    this.publish();
+    return true;
+  }
   override get renderState() {
     return this.networkRole === 'guest' ? this.display : this.state;
   }
@@ -110,6 +136,8 @@ export class NetworkSession extends MatchSession {
   rematch(prepared?: MatchState) {
     if (this.networkRole !== 'host' || this.state.league || this.state.cup || !this.canResume) return;
     this.round++;
+    this.substitutionNotice = '';
+    this.substitutionPending = false;
     this.state = prepared ?? createMatch('versus', this.state.duration, this.state.difficulty, this.state.clubs);
     this.remote = neutralControls();
     super.resume();
@@ -141,6 +169,19 @@ export class NetworkSession extends MatchSession {
         this.remote = neutralControls();
         this.snapshot();
       } else if (m.kind === 'resume') this.resume();
+      else if (m.kind === 'substitute' && Number.isInteger(m.slot) && typeof m.athlete === 'string' && m.athlete.length < 100) {
+        const error = !this.paused ? 'Matchen måste vara pausad före bytet.' : applySubstitution(this.state, 1, m.slot as number, m.athlete);
+        if (!error) {
+          this.save();
+          this.publish();
+          this.snapshot();
+        }
+        this.link.send({ kind: 'substitution-result', round: this.round, error: error ?? '' });
+      }
+    } else if (m.kind === 'substitution-result' && m.round === this.round && typeof m.error === 'string' && m.error.length <= 200) {
+      this.substitutionPending = false;
+      this.substitutionNotice = m.error || 'Bytet är klart. Startfemman inför nästa match ändras inte.';
+      this.publish();
     } else if (
       m.kind === 'frame' &&
       validNetworkMatch(m.state) &&
@@ -153,6 +194,10 @@ export class NetworkSession extends MatchSession {
     ) {
       const previous = this.display;
       const newRound = m.round !== this.round;
+      if (newRound) {
+        this.substitutionNotice = '';
+        this.substitutionPending = false;
+      }
       this.state = m.state;
       this.display = structuredClone(m.state);
       if (!newRound) {
