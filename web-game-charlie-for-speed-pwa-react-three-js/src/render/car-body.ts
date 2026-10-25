@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { BodyStation, CarDesign, Point } from './car-designs';
+import type { CarDesign } from './car-designs';
 
 export const WHEEL_RADIUS = 0.34;
 export const ARCH_RADIUS = 0.38;
@@ -16,21 +16,14 @@ export type BodyShape = {
   surface: (z: number, across: number) => number;
   flank: (z: number, height: number) => number;
   cabin: (z: number) => { base: number; roof: number; baseWidth: number; roofWidth: number };
+  bumperZ: (x: number, y: number, facing?: number) => number;
+  bodyZ: (x: number, y: number, z: number) => number;
 };
 
-function lineAt(points: Point[], u: number) {
-  for (let i = 1; i < points.length; i++) {
-    const [u0, v0] = points[i - 1],
-      [u1, v1] = points[i];
-    if (u <= u1) return THREE.MathUtils.lerp(v0, v1, THREE.MathUtils.clamp((u - u0) / (u1 - u0), 0, 1));
-  }
-  return points[points.length - 1][1];
-}
-
 // Monotone cubic sections make continuous highlights without overshooting a drawn bonnet or wing.
-function bodyProfile(stations: BodyStation[]) {
+function bodyProfile(stations: readonly (readonly number[])[]) {
   const gradients = stations.map((station, i) =>
-    [1, 2, 3].map((column) => {
+    Array.from({ length: station.length - 1 }, (_, index) => index + 1).map((column) => {
       const before = stations[Math.max(0, i - 1)],
         after = stations[Math.min(stations.length - 1, i + 1)];
       const left = i ? (station[column] - before[column]) / (station[0] - before[0]) : (after[column] - station[column]) / (after[0] - station[0]);
@@ -38,7 +31,7 @@ function bodyProfile(stations: BodyStation[]) {
       return left * right > 0 ? (2 * left * right) / (left + right) : 0;
     }),
   );
-  return (u: number, column: 1 | 2 | 3) => {
+  return (u: number, column: number) => {
     let index = stations.findIndex((station) => station[0] >= u);
     index = Math.max(1, index < 0 ? stations.length - 1 : index);
     const a = stations[index - 1],
@@ -57,10 +50,17 @@ function bodyProfile(stations: BodyStation[]) {
 }
 
 // Rings run from the underbody around the right side, over the roof and back down the left.
-function loft(rings: THREE.Vector3[][], groups?: (station: number, segment: number) => number, capMaterial = 0, caps = true, bevel = 0.012) {
+function loft(
+  rings: THREE.Vector3[][],
+  groups?: (station: number, segment: number) => number,
+  capMaterial = 0,
+  caps = true,
+  capSurface?: (x: number, y: number, facing: number) => number,
+  lowDetail = false,
+) {
   const ringSize = rings[0].length,
     positions: number[] = [],
-    indices: number[][] = [[], []];
+    indices: number[][] = [[], [], []];
   for (const ring of rings) for (const point of ring) positions.push(point.x, point.y, point.z);
   for (let i = 0; i < rings.length - 1; i++)
     for (let j = 0; j < ringSize; j++) {
@@ -75,35 +75,60 @@ function loft(rings: THREE.Vector3[][], groups?: (station: number, segment: numb
     for (const end of [0, rings.length - 1]) {
       const ring = rings[end],
         direction = end === 0 ? -1 : 1;
-      const centreY = (Math.max(...ring.map((p) => p.y)) + Math.min(...ring.map((p) => p.y))) / 2;
-      const inset = ring.map(
-        (point) => new THREE.Vector3(point.x * (bevel ? 0.97 : 1), centreY + (point.y - centreY) * (bevel ? 0.97 : 1), point.z + direction * bevel),
-      );
-      if (bevel) {
-        const inner = positions.length / 3;
-        for (const point of inset) positions.push(point.x, point.y, point.z);
-        for (let j = 0; j < ringSize; j++) {
-          const a = end * ringSize + j,
-            d = end * ringSize + ((j + 1) % ringSize),
-            b = inner + j,
-            c = inner + ((j + 1) % ringSize);
-          indices[capMaterial].push(...(direction > 0 ? [a, d, b, b, d, c] : [a, b, d, b, c, d]));
-        }
+      if (capSurface) {
+        // Triangulate the actual concave outline: prototype bonnets sit below their front wings.
+        const contour = ring.map((point) => new THREE.Vector2(point.x, point.y));
+        const vertices = new Map<string, number>();
+        const key = (x: number, y: number) => `${x.toFixed(6)},${y.toFixed(6)}`;
+        ring.forEach((point, i) => {
+          vertices.set(key(point.x, point.y), end * ringSize + i);
+        });
+        const vertex = (point: THREE.Vector2) => {
+          const id = key(point.x, point.y);
+          let index = vertices.get(id);
+          if (index === undefined) {
+            index = positions.length / 3;
+            positions.push(point.x, point.y, capSurface(point.x, point.y, direction));
+            vertices.set(id, index);
+          }
+          return index;
+        };
+        const triangle = (a: THREE.Vector2, b: THREE.Vector2, c: THREE.Vector2, depth: number) => {
+          if (depth) {
+            const ab = a.clone().lerp(b, 0.5),
+              bc = b.clone().lerp(c, 0.5),
+              ca = c.clone().lerp(a, 0.5);
+            triangle(a, ab, ca, depth - 1);
+            triangle(ab, b, bc, depth - 1);
+            triangle(ca, bc, c, depth - 1);
+            triangle(ab, bc, ca, depth - 1);
+            return;
+          }
+          const positive = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x) > 0;
+          const forward = direction > 0,
+            sameWinding = positive === forward;
+          indices[capMaterial].push(vertex(a), vertex(sameWinding ? b : c), vertex(sameWinding ? c : b));
+        };
+        for (const [a, b, c] of THREE.ShapeUtils.triangulateShape(contour, [])) triangle(contour[a], contour[b], contour[c], lowDetail ? 1 : 2);
+        continue;
       }
       const first = positions.length / 3;
-      for (const point of inset) positions.push(point.x, point.y, point.z);
-      const contour = inset.map((point) => new THREE.Vector2(point.x, point.y));
+      for (const point of ring) positions.push(point.x, point.y, point.z);
+      const contour = ring.map((point) => new THREE.Vector2(point.x, point.y));
       for (const [a, b, c] of THREE.ShapeUtils.triangulateShape(contour, [])) {
-        const normal = (inset[b].x - inset[a].x) * (inset[c].y - inset[a].y) - (inset[b].y - inset[a].y) * (inset[c].x - inset[a].x);
+        const normal = (ring[b].x - ring[a].x) * (ring[c].y - ring[a].y) - (ring[b].y - ring[a].y) * (ring[c].x - ring[a].x);
         const forward = normal > 0 === (end === rings.length - 1);
         indices[capMaterial].push(first + a, first + (forward ? b : c), first + (forward ? c : b));
       }
     }
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geometry.setIndex([...indices[0], ...indices[1]]);
-  geometry.addGroup(0, indices[0].length, 0);
-  geometry.addGroup(indices[0].length, indices[1].length, 1);
+  geometry.setIndex(indices.flat());
+  let start = 0;
+  indices.forEach((group, material) => {
+    if (group.length) geometry.addGroup(start, group.length, material);
+    start += group.length;
+  });
   geometry.computeVertexNormals();
   return geometry;
 }
@@ -130,13 +155,25 @@ export function buildBodyShape(design: CarDesign, length: number, width: number,
   };
   const surface = (z: number, across: number) => {
     const { shoulder, crown } = section(z);
-    const blend =
-      design.section === 'crease' ? THREE.MathUtils.clamp((Math.abs(across) - 0.12) / 0.88, 0, 1) : THREE.MathUtils.smoothstep(Math.abs(across), 0.12, 1);
+    const x = THREE.MathUtils.clamp(Math.abs(across), 0, 1);
+    const blend = design.section === 'crease' ? Math.max(0, (x - 0.12) / 0.88) : 1 - Math.sqrt(1 - x * x);
     return THREE.MathUtils.lerp(crown, shoulder, blend);
   };
+  // Rounded plan corners and rolled upper/lower bumper edges share a surface with the front fittings.
+  const bumperZ = (x: number, y: number, facing = 1) => {
+    const end = section((facing * length) / 2),
+      centreY = (Math.max(end.crown, end.shoulder) + floor) / 2,
+      halfHeight = centreY - floor,
+      radius = design.bumperRound ?? (design.section === 'crease' ? 0.075 : 0.19);
+    const across = THREE.MathUtils.clamp(Math.abs(x) / end.halfWidth, 0, 1),
+      vertical = THREE.MathUtils.clamp(Math.abs((y - centreY) / halfHeight), 0, 1);
+    return facing * (length / 2 - radius * (facing < 0 ? 0.75 : 1) * (across ** 4 + 0.45 * vertical ** 4));
+  };
+  const bodyZ = (x: number, y: number, z: number) =>
+    z + (bumperZ(x, y, Math.sign(z)) - (Math.sign(z) * length) / 2) * THREE.MathUtils.smoothstep(Math.abs(z / length), 0.385, 0.5);
 
   const stations = new Set<number>(design.body.map((station) => station[0] * length));
-  const count = lowDetail ? 14 : 56;
+  const count = lowDetail ? 14 : 46;
   for (let i = 0; i < count; i++) stations.add((-0.5 + i / (count - 1)) * length);
   // Extra samples follow the actual circular wheel openings rather than a coarse jagged cut.
   const archSteps = lowDetail ? 4 : 16;
@@ -155,11 +192,12 @@ export function buildBodyShape(design: CarDesign, length: number, width: number,
           ]
         : [
             [0.72, floor],
-            [0.89, bottom],
-            [0.97, up(0.22)],
+            [0.86, bottom],
+            [0.95, up(0.18)],
+            [0.99, up(0.38)],
             [1, up(0.62)],
-            [0.995, shoulder - 0.023],
-            [0.98, shoulder],
+            [0.992, up(0.84)],
+            [0.97, shoulder],
           ];
     if (lowDetail) {
       side.splice(0, side.length, [0.74, floor], [0.92, bottom], [1, up(0.65)], [0.98, shoulder]);
@@ -187,6 +225,7 @@ export function buildBodyShape(design: CarDesign, length: number, width: number,
       for (const [x, y] of side) ring.push(new THREE.Vector3(x * w, y, z));
       ring.push(new THREE.Vector3(0, crown, z));
       for (const [x, y] of [...side].reverse()) ring.push(new THREE.Vector3(-x * w, y, z));
+      for (const point of ring) point.z = bodyZ(point.x, point.y, point.z);
       return ring;
     });
   const body = loft(
@@ -202,22 +241,23 @@ export function buildBodyShape(design: CarDesign, length: number, width: number,
       : undefined,
     0,
     true,
-    lowDetail ? 0 : 0.012,
+    bumperZ,
+    lowDetail,
   );
 
   const [rearBase, roofRear, roofFront, screenBase] = design.cabin;
-  const cabinLine: Point[] = [rearBase, roofRear, roofFront, screenBase];
+  const cabinProfile = bodyProfile(design.cabin);
   const cabin = (z: number) => {
     const u = z / length,
       { halfWidth: w, crown, shoulder } = section(z),
       base = Math.max(crown, shoulder - 0.045) + 0.008;
     const dome = (design.roofDome ?? 0) * Math.sin(THREE.MathUtils.clamp((u - rearBase[0]) / (screenBase[0] - rearBase[0]), 0, 1) * Math.PI);
-    const roof = Math.max(base + 0.008, lineAt(cabinLine, u) + dome);
+    const roof = Math.max(base + 0.008, cabinProfile(u, 1) + dome);
     const spread =
       u < roofRear[0]
         ? THREE.MathUtils.smoothstep(roofRear[0] - u, 0, roofRear[0] - rearBase[0])
         : THREE.MathUtils.smoothstep(u - roofFront[0], 0, screenBase[0] - roofFront[0]);
-    return { base, roof, baseWidth: w * 0.835, roofWidth: w * THREE.MathUtils.lerp(design.roofWidth, 0.835, spread) };
+    return { base, roof, baseWidth: w * 0.87, roofWidth: w * THREE.MathUtils.lerp(design.roofWidth, 0.87, spread) };
   };
   const glassU = new Set<number>();
   for (let i = 0; i < (lowDetail ? 8 : 30); i++)
@@ -233,9 +273,11 @@ export function buildBodyShape(design: CarDesign, length: number, width: number,
       { base, roof, baseWidth, roofWidth } = cabin(z);
     const side: [number, number][] = [
       [baseWidth, base],
-      [THREE.MathUtils.lerp(baseWidth, roofWidth, 0.35), THREE.MathUtils.lerp(base, roof, 0.55)],
-      [roofWidth, roof - 0.028],
-      [roofWidth * 0.65, roof - 0.003],
+      [THREE.MathUtils.lerp(baseWidth, roofWidth, 0.32), THREE.MathUtils.lerp(base, roof, 0.45)],
+      [roofWidth + 0.012, Math.max(base, roof - 0.085)],
+      [roofWidth, Math.max(base, roof - 0.045)],
+      [roofWidth * 0.72, roof - 0.012],
+      [roofWidth * 0.38, roof - 0.002],
     ];
     const ring = [new THREE.Vector3(0, base - 0.03, z)];
     for (const [x, y] of side) ring.push(new THREE.Vector3(x, y, z));
@@ -248,16 +290,18 @@ export function buildBodyShape(design: CarDesign, length: number, width: number,
     glassRings,
     (station, segment) => {
       const u = (stationU[station] + stationU[station + 1]) / 2;
-      if (segment === 0 || segment === ringSize - 1) return 1;
-      const frame = Math.abs(u - roofFront[0]) < 0.0045 || (!design.openTop && Math.abs(u - roofRear[0]) < 0.0045);
-      if (frame) return 1;
-      if (u >= roofFront[0] || u <= roofRear[0]) return segment === 1 || segment === ringSize - 2 ? 1 : 0;
-      if (segment >= 3 && segment <= 6) return 1;
-      return Math.abs(u - (design.pillar ?? -1)) < 0.0045 ? 1 : 0;
+      if (segment === 0 || segment === ringSize - 1) return 2;
+      const frontFrame = Math.abs(u - roofFront[0]) < 0.0045;
+      if (frontFrame && segment >= 4 && segment <= ringSize - 5) return 2;
+      if (!design.openTop && Math.abs(u - roofRear[0]) < 0.0045) return 2;
+      // A narrow strip follows the sloping A-pillar; side glass continues underneath it.
+      if (u >= roofFront[0]) return segment === 3 || segment === ringSize - 4 ? 2 : 0;
+      if (u <= roofRear[0]) return segment <= 3 || segment >= ringSize - 4 ? (design.softTop ? 1 : 2) : 0;
+      if (segment >= 4 && segment <= ringSize - 5) return 1;
+      return Math.abs(u - (design.pillar ?? -1)) < 0.0045 ? 2 : 0;
     },
-    1,
+    2,
     !design.openTop,
-    0,
   );
-  return { body, glass, section, surface, cabin, flank };
+  return { body, glass, section, surface, cabin, flank, bumperZ, bodyZ };
 }

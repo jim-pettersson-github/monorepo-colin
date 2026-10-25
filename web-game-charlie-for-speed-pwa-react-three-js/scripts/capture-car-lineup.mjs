@@ -13,7 +13,7 @@ import * as THREE from 'three';
 import {RoomEnvironment} from 'three/examples/jsm/environments/RoomEnvironment.js';
 import {buildCarModel} from '/src/render/car-model.ts';
 import {cars,carName} from '/src/game/cars.ts';
-const params=new URLSearchParams(location.search),neutral=params.has('gray'),side=params.has('side'),rear=params.has('rear'),hero=params.get('car');
+const params=new URLSearchParams(location.search),neutral=params.has('gray'),side=params.has('side'),rear=params.has('rear'),hero=params.get('car'),night=params.has('night');
 const roster=hero?cars.filter(car=>car.id===hero):cars;
 const cellWidth=hero?960:480,cellHeight=hero?600:250,columns=hero?1:3;
 const width=columns*cellWidth,height=Math.ceil(roster.length/columns)*cellHeight;
@@ -30,7 +30,7 @@ camera.position.set(...(side?[8,1.9,.01]:rear?[6,2.6,-7]:hero?[5.8,2.5,6.7]:[6,3
 const labels=document.querySelector('#labels');labels.style.gridTemplateColumns='repeat('+columns+','+cellWidth+'px)';labels.style.gridAutoRows=cellHeight+'px';
 renderer.setScissorTest(true);window.carMetrics=[];
 for(const [i,car]of roster.entries()){
- const model=buildCarModel(neutral?{...car,color:'#a4aebe',trim:'#343c49',stripe:undefined}:car,false);scene.add(model.group);
+ const model=buildCarModel(neutral?{...car,color:'#a4aebe',trim:'#343c49',stripe:undefined}:car,night);scene.add(model.group);
  const x=i%columns*cellWidth,y=height-(Math.floor(i/columns)+1)*cellHeight;
  renderer.setViewport(x,y,cellWidth,cellHeight);renderer.setScissor(x,y,cellWidth,cellHeight);
  model.setDistance(100);renderer.render(scene,camera);const distant={...renderer.info.render};
@@ -56,6 +56,7 @@ try {
     ['?gray&side', 'cars-profiles.png'],
     ['', 'cars-colour.png'],
     ['?rear', 'cars-rear.png'],
+    ['?night', 'cars-headlights.png'],
   ]) {
     const suffix = selected ? `${query ? '&' : '?'}car=${encodeURIComponent(selected)}` : '';
     await page.goto(`http://127.0.0.1:${process.env.CFS_DEV_PORT || 4014}/test-results/car-lineup.html${query}${suffix}`);

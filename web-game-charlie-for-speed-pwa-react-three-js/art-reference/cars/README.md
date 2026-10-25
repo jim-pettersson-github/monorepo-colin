@@ -1,5 +1,7 @@
 # NFS III PC car references
 
+The updated models are shown in [model-overview.jpg](model-overview.jpg); [model-notes.md](model-notes.md) records the details used for each car.
+
 Open [index.html](index.html) to browse the downloaded pictures for all 19 cars in the supplied [PC roster](https://nfs.fandom.com/wiki/Need_for_Speed_III:_Hot_Pursuit/Cars_(PC)).
 
 - `nfs3/`: the 19 racer pictures from the individual car pages' galleries, labelled **Need for Speed III: Hot Pursuit (PC)**.

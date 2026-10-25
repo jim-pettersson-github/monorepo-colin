@@ -340,8 +340,34 @@ test('network racing advances the countdown, separates human controls and valida
 
 import { axles, buildBodyShape, WHEEL_RADIUS } from '../src/render/car-body';
 import { designs } from '../src/render/car-designs';
+import { wheelGeometry } from '../src/render/car-wheels';
 
-test('both car detail levels have outward bumper caps, finite geometry and clearance above their tyres', () => {
+test('shared wheels have visible outward tyre surfaces and brake discs behind the spokes', () => {
+  for (const style of new Set(Object.values(designs).map((design) => design.rims ?? 'five'))) {
+    const wheel = wheelGeometry(style);
+    expect(wheelGeometry(style)).toBe(wheel);
+    for (const geometry of Object.values(wheel)) {
+      expect([...geometry.getAttribute('position').array].every(Number.isFinite), style).toBe(true);
+      expect([...geometry.getAttribute('normal').array].every(Number.isFinite), style).toBe(true);
+      geometry.computeBoundingBox();
+    }
+    const positions = wheel.rubber.getAttribute('position'),
+      normals = wheel.rubber.getAttribute('normal');
+    let treadVertices = 0;
+    for (let i = 0; i < positions.count; i++) {
+      const y = positions.getY(i),
+        z = positions.getZ(i);
+      if (Math.hypot(y, z) < WHEEL_RADIUS - 0.001 || Math.abs(positions.getX(i)) > 0.08) continue;
+      expect(y * normals.getY(i) + z * normals.getZ(i), `${style}: tyre tread faces outward`).toBeGreaterThan(0.15);
+      treadVertices++;
+    }
+    expect(treadVertices, style).toBeGreaterThan(32);
+    expect(wheel.brake.boundingBox?.max.x, style).toBeLessThan(0.04);
+    expect(wheel.metal.boundingBox?.max.x, style).toBeGreaterThan(0.1);
+  }
+});
+
+test('both car detail levels have outward curved bumpers, finite geometry and clearance above their tyres', () => {
   for (const { car, lowDetail } of cars.flatMap((car) => [
     { car, lowDetail: false },
     { car, lowDetail: true },
@@ -366,19 +392,56 @@ test('both car detail levels have outward bumper caps, finite geometry and clear
     }
     const positions = shape.body.getAttribute('position'),
       normals = shape.body.getAttribute('normal');
-    let frontCap = 0,
-      rearCap = 0;
-    for (let i = 0; i < positions.count; i++) {
-      if (positions.getZ(i) > car.length * 0.499 && Math.abs(positions.getX(i)) < 0.00001)
-        expect(positions.getY(i), `${car.id}: cap must follow the sunken bonnet`).toBeLessThanOrEqual(shape.section(positions.getZ(i)).crown + 0.013);
-      if (positions.getZ(i) > car.length * 0.499 && normals.getZ(i) > 0.98) frontCap++;
-      if (positions.getZ(i) < -car.length * 0.499 && normals.getZ(i) < -0.98) rearCap++;
+    for (const facing of [-1, 1]) {
+      let capVertices = 0;
+      let mostForwardNormal = 0;
+      for (let i = 0; i < positions.count; i++) {
+        const x = positions.getX(i),
+          y = positions.getY(i),
+          z = positions.getZ(i);
+        if (facing * z < car.length * 0.4 || Math.abs(z - shape.bumperZ(x, y, facing)) > 0.00001) continue;
+        const outward = normals.getZ(i) * facing;
+
+        mostForwardNormal = Math.max(mostForwardNormal, outward);
+        capVertices++;
+      }
+      expect(capVertices, `${car.id}: bumper is closed across its width and height`).toBeGreaterThan(20);
+      expect(mostForwardNormal, car.id).toBeGreaterThan(0.95);
+      const index = shape.body.index;
+      let faces = 0;
+      for (let i = 0; index && i < index.count; i += 3) {
+        const vertices = [index.getX(i), index.getX(i + 1), index.getX(i + 2)];
+        if (
+          !vertices.every(
+            (v) =>
+              facing * positions.getZ(v) > car.length * 0.4 &&
+              Math.abs(positions.getZ(v) - shape.bumperZ(positions.getX(v), positions.getY(v), facing)) < 0.00001,
+          )
+        )
+          continue;
+        const [a, b, c] = vertices;
+        const normalZ =
+          (positions.getX(b) - positions.getX(a)) * (positions.getY(c) - positions.getY(a)) -
+          (positions.getY(b) - positions.getY(a)) * (positions.getX(c) - positions.getX(a));
+        expect(normalZ * facing, `${car.id}: curved cap triangles face outward`).toBeGreaterThanOrEqual(-0.0000001);
+        faces++;
+      }
+      expect(faces, `${car.id}: bumper has a closed surface`).toBeGreaterThan(8);
     }
-    expect(frontCap, car.id).toBeGreaterThan(3);
-    expect(rearCap, car.id).toBeGreaterThan(3);
     const radius = WHEEL_RADIUS * (design.wheelScale ?? 1),
       wheelbase = axles(design, car.length);
     for (const z of [wheelbase.front, wheelbase.rear]) expect(shape.section(z).bottom, car.id).toBeGreaterThan(radius * 2 + 0.03);
+    for (const facing of [-1, 1])
+      for (const across of [0, 0.5, 1]) {
+        let previous = Number.NEGATIVE_INFINITY;
+        for (let step = 0; step <= 30; step++) {
+          const z = facing * car.length * (0.385 + (step * 0.115) / 30),
+            x = across * shape.section(z).halfWidth,
+            projected = facing * shape.bodyZ(x, shape.surface(z, across), z);
+          expect(projected, `${car.id}: bumper curve cannot fold back through the bonnet`).toBeGreaterThanOrEqual(previous - 0.00001);
+          previous = projected;
+        }
+      }
     shape.body.dispose();
     shape.glass.dispose();
   }

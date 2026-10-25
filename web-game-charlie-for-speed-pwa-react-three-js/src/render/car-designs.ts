@@ -1,6 +1,6 @@
 export type Point = readonly [u: number, height: number];
 export type BodyStation = readonly [u: number, halfWidth: number, shoulder: number, centre: number];
-export type RimStyle = 'dial' | 'five' | 'multi' | 'turbine';
+export type RimStyle = 'dial' | 'five' | 'multi' | 'turbine' | 'mesh' | 'split';
 export type Feature =
   | 'airboxes'
   | 'naca'
@@ -24,11 +24,13 @@ export type CarDesign = {
   wheelScale?: number;
   rearTyreWidth?: number;
   rideHeight?: number;
+  bumperRound?: number;
+  softTop?: string;
   face: 'blade' | 'oval' | 'split' | 'wide' | 'endurance' | 'twin';
   axle: number;
   axleShift?: number;
   headlights: 'popup' | 'round' | 'oval' | 'covered' | 'quad' | 'slim' | 'rect';
-  lamps?: { width: number; depth: number; inset: number; spread?: number; projectors?: number };
+  lamps?: { width: number; depth: number; inset: number; spread?: number; projectors?: number; sweep?: number };
   openTop?: boolean;
   fourDoors?: boolean;
   taillights: 'bar' | 'round' | 'quad' | 'slim' | 'grille';
@@ -50,6 +52,7 @@ const corvette: CarDesign = {
   rearTyreWidth: 1.17,
   rideHeight: 0.13,
   headlights: 'popup',
+  lamps: { width: 0.47, depth: 0.34, inset: 0.45, spread: 0.64 },
   face: 'split',
   taillights: 'quad',
   rims: 'five',
@@ -79,10 +82,10 @@ const xk8: CarDesign = {
   roofDome: 0.035,
   pillar: -0.205,
   headlights: 'oval',
-  lamps: { width: 0.43, depth: 0.25, inset: 0.38, spread: 0.67, projectors: 2 },
+  lamps: { width: 0.44, depth: 0.26, inset: 0.33, spread: 0.69, projectors: 2, sweep: 0.28 },
   face: 'oval',
   taillights: 'slim',
-  rims: 'multi',
+  rims: 'five',
   cabin: [
     [-0.405, 0.84],
     [-0.225, 1.29],
@@ -103,9 +106,21 @@ const xk8: CarDesign = {
 
 export const designs: Record<string, CarDesign> = {
   corvette,
-  indy98: { ...corvette, openTop: true, pillar: undefined, features: ['skirts'] },
+  indy98: { ...corvette, openTop: true, pillar: undefined, rims: 'dial', features: ['skirts'] },
   xk8,
-  xkr: { ...xk8, features: ['hoodVents'], face: 'oval', rims: 'five' },
+  xkr: {
+    ...xk8,
+    softTop: '#c4b497',
+    pillar: undefined,
+    features: ['hoodVents'],
+    rims: 'split',
+    cabin: [
+      [-0.32, 0.85],
+      [-0.18, 1.29],
+      [-0.025, 1.27],
+      [0.2, 0.82],
+    ],
+  },
   db7: {
     section: 'round',
     axle: 0.278,
@@ -114,10 +129,10 @@ export const designs: Record<string, CarDesign> = {
     roofDome: 0.027,
     pillar: -0.17,
     headlights: 'oval',
-    lamps: { width: 0.41, depth: 0.28, inset: 0.36, spread: 0.68, projectors: 2 },
+    lamps: { width: 0.39, depth: 0.29, inset: 0.34, spread: 0.7, projectors: 2, sweep: 0.55 },
     face: 'oval',
     taillights: 'bar',
-    rims: 'five',
+    rims: 'multi',
     cabin: [
       [-0.37, 0.84],
       [-0.19, 1.26],
@@ -182,7 +197,7 @@ export const designs: Record<string, CarDesign> = {
     face: 'twin',
     taillights: 'bar',
     wing: 'low',
-    rims: 'multi',
+    rims: 'five',
     features: ['skirts'],
     cabin: [
       [-0.345, 0.96],
@@ -212,7 +227,7 @@ export const designs: Record<string, CarDesign> = {
     lamps: { width: 0.48, depth: 0.19, inset: 0.05, spread: 0.68 },
     face: 'wide',
     taillights: 'bar',
-    rims: 'five',
+    rims: 'dial',
     exhaust: 'left',
     cabin: [
       [-0.31, 0.9],
@@ -236,10 +251,11 @@ export const designs: Record<string, CarDesign> = {
     axle: 0.288,
     axleShift: -0.008,
     roofWidth: 0.68,
-    openTop: true,
+    softTop: '#17191e',
     rearTyreWidth: 1.16,
     rideHeight: 0.12,
     headlights: 'popup',
+    lamps: { width: 0.41, depth: 0.35, inset: 0.43, spread: 0.68 },
     face: 'wide',
     taillights: 'round',
     rims: 'five',
@@ -270,6 +286,7 @@ export const designs: Record<string, CarDesign> = {
     roofDome: 0.027,
     pillar: -0.18,
     headlights: 'popup',
+    lamps: { width: 0.4, depth: 0.31, inset: 0.4, spread: 0.67 },
     face: 'blade',
     taillights: 'round',
     rims: 'five',
@@ -300,7 +317,7 @@ export const designs: Record<string, CarDesign> = {
     pillar: -0.225,
     rearTyreWidth: 1.13,
     headlights: 'covered',
-    lamps: { width: 0.43, depth: 0.34, inset: 0.36, spread: 0.66, projectors: 3 },
+    lamps: { width: 0.46, depth: 0.27, inset: 0.32, spread: 0.68, projectors: 3, sweep: 0.38 },
     face: 'wide',
     taillights: 'round',
     rims: 'five',
@@ -331,6 +348,7 @@ export const designs: Record<string, CarDesign> = {
     rearTyreWidth: 1.25,
     rideHeight: 0.12,
     headlights: 'popup',
+    lamps: { width: 0.48, depth: 0.4, inset: 0.45, spread: 0.66 },
     face: 'blade',
     taillights: 'grille',
     wing: 'v',
@@ -363,11 +381,12 @@ export const designs: Record<string, CarDesign> = {
     rearTyreWidth: 1.25,
     rideHeight: 0.12,
     headlights: 'popup',
+    lamps: { width: 0.46, depth: 0.43, inset: 0.44, spread: 0.67 },
     face: 'split',
     taillights: 'quad',
     wing: 'low',
     wingHeight: 0.23,
-    rims: 'five',
+    rims: 'dial',
     exhaust: 'quad',
     features: ['sideIntakes', 'louvres', 'skirts'],
     cabin: [
@@ -395,8 +414,8 @@ export const designs: Record<string, CarDesign> = {
     roofDome: 0.025,
     rearTyreWidth: 1.13,
     rideHeight: 0.12,
-    headlights: 'covered',
-    lamps: { width: 0.44, depth: 0.37, inset: 0.35, spread: 0.65, projectors: 2 },
+    headlights: 'popup',
+    lamps: { width: 0.38, depth: 0.33, inset: 0.37, spread: 0.7 },
     face: 'split',
     taillights: 'bar',
     rims: 'five',
@@ -427,11 +446,11 @@ export const designs: Record<string, CarDesign> = {
     rearTyreWidth: 1.15,
     rideHeight: 0.12,
     headlights: 'slim',
-    lamps: { width: 0.2, depth: 0.5, inset: 0.42, spread: 0.78, projectors: 2 },
+    lamps: { width: 0.17, depth: 0.5, inset: 0.42, spread: 0.81, projectors: 3 },
     face: 'twin',
     taillights: 'slim',
     wing: 'low',
-    rims: 'dial',
+    rims: 'multi',
     features: ['sideIntakes', 'doubleBubble'],
     cabin: [
       [-0.27, 0.84],
@@ -459,7 +478,7 @@ export const designs: Record<string, CarDesign> = {
     rearTyreWidth: 1.2,
     rideHeight: 0.11,
     headlights: 'covered',
-    lamps: { width: 0.42, depth: 0.46, inset: 0.4, spread: 0.66, projectors: 2 },
+    lamps: { width: 0.24, depth: 0.3, inset: 0.34, spread: 0.76, projectors: 2, sweep: 0.15 },
     face: 'blade',
     taillights: 'round',
     wing: 'low',
@@ -498,7 +517,7 @@ export const designs: Record<string, CarDesign> = {
     taillights: 'bar',
     wing: 'low',
     wingHeight: 0.19,
-    rims: 'multi',
+    rims: 'five',
     exhaust: 'quad',
     features: ['hoodVents', 'skirts'],
     cabin: [
@@ -526,13 +545,13 @@ export const designs: Record<string, CarDesign> = {
     roofDome: 0.025,
     rearTyreWidth: 1.22,
     rideHeight: 0.105,
-    headlights: 'covered',
-    lamps: { width: 0.45, depth: 0.35, inset: 0.34, spread: 0.68, projectors: 2 },
+    headlights: 'quad',
+    lamps: { width: 0.26, depth: 0.3, inset: 0.05, spread: 0.78, projectors: 2 },
     face: 'wide',
     taillights: 'slim',
     wing: 'gt',
     wingHeight: 0.32,
-    rims: 'multi',
+    rims: 'mesh',
     features: ['roofScoop', 'splitter', 'sideIntakes', 'skirts'],
     cabin: [
       [-0.24, 0.82],
@@ -545,10 +564,10 @@ export const designs: Record<string, CarDesign> = {
       [-0.4, 1, 0.83, 0.83],
       [-0.26, 1, 0.85, 0.82],
       [-0.04, 0.93, 0.74, 0.73],
-      [0.18, 0.95, 0.73, 0.59],
-      [0.31, 1, 0.73, 0.5],
-      [0.455, 0.94, 0.5, 0.4],
-      [0.5, 0.84, 0.4, 0.33],
+      [0.18, 0.95, 0.79, 0.72],
+      [0.31, 1, 0.81, 0.7],
+      [0.455, 0.94, 0.7, 0.65],
+      [0.5, 0.84, 0.62, 0.58],
     ],
   },
   elnino: {
@@ -560,11 +579,9 @@ export const designs: Record<string, CarDesign> = {
     rearTyreWidth: 1.2,
     rideHeight: 0.11,
     headlights: 'oval',
-    lamps: { width: 0.39, depth: 0.47, inset: 0.4, spread: 0.68, projectors: 2 },
+    lamps: { width: 0.23, depth: 0.44, inset: 0.37, spread: 0.76, projectors: 2, sweep: 0.2 },
     face: 'oval',
     taillights: 'round',
-    wing: 'low',
-    wingHeight: 0.17,
     rims: 'turbine',
     features: ['sideIntakes'],
     cabin: [
