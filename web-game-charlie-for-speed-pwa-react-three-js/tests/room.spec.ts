@@ -15,14 +15,15 @@ async function device(browser: Browser, url: string, mobile: boolean, server = r
   return page;
 }
 
-async function joinByCode(page: Page, code: string) {
+async function joinByCode(page: Page, code: string, name = '') {
   await page.getByRole('button', { name: /^Spela online/ }).click();
+  if (name) await page.getByRole('textbox', { name: 'Ditt namn', exact: true }).fill(name);
   await page.getByRole('button', { name: /^Jag går med/ }).click();
   await page.getByRole('textbox', { name: 'Rumskod', exact: true }).fill(code.toLowerCase());
   await page.getByRole('button', { name: 'Gå med i rummet', exact: true }).click();
 }
 
-test('room code: three devices join at once and race', async ({ browser, baseURL }, info) => {
+test('room code: three devices join at once, see each other in the lobby and race', async ({ browser, baseURL }, info) => {
   test.skip(info.project.name !== 'desktop', 'Pairing is the same on every layout.');
   test.setTimeout(120000);
   if (!baseURL) throw new Error('No preview URL');
@@ -33,18 +34,30 @@ test('room code: three devices join at once and race', async ({ browser, baseURL
   try {
     await host.getByRole('button', { name: /^Spela online/ }).click();
     await expect(host.getByText('WI-FI ELLER INTERNET · EN ENHET PER SPELARE')).toBeVisible();
+    await host.getByRole('textbox', { name: 'Ditt namn', exact: true }).fill('Charlie');
     await host.getByRole('button', { name: /^Jag är värd/ }).click();
     const code = (await host.getByTestId('room-code').textContent()) ?? '';
     expect(code).toMatch(/^[A-Z0-9]{4}$/);
 
     // Both guests type the code at the same time; the second waits for the next free place.
-    await Promise.all(guests.map((guest) => joinByCode(guest, code)));
+    await Promise.all(guests.map((guest, index) => joinByCode(guest, code, ['Alva', 'Cleo'][index])));
     for (const guest of guests) {
       await expect(guest.getByText('Enheterna är anslutna!')).toBeVisible({ timeout: 30000 });
       await guest.getByRole('button', { name: 'Jag är redo', exact: true }).click();
     }
-    await expect(host.getByText(/Spelare 3 – Ansluten · Redo/)).toBeVisible();
+    await expect(host.getByText(/Spelare 3 \((Alva|Cleo)\) – Ansluten · Redo/)).toBeVisible();
     await expect(host.getByText(/Spelare 4 – Väntar på att någon skriver rumskoden/)).toBeVisible();
+
+    // Everyone sees the same lobby, with names and who is ready.
+    const lobby = guests[0].getByRole('list', { name: 'Spelare i rummet' });
+    await expect(lobby.getByRole('listitem')).toHaveCount(3);
+    await expect(lobby).toContainText('Charlie – värd');
+    await expect(lobby).toContainText('Alva (du) – Redo ✓');
+    await expect(lobby).toContainText('Cleo – Redo ✓');
+
+    // Closing the open place keeps everyone's Redo, so the race can still start.
+    await host.getByRole('button', { name: 'Avbryt inbjudan', exact: true }).click();
+    await expect(host.getByRole('button', { name: 'Starta Wi-Fi-tävling', exact: true })).toBeEnabled();
 
     await host.getByRole('button', { name: 'Starta Wi-Fi-tävling', exact: true }).click();
     for (const p of [host, ...guests]) await expect(p.locator('.race-canvas')).toHaveAttribute('data-rendered', 'true');
@@ -70,5 +83,33 @@ test('room code: a wrong code says so, and a missing server falls back to QR', a
     await expect(offline.locator('.connection-qr')).toBeVisible();
   } finally {
     for (const p of [guest, offline]) await p.context().close();
+  }
+});
+
+test('room code: a network that blocks direct contact gets a clear message and the room reopens', async ({ browser, playwright, baseURL }, info) => {
+  test.skip(info.project.name !== 'desktop', 'Pairing is the same on every layout.');
+  test.setTimeout(150000);
+  if (!baseURL) throw new Error('No preview URL');
+  // Without UDP and without a relay, the two browsers cannot reach each other, as on strict mobile networks.
+  const blockedBrowser = await playwright.chromium.launch({ args: ['--force-webrtc-ip-handling-policy=disable_non_proxied_udp'] });
+  const host = await device(browser, baseURL, false);
+  const blocked = await device(blockedBrowser, baseURL, true);
+  const guest = await device(browser, baseURL, true);
+  try {
+    await host.getByRole('button', { name: /^Spela online/ }).click();
+    await host.getByRole('button', { name: /^Jag är värd/ }).click();
+    const code = (await host.getByTestId('room-code').textContent()) ?? '';
+
+    await joinByCode(blocked, code);
+    await expect(blocked.getByRole('alert')).toContainText('Enheterna fick ingen kontakt via internet', { timeout: 60000 });
+    await expect(blocked.getByRole('textbox', { name: 'Rumskod', exact: true })).toHaveValue(code);
+    await expect(host.getByText(/Rummet är öppet igen/)).toBeVisible({ timeout: 60000 });
+
+    await joinByCode(guest, code);
+    await expect(guest.getByText('Enheterna är anslutna!')).toBeVisible({ timeout: 30000 });
+    await expect(host.getByText(/Spelare 2 – Ansluten/)).toBeVisible();
+  } finally {
+    for (const p of [host, blocked, guest]) await p.context().close();
+    await blockedBrowser.close();
   }
 });

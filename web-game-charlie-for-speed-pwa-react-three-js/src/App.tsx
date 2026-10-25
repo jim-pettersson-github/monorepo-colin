@@ -3,13 +3,15 @@ import { CareerHub } from './components/CareerHub';
 import { Garage } from './components/Garage';
 import { RaceView } from './components/RaceView';
 import { SettingsPanel } from './components/SettingsPanel';
+import { Showroom } from './components/Showroom';
 import { TitleScreen } from './components/TitleScreen';
+import { TrackMap } from './components/TrackMap';
 import { TrackSelect } from './components/TrackSelect';
 import { WifiCareerRun, WifiCareerStart } from './components/WifiCareer';
 import { WifiLobby } from './components/WifiLobby';
 import { type Career, cupById, cupField, currentTrack, recordRace } from './game/career';
 import { type CareerLobbyConfig, CareerSession, validLobbyConfig } from './game/career-session';
-import { carName, cars } from './game/cars';
+import { type CarClass, carById, carName, cars } from './game/cars';
 import { newSession, type Session } from './game/multi-career';
 import { MAX_PLAYERS, NetworkRace, type RaceConfig, validRaceConfig } from './game/network-race';
 import {
@@ -35,18 +37,34 @@ function defaultGuestCar(hostCar: string, player: number) {
 
 const carLabel = (id: string) => carName(cars.find((car) => car.id === id) ?? cars[0]);
 
-function CarSelect({ label, value, onChange }: { label: string; value: string; onChange: (id: string) => void }) {
+function CarSelect({ label, value, onChange, carClass }: { label: string; value: string; onChange: (id: string) => void; carClass?: CarClass }) {
   return (
     <label>
       {label}
       <select aria-label={label} value={value} onChange={(e) => onChange(e.target.value)}>
-        {cars.map((c) => (
-          <option key={c.id} value={c.id}>
-            {carName(c)} · klass {c.carClass}
-          </option>
-        ))}
+        {cars
+          .filter((c) => !carClass || c.carClass === carClass)
+          .map((c) => (
+            <option key={c.id} value={c.id}>
+              {carName(c)} · klass {c.carClass}
+            </option>
+          ))}
       </select>
     </label>
+  );
+}
+
+// The chosen car turning in a small showroom beside the track map, so online players see what they are about to race.
+function RacePreview({ carId, trackId }: { carId: string; trackId: string }) {
+  const track = trackById(trackId);
+  return (
+    <div className='lobby-preview'>
+      <Showroom carId={carId} className='lobby-showroom' />
+      <figure className='lobby-track'>
+        <TrackMap track={track} size={150} />
+        <figcaption>{track.name}</figcaption>
+      </figure>
+    </div>
   );
 }
 
@@ -149,6 +167,7 @@ export function App() {
           validConfig={validLobbyConfig}
           validStart={validLobbyConfig}
           startLabel='Öppna sessionen'
+          playerName={identity.name}
           summary={(c) => (
             <p>
               Wi-Fi-karriär: {c.session || 'ny session'} · {c.mode === 'fresh' ? 'Ny start' : 'Egna bilar'}
@@ -191,15 +210,25 @@ export function App() {
           maxPlayers={MAX_PLAYERS}
           config={wifiConfig}
           readyKey={(c) => JSON.stringify(c.settings)}
-          configure={(c, count, picks) => ({
+          playerName={identity.name}
+          onPlayerName={(name) => changeIdentity({ ...identity, name })}
+          configure={(c, count, picks, names) => ({
             ...c,
+            names: Array.from({ length: count }, (_, player) => (names[player] ?? '').slice(0, 16)),
             cars: Array.from({ length: count }, (_, player) => {
               if (player === 0) return c.settings.carId;
-              const pick = picks[player];
-              return cars.some((car) => car.id === pick) ? pick : defaultGuestCar(c.settings.carId, player);
+              // Guests race in the host's class; a pick from another class falls back to a car of the right one.
+              const pick = cars.find((car) => car.id === picks[player]);
+              return pick && pick.carClass === carById(c.settings.carId).carClass ? pick.id : defaultGuestCar(c.settings.carId, player);
             }),
           })}
-          guestPick={(c, slot, pick) => <CarSelect label='Din bil' value={c.cars[slot] ?? c.cars[0]} onChange={pick} />}
+          guestPick={(c, slot, pick) => (
+            <>
+              <CarSelect label='Din bil' value={c.cars[slot] ?? c.cars[0]} onChange={pick} carClass={carById(c.settings.carId).carClass} />
+              <p className='hint'>Värden kör klass {carById(c.settings.carId).carClass}, så du väljer bland bilarna i den klassen.</p>
+              <RacePreview carId={c.cars[slot] ?? c.cars[0]} trackId={c.settings.trackId} />
+            </>
+          )}
           validConfig={validRaceConfig}
           validStart={validRaceConfig}
           summary={(c) => (
@@ -254,7 +283,11 @@ export function App() {
                 value={wifiConfig.settings.carId}
                 onChange={(carId) => setWifiConfig({ ...wifiConfig, settings: { ...wifiConfig.settings, carId } })}
               />
-              <p className='hint'>Gästerna väljer sina bilar på sina egna enheter.</p>
+              <p className='hint'>
+                Klass {carById(wifiConfig.settings.carId).carClass}: gästerna väljer bilar i samma klass på sina egna enheter. Bilarna är jämnade inom klassen
+                online.
+              </p>
+              <RacePreview carId={wifiConfig.settings.carId} trackId={wifiConfig.settings.trackId} />
             </>
           }
           onBack={() => setScreen('title')}
@@ -305,7 +338,15 @@ export function App() {
           }}
         />
       )}
-      {settingsOpen && <SettingsPanel settings={settings} onChange={update} onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && (
+        <SettingsPanel
+          settings={settings}
+          onChange={update}
+          name={identity.name}
+          onName={(name) => changeIdentity({ ...identity, name })}
+          onClose={() => setSettingsOpen(false)}
+        />
+      )}
     </>
   );
 }

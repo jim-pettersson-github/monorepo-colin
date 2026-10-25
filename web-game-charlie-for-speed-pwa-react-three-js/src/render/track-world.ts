@@ -14,7 +14,6 @@ import {
   curbTexture,
   glowTexture,
   grassTexture,
-  isRetro,
   mowedGrassTexture,
   pavingTexture,
   ridgeTexture,
@@ -419,7 +418,7 @@ export function buildTrackWorld(track: Track): TrackWorld {
   const ground = buildGround(track, look);
   // Neutral speckle: vertex colours carry the hue, so fields and paving share one texture.
   const speckle = keep(grassTexture('#8a8a8a', ['#808080', '#949494', '#7a7a7a', '#9a9a9a'], 9));
-  const terrainMaterial = keep(new THREE.MeshLambertMaterial({ map: speckle, vertexColors: true, flatShading: isRetro() }));
+  const terrainMaterial = keep(new THREE.MeshLambertMaterial({ map: speckle, vertexColors: true }));
   scene.add(new THREE.Mesh(keep(ground.geometry), terrainMaterial));
 
   const city = track.setting === 'city';
@@ -435,9 +434,7 @@ export function buildTrackWorld(track: Track): TrackWorld {
   scene.add(new THREE.Mesh(keep(ribbon(path, -halfWidth + 0.2, -wall - 3, shoulderOptions)), shoulderMaterial));
 
   const asphalt = keep(asphaltTexture(look.lineColor));
-  const roadMaterial = keep(
-    isRetro() ? new THREE.MeshLambertMaterial({ map: asphalt }) : new THREE.MeshStandardMaterial({ map: asphalt, roughness: 0.91, metalness: 0.025 }),
-  );
+  const roadMaterial = keep(new THREE.MeshStandardMaterial({ map: asphalt, roughness: 0.91, metalness: 0.025 }));
   scene.add(new THREE.Mesh(keep(ribbon(path, -halfWidth, halfWidth, { lift: 0.02, vLength: halfWidth * 2 })), roadMaterial));
 
   const curbMaterial = keep(new THREE.MeshLambertMaterial({ map: keep(curbTexture()) }));
@@ -454,7 +451,7 @@ export function buildTrackWorld(track: Track): TrackWorld {
 
   const { lake } = track;
   if (lake) {
-    const waterMaterial = keep(new THREE.MeshPhongMaterial({ color: look.water, shininess: 90, specular: '#ffd7a8', flatShading: isRetro() }));
+    const waterMaterial = keep(new THREE.MeshPhongMaterial({ color: look.water, shininess: 90, specular: '#ffd7a8' }));
     const water = new THREE.Mesh(keep(new THREE.CircleGeometry(1, 40)), waterMaterial);
     water.rotation.x = -Math.PI / 2;
     water.scale.set(lake.rx * 1.3, lake.rz * 1.3, 1);

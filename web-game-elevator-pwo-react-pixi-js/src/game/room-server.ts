@@ -14,6 +14,7 @@ export function roomServer() {
 
 // STUN lets devices on different networks find each other's public address. Strict mobile networks may still need a relay.
 export const ONLINE_ICE: RTCIceServer[] = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] }];
+export const ONLINE_TIMEOUT = 30_000;
 
 const GAME = 'colin-elevator';
 const POLL_MS = 1500;
@@ -49,6 +50,22 @@ async function call<T>(action: string, body?: unknown, query: Record<string, str
   return value;
 }
 
+// The server adds a TURN relay when it has one, for networks that block direct contact; credentials last a day.
+let ice: { servers: Promise<RTCIceServer[]>; fetched: number } | undefined;
+export function onlineIce() {
+  if (!ice || Date.now() - ice.fetched > 3_600_000) {
+    const servers = call<{ iceServers?: RTCIceServer[] }>('ice').then(
+      (result) => (Array.isArray(result.iceServers) && result.iceServers.length ? result.iceServers : ONLINE_ICE),
+      () => {
+        ice = undefined;
+        return ONLINE_ICE;
+      },
+    );
+    ice = { servers, fetched: Date.now() };
+  }
+  return ice.servers;
+}
+
 export const normalizeRoomCode = (value: string) => value.toUpperCase().replace(/[^A-Z0-9]/g, '');
 
 export class Room {
@@ -56,11 +73,17 @@ export class Room {
   private constructor(
     readonly code: string,
     private readonly host: string,
+    readonly ice: RTCIceServer[],
   ) {}
 
   static async open() {
-    const { code, host } = await call<{ code: string; host: string }>('create', { game: GAME });
-    return new Room(code, host);
+    const [{ code, host }, servers] = await Promise.all([call<{ code: string; host: string }>('create', { game: GAME }), onlineIce()]);
+    return new Room(code, host, servers);
+  }
+
+  // A host link for the next guest, using the room's STUN and relay servers.
+  link() {
+    return new PeerLink('host', this.ice, ONLINE_TIMEOUT);
   }
 
   // Publishes one host link's offer and resolves once a guest has answered it.
@@ -93,7 +116,7 @@ export async function joinRoom(code: string, cancelled: () => boolean, onWaiting
     }
     const signal = await decodeSignal(claim.offer);
     if (signal.type !== 'offer') throw new Error('Rummet har ingen giltig inbjudan.');
-    const link = new PeerLink('guest', ONLINE_ICE);
+    const link = new PeerLink('guest', await onlineIce(), ONLINE_TIMEOUT);
     try {
       await link.createAnswer(claim.offer);
       if (cancelled()) throw new Error('Avbrutet.');

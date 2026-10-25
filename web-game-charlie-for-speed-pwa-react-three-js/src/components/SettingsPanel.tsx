@@ -3,7 +3,14 @@ import { FullscreenButton } from './FullscreenButton';
 import { GameUpdate } from './GameUpdate';
 import { VolumeControl } from './VolumeControl';
 
-type Props = { settings: Settings; onChange: (settings: Settings) => void; onClose: () => void };
+type Props = {
+  settings: Settings;
+  onChange: (settings: Settings) => void;
+  // The player's name in online lobbies, on the standings and above the car; shared with the Wi-Fi career.
+  name: string;
+  onName: (name: string) => void;
+  onClose: () => void;
+};
 
 const controls = [
   ['Gas / broms', 'Pil upp/ner eller W/S'],
@@ -16,7 +23,7 @@ const controls = [
   ['Ljud av/på', 'M'],
 ];
 
-export function SettingsPanel({ settings, onChange, onClose }: Props) {
+export function SettingsPanel({ settings, onChange, name, onName, onClose }: Props) {
   return (
     <div className='side-panel-backdrop'>
       <button type='button' className='backdrop-close' aria-label='Stäng inställningar' tabIndex={-1} onClick={onClose} />
@@ -27,12 +34,15 @@ export function SettingsPanel({ settings, onChange, onClose }: Props) {
             ✕
           </button>
         </header>
-        <label className='toggle'>
-          <input type='checkbox' checked={settings.retro} onChange={(event) => onChange({ ...settings, retro: event.target.checked })} />
-          <span>
-            Retrostil
-            <small>90-talsgrafik: låg upplösning, kantiga pixlar och platt skuggning.</small>
-          </span>
+        <label className='settings-name'>
+          Ditt namn
+          <input
+            value={name}
+            maxLength={16}
+            autoComplete='nickname'
+            placeholder='Visas för de du kör mot online'
+            onChange={(event) => onName(event.target.value)}
+          />
         </label>
         <label className='toggle'>
           <input type='checkbox' checked={settings.sound} onChange={(event) => onChange({ ...settings, sound: event.target.checked })} />

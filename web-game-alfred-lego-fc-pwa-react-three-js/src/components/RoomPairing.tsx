@@ -36,8 +36,8 @@ export function RoomInvite({ room, link, onError }: { room: Room; link: PeerLink
 }
 
 // Guest: types the host's room code and waits for a free place.
-export function RoomJoin({ onLink }: { onLink: (link: PeerLink) => void }) {
-  const [code, setCode] = useState('');
+export function RoomJoin({ onLink, initialCode = '' }: { onLink: (link: PeerLink, code: string) => void; initialCode?: string }) {
+  const [code, setCode] = useState(initialCode);
   const [state, setState] = useState<'idle' | 'joining' | 'waiting'>('idle');
   const [error, setError] = useState('');
   const cancel = useRef(false);
@@ -60,7 +60,7 @@ export function RoomJoin({ onLink }: { onLink: (link: PeerLink) => void }) {
         () => setState('waiting'),
       );
       if (cancel.current) link.close();
-      else done.current(link);
+      else done.current(link, code);
     } catch (e) {
       if (!cancel.current) setError(e instanceof Error ? e.message : 'Det gick inte att gå med.');
     } finally {

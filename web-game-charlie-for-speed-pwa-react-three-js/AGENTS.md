@@ -8,7 +8,7 @@ React, TypeScript, Three.js, Vite and vite-plugin-pwa. React owns menus and the 
 
 ## Direction
 
-An original arcade racer inspired by late-1990s supercar racing games in feel and layout, without recreating any specific game, drawn with modern graphics: smooth cars with clear-coated paint, tone mapping, shadows and reflections, bold colors, chunky HUD, chase camera. Retro mode keeps a late-90s look. Cars are fictional lookalikes of real 80s/90s supercars; never use real brand names or logos. Shapes live in src/render/car-designs.ts.
+An original arcade racer inspired by late-1990s supercar racing games in feel and layout, without recreating any specific game, drawn with modern graphics: smooth cars with clear-coated paint, tone mapping, shadows and reflections, bold colors, chunky HUD, chase camera. Cars are fictional lookalikes of real 80s/90s supercars; never use real brand names or logos. Shapes live in src/render/car-designs.ts.
 
 ## Language and layout
 

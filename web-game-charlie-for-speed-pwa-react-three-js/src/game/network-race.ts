@@ -1,4 +1,4 @@
-import { applyUpgrades, carById, cars } from './cars';
+import { applyUpgrades, arcadeSpec, carById, cars } from './cars';
 import { GRID, HUMAN_SLOTS, validUpgrades, type WireEntrant } from './multi-career';
 import { type Connection, NetworkPlay } from './network-play';
 import { type CarState, type Controls, shift } from './physics';
@@ -14,6 +14,15 @@ export interface RaceConfig {
   seed: number;
   // Wi-Fi career races send the whole grid: tuned cars, AI names and which player drives each place.
   entrants?: WireEntrant[];
+  // Quick races: the lobby names, by player.
+  names?: string[];
+}
+
+function validNames(config: RaceConfig) {
+  const { names } = config;
+  return (
+    names === undefined || (Array.isArray(names) && names.length <= config.cars.length && names.every((name) => typeof name === 'string' && name.length <= 16))
+  );
 }
 
 function validEntrants(config: RaceConfig) {
@@ -61,6 +70,9 @@ export function validRaceConfig(value: unknown): value is RaceConfig {
     c.cars.every((id) => cars.some((car) => car.id === id)) &&
     c.cars[0] === s.carId &&
     validEntrants(c) &&
+    validNames(c) &&
+    // Everyone races in the host's class.
+    c.cars.every((id) => carById(id).carClass === carById(s.carId).carClass) &&
     [1, 2, 3, 5].includes(s.laps) &&
     ['easy', 'normal', 'hard'].includes(s.difficulty) &&
     ['auto', 'manual'].includes(s.transmission) &&
@@ -82,12 +94,18 @@ export function createNetworkRace(config: RaceConfig, slot = 0) {
     return race;
   }
   const race = createRace({ ...config.settings }, config.seed);
+  const taken = new Set(race.racers.filter((_, slot) => !HUMAN_SLOTS.slice(0, config.cars.length).includes(slot)).map((racer) => racer.driverName));
   config.cars.forEach((carId, player) => {
     const racer = race.racers[HUMAN_SLOTS[player]];
     racer.isPlayer = true;
-    racer.driverName = `Spelare ${player + 1}`;
+    // Results and tags tell drivers apart by name, so a name already on the grid gets the player number.
+    const wanted = config.names?.[player]?.trim() || `Spelare ${player + 1}`;
+    racer.driverName = taken.has(wanted) ? `${wanted.slice(0, 13)} ${player + 1}` : wanted;
+    taken.add(racer.driverName);
     racer.spec = cars.find((car) => car.id === carId) ?? cars[0];
   });
+  // Quick online races are arcade-balanced, so every car in the class has a fair chance; the AI field included.
+  for (const racer of race.racers) racer.spec = arcadeSpec(racer.spec);
   race.player = race.racers[HUMAN_SLOTS[slot]];
   return race;
 }

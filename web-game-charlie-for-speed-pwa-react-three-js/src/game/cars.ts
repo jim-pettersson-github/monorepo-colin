@@ -35,7 +35,7 @@ export const cars: readonly CarSpec[] = [
     topKmh: 255,
     zeroTo100: 5.5,
     grip: 1.24,
-    braking: 1.1,
+    braking: 1.15,
     length: 4.37,
     width: 1.86,
   },
@@ -52,7 +52,7 @@ export const cars: readonly CarSpec[] = [
     topKmh: 262,
     zeroTo100: 5.4,
     grip: 1.26,
-    braking: 1.12,
+    braking: 1.17,
     length: 4.4,
     width: 1.81,
   },
@@ -69,7 +69,7 @@ export const cars: readonly CarSpec[] = [
     topKmh: 262,
     zeroTo100: 5.4,
     grip: 1.18,
-    braking: 1.05,
+    braking: 1.1,
     length: 4.56,
     width: 1.87,
   },
@@ -86,7 +86,7 @@ export const cars: readonly CarSpec[] = [
     topKmh: 258,
     zeroTo100: 5.6,
     grip: 1.14,
-    braking: 1,
+    braking: 1.05,
     length: 4.76,
     width: 1.83,
   },
@@ -103,7 +103,7 @@ export const cars: readonly CarSpec[] = [
     topKmh: 264,
     zeroTo100: 5.3,
     grip: 1.16,
-    braking: 1.02,
+    braking: 1.07,
     length: 4.65,
     width: 1.83,
   },
@@ -119,8 +119,8 @@ export const cars: readonly CarSpec[] = [
     trim: '#20242a',
     topKmh: 292,
     zeroTo100: 4.4,
-    grip: 1.26,
-    braking: 1.15,
+    grip: 1.34,
+    braking: 1.25,
     length: 4.25,
     width: 1.8,
   },
@@ -136,8 +136,8 @@ export const cars: readonly CarSpec[] = [
     trim: '#1a1a1a',
     topKmh: 290,
     zeroTo100: 4.6,
-    grip: 1.28,
-    braking: 1.14,
+    grip: 1.36,
+    braking: 1.24,
     length: 4.25,
     width: 1.9,
   },
@@ -154,8 +154,8 @@ export const cars: readonly CarSpec[] = [
     stripe: '#f4f4f4',
     topKmh: 298,
     zeroTo100: 4.3,
-    grip: 1.14,
-    braking: 1,
+    grip: 1.22,
+    braking: 1.1,
     length: 4.49,
     width: 1.92,
   },
@@ -171,8 +171,8 @@ export const cars: readonly CarSpec[] = [
     trim: '#1a1a1a',
     topKmh: 302,
     zeroTo100: 4.4,
-    grip: 1.2,
-    braking: 1.1,
+    grip: 1.28,
+    braking: 1.2,
     length: 4.55,
     width: 1.94,
   },
@@ -188,8 +188,8 @@ export const cars: readonly CarSpec[] = [
     trim: '#141416',
     topKmh: 306,
     zeroTo100: 4.3,
-    grip: 1.22,
-    braking: 1.08,
+    grip: 1.42,
+    braking: 1.28,
     length: 4.14,
     width: 2.0,
   },
@@ -205,8 +205,8 @@ export const cars: readonly CarSpec[] = [
     trim: '#16161a',
     topKmh: 325,
     zeroTo100: 3.9,
-    grip: 1.24,
-    braking: 1.1,
+    grip: 1.44,
+    braking: 1.3,
     length: 4.46,
     width: 2.04,
   },
@@ -223,8 +223,8 @@ export const cars: readonly CarSpec[] = [
     stripe: '#1f8a3c',
     topKmh: 322,
     zeroTo100: 3.9,
-    grip: 1.3,
-    braking: 1.2,
+    grip: 1.5,
+    braking: 1.4,
     length: 4.5,
     width: 1.98,
   },
@@ -240,8 +240,8 @@ export const cars: readonly CarSpec[] = [
     trim: '#15171a',
     topKmh: 334,
     zeroTo100: 3.6,
-    grip: 1.32,
-    braking: 1.22,
+    grip: 1.52,
+    braking: 1.42,
     length: 4.86,
     width: 1.95,
   },
@@ -257,8 +257,8 @@ export const cars: readonly CarSpec[] = [
     trim: '#141414',
     topKmh: 345,
     zeroTo100: 3.4,
-    grip: 1.26,
-    braking: 1.15,
+    grip: 1.46,
+    braking: 1.35,
     length: 4.4,
     width: 2.0,
   },
@@ -272,13 +272,44 @@ export function carName(car: CarSpec) {
   return `${car.make} ${car.model}`;
 }
 
+// Online races are arcade-balanced: each car moves most of the way to its class average, keeping a hint of its
+// character, and a measured trim on engine power evens out what remains. Career keeps the full spec sheet.
+const ARCADE_BLEND = 0.75;
+// From a simulated tuning run over all six tracks (same AI driver for every car); re-run it after changing car stats.
+export const arcadeTrim: Record<string, number> = {
+  arrow: 0.996,
+  nxr: 0.987,
+  sting: 1,
+  xk: 1.016,
+  dbs: 1.002,
+  velox: 0.993,
+  volata: 0.996,
+  stallion: 1.01,
+  corsa: 1.001,
+  contaccio: 1.031,
+  furia: 1.012,
+  tempest: 0.995,
+  clr: 0.978,
+  skarv: 0.984,
+};
+
+export function arcadeSpec(car: CarSpec, trims: Record<string, number> = arcadeTrim): CarSpec {
+  const peers = cars.filter((other) => other.carClass === car.carClass);
+  const mix = (key: 'topKmh' | 'zeroTo100' | 'grip' | 'braking') => {
+    const mean = peers.reduce((sum, other) => sum + other[key], 0) / peers.length;
+    return car[key] + (mean - car[key]) * ARCADE_BLEND;
+  };
+  const trim = trims[car.id] ?? 1;
+  return { ...car, topKmh: Math.round(mix('topKmh') * trim), zeroTo100: mix('zeroTo100') / trim, grip: mix('grip'), braking: mix('braking') };
+}
+
 // Normalised 0–1 ratings for the selection screen.
 export function carRatings(car: CarSpec) {
   return {
     speed: (car.topKmh - 240) / 110,
     acceleration: (6 - car.zeroTo100) / 2.8,
-    handling: (car.grip - 1.05) / 0.4,
-    braking: (car.braking - 0.9) / 0.45,
+    handling: Math.min(1, (car.grip - 1.05) / 0.55),
+    braking: Math.min(1, (car.braking - 0.95) / 0.55),
   };
 }
 

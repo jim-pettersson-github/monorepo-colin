@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { TrackSample } from '../game/track-path';
 import type { Track } from '../game/tracks';
 import { ribbon, upright } from './strips';
-import { fenceTexture, gravelTexture, isRetro } from './textures';
+import { fenceTexture, gravelTexture } from './textures';
 import type { ThemeLook } from './track-world';
 
 type Disposable = { dispose: () => void };
@@ -15,7 +15,6 @@ export function buildTrackside(scene: THREE.Scene, track: Track, look: ThemeLook
     return item;
   };
   const { path, halfWidth, wall, setting, tunnel } = track;
-  const modern = !isRetro();
   const open = (sample: TrackSample) => sample.s < tunnel.start - 2 || sample.s > tunnel.end + 2;
   // Curvature is positive in right-hand bends, so the outside of a bend is the side opposite its sign.
   const outside = (side: number, limit: number) => (sample: TrackSample) => -side * sample.curve > limit && open(sample);
@@ -84,7 +83,7 @@ export function buildTrackside(scene: THREE.Scene, track: Track, look: ThemeLook
     }
   }
 
-  if (look.barrier === 'armco' && modern) {
+  if (look.barrier === 'armco') {
     // Guardrail posts behind the see-through rails, lined up with the rail joints.
     const steel = keep(new THREE.MeshLambertMaterial({ color: '#7c858c' }));
     const posts = every(4, 2.1, open).flatMap((sample) => [-1, 1].map((side) => ({ sample, lateral: side * (wall + 0.12), y: 0.27 })));

@@ -95,7 +95,7 @@ export function RaceView({ settings, onSettings, onExit, career, network }: Prop
 
     let renderer: RaceRenderer;
     try {
-      renderer = new RaceRenderer(canvas, race, settingsRef.current.retro);
+      renderer = new RaceRenderer(canvas, race);
     } catch (error) {
       console.error(error);
       setRenderError(true);
@@ -252,7 +252,7 @@ export function RaceView({ settings, onSettings, onExit, career, network }: Prop
 
   return (
     <main className='race-view' data-attempt={attempt}>
-      <canvas ref={canvasRef} className={settings.retro ? 'race-canvas retro' : 'race-canvas'} aria-label={`Race på ${race.track.name}`} />
+      <canvas ref={canvasRef} className='race-canvas' aria-label={`Race på ${race.track.name}`} />
       {renderError && <p className='render-error'>Kunde inte starta 3D-grafiken i den här webbläsaren.</p>}
       <Hud race={race} controller={hud} />
       <div className='race-fullscreen'>

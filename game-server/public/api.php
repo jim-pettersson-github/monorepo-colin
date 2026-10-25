@@ -85,6 +85,39 @@ function hostRoom(PDO $db, array $body): array
     return $room;
 }
 
+const STUN = [['urls' => ['stun:stun.cloudflare.com:3478', 'stun:stun.l.google.com:19302']]];
+const ICE_TTL = 24 * 3600;
+
+// TURN relays the game traffic when two networks block direct contact. The relay key stays on the server
+// (config.php, written by the deploy workflow); devices get short-lived credentials, cached for a few hours.
+function iceServers(PDO $db): array
+{
+    $config = is_file(__DIR__ . '/config.php') ? require __DIR__ . '/config.php' : [];
+    $key = $config['cloudflare_turn_key_id'] ?? '';
+    $token = $config['cloudflare_turn_api_token'] ?? '';
+    if (!$key || !$token) return STUN;
+
+    $db->exec('CREATE TABLE IF NOT EXISTS ice (id INTEGER PRIMARY KEY, servers TEXT NOT NULL, expires INTEGER NOT NULL)');
+    $cached = $db->query('SELECT servers, expires FROM ice WHERE id = 1')->fetch();
+    if ($cached && $cached['expires'] > time() + 3600) return json_decode($cached['servers'], true);
+
+    $context = stream_context_create(['http' => [
+        'method' => 'POST',
+        'header' => "Authorization: Bearer $token\r\nContent-Type: application/json\r\n",
+        'content' => json_encode(['ttl' => ICE_TTL]),
+        'timeout' => 6,
+        'ignore_errors' => true,
+    ]]);
+    $response = @file_get_contents("https://rtc.live.cloudflare.com/v1/turn/keys/$key/credentials/generate-ice-servers", false, $context);
+    $servers = json_decode($response ?: '', true)['iceServers'] ?? null;
+    if (!is_array($servers) || !$servers) {
+        error_log('game-server: TURN credentials unavailable');
+        return $cached ? json_decode($cached['servers'], true) : STUN;
+    }
+    $db->prepare('INSERT OR REPLACE INTO ice (id, servers, expires) VALUES (1, ?, ?)')->execute([json_encode($servers), time() + ICE_TTL]);
+    return $servers;
+}
+
 $action = $_GET['a'] ?? '';
 $signal = '/^[A-Za-z0-9._-]{16,' . MAX_SIGNAL . '}$/';
 
@@ -95,7 +128,11 @@ try {
     switch ($action) {
         case 'health':
             $count = (int) $db->query('SELECT COUNT(*) FROM rooms WHERE updated > ' . ($now - ROOM_TTL))->fetchColumn();
-            reply(['ok' => true, 'php' => PHP_VERSION, 'rooms' => $count]);
+            $relay = is_file(__DIR__ . '/config.php') && !empty((require __DIR__ . '/config.php')['cloudflare_turn_key_id']);
+            reply(['ok' => true, 'php' => PHP_VERSION, 'rooms' => $count, 'relay' => $relay]);
+
+        case 'ice':
+            reply(['iceServers' => iceServers($db)]);
 
         case 'create':
             $body = input();

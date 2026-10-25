@@ -13,8 +13,8 @@ import {
   START_MONEY,
   startCup,
 } from '../src/game/career';
-import { applyUpgrades, carById, cars } from '../src/game/cars';
-import { type CarState, forwardSpeed, placeCar, stepCar } from '../src/game/physics';
+import { applyUpgrades, arcadeSpec, carById, cars } from '../src/game/cars';
+import { brakeDecel, type CarState, cornerGrip, forwardSpeed, placeCar, stepCar } from '../src/game/physics';
 import { createRace, formatTime, raceDistance, raceResults, STEP, stepRace } from '../src/game/race';
 import { trackById, trackDefs } from '../src/game/tracks';
 import { batchStatic } from '../src/render/batch';
@@ -414,4 +414,50 @@ test('Wi-Fi career: races pay every member and a finished cup crowns a winner an
   const late = joinSession(session, 'c', 'Cleo');
   expect(late.members[2].money).toBe(START_MONEY);
   expect(late.news[0]).toMatch(/börjar bakifrån/);
+});
+
+test('faster classes grip and brake harder, and full keyboard lock at speed turns without bogging down', () => {
+  const coupe = carById('arrow');
+  const supercar = carById('skarv');
+  expect(cornerGrip(supercar, 70)).toBeGreaterThan(cornerGrip(coupe, 70) * 1.25);
+  expect(cornerGrip(supercar, 70)).toBeGreaterThan(cornerGrip(supercar, 0));
+  expect(brakeDecel(supercar)).toBeGreaterThan(brakeDecel(coupe) * 1.1);
+
+  const track = trackById('rheinland');
+  const car: CarState = placeCar(track, 0, 0);
+  const speed = 200 / 3.6;
+  car.vx = Math.sin(car.yaw) * speed;
+  car.vz = Math.cos(car.yaw) * speed;
+  const startYaw = car.yaw;
+  for (let time = 0; time < 0.5; time += STEP) stepCar(car, supercar, { throttle: 1, brake: 0, steer: 1, handbrake: false }, track, STEP);
+  // The car turns at the tyre limit while losing only a little speed, instead of scrubbing half a g.
+  expect(Math.abs(car.yaw - startYaw)).toBeGreaterThan(0.12);
+  expect(speed * 3.6 - forwardSpeed(car) * 3.6).toBeLessThan(5);
+});
+
+test('online quick races keep one class, carry lobby names and arcade-balance the cars', () => {
+  const config = {
+    settings: { trackId: 'vaxjo', carId: 'sting', laps: 1, difficulty: 'easy' as const, transmission: 'auto' as const },
+    cars: ['sting', 'arrow', 'nxr'],
+    seed: 11,
+    names: ['Charlie', 'Lotta', ''],
+  };
+  expect(validRaceConfig(config)).toBe(true);
+  expect(validRaceConfig({ ...config, cars: ['sting', 'velox'] })).toBe(false);
+  expect(validRaceConfig({ ...config, names: ['x'.repeat(17), '', ''] })).toBe(false);
+
+  const race = createNetworkRace(config);
+  const humans = race.racers.filter((racer) => racer.isPlayer).map((racer) => racer.driverName);
+  // An empty name falls back to the player number; a name an AI driver already has gets the number too.
+  expect(humans).toContain('Charlie');
+  expect(humans).toContain('Spelare 3');
+  expect(humans.some((name) => name === 'Lotta' || name === 'Lotta 2')).toBe(true);
+  expect(new Set(race.racers.map((racer) => racer.driverName)).size).toBe(race.racers.length);
+
+  for (const carClass of ['C', 'B', 'A'] as const) {
+    const peers = cars.filter((car) => car.carClass === carClass);
+    const spread = (values: number[]) => Math.max(...values) - Math.min(...values);
+    expect(spread(peers.map((car) => arcadeSpec(car).grip))).toBeLessThan(spread(peers.map((car) => car.grip)) * 0.3);
+  }
+  expect(race.racers[0].spec.grip).toBeCloseTo(arcadeSpec(cars.find((car) => car.id === race.racers[0].spec.id) ?? cars[0]).grip, 5);
 });

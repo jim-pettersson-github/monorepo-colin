@@ -107,7 +107,7 @@ function validCompact(value: unknown): value is Compact {
     ['actpass', 'active', 'passive'].includes(c.s) &&
     /^\d{1,10}$/.test(c.m) &&
     Array.isArray(c.c) &&
-    c.c.length <= 16 &&
+    c.c.length <= 40 &&
     c.c.every((candidate) => typeof candidate === 'string' && /^[\w.:\- ]{8,200}$/.test(candidate))
   );
 }
@@ -135,7 +135,7 @@ function encodeFullSignal(signal: Signal) {
 export async function decodeSignal(code: string): Promise<Signal> {
   // Messaging apps may wrap long codes or add spaces; codes never contain whitespace.
   const text = code.replace(/\s+/g, '');
-  if (/^CEX2\.[ZP]\.[A-Za-z0-9_-]+$/.test(text) && text.length <= 2000) {
+  if (/^CEX2\.[ZP]\.[A-Za-z0-9_-]+$/.test(text) && text.length <= 5000) {
     try {
       const bytes = Uint8Array.from(atob(text.slice(7).replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
       const decoded = text[5] === 'Z' ? await transform(bytes, true) : bytes;
@@ -178,12 +178,16 @@ export class PeerLink {
   private messages = new Set<(message: unknown) => void>();
   private revision = 0;
   private timer?: ReturnType<typeof setTimeout>;
+  private readonly online: boolean;
   private disposed = false;
   // Internet pairing passes STUN servers; devices on the same network need none.
   constructor(
     public readonly role: PeerRole,
     iceServers: RTCIceServer[] = [],
+    // Online pairing gives up sooner, so a blocked network gets a clear message instead of a long wait.
+    private readonly timeout = 120_000,
   ) {
+    this.online = iceServers.length > 0;
     this.peer = new RTCPeerConnection({ iceServers });
     this.peer.onconnectionstatechange = () => {
       if (['failed', 'disconnected'].includes(this.peer.connectionState)) this.fail('Kontakten bröts. Ni kan koppla ihop er igen med rumskoden.');
@@ -310,7 +314,10 @@ export class PeerLink {
   private startTimer() {
     clearTimeout(this.timer);
     if (this.status === 'connected') return;
-    this.timer = setTimeout(() => this.fail('Enheterna fick ingen kontakt. Kolla internet och försök igen med rumskoden.'), 120_000);
+    const message = this.online
+      ? 'Enheterna fick ingen kontakt via internet. Försök igen, eller byt nät, till exempel från mobildata till Wi-Fi.'
+      : 'Enheterna fick ingen kontakt. Kolla internet och försök igen med rumskoden.';
+    this.timer = setTimeout(() => this.fail(message), this.timeout);
   }
   close() {
     if (this.disposed) return;

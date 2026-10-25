@@ -1,6 +1,6 @@
 import { characterName, maxPlayers } from './model';
-import { PeerLink } from './peer-link';
-import { ONLINE_ICE, Room } from './room-server';
+import type { PeerLink } from './peer-link';
+import { Room } from './room-server';
 import type { GameSession, SessionLink } from './session';
 import { companionCommand, createCompanion, guestMessage, readCommand, type SharedSound, sharedWorld, worldRate } from './shared';
 
@@ -75,7 +75,7 @@ export class SharedHost implements SessionLink {
         await wait(1000);
         continue;
       }
-      const link = new PeerLink('host', ONLINE_ICE);
+      const link = room.link();
       this.pending = link;
       try {
         await link.createOffer();

@@ -12,7 +12,7 @@
 - Tyre smoke, grass dust, barrier sparks and lens flare.
 - Published on GitHub Pages under /charlie-fs/.
 - Single race against seven AI drivers, laps, positions, lap records and results.
-- Arcade driving model, chase/bumper cameras, 90s-style HUD, retro render mode.
+- Arcade driving model, chase/bumper cameras, 90s-style HUD with live standings and name tags above the cars.
 - Keyboard, gamepad and touch controls; synthesised sound.
 
 ## Ideas for later

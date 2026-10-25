@@ -4,3 +4,8 @@ Options -Indexes
 <FilesMatch "\.(sqlite|sqlite-journal|sqlite-wal|sqlite-shm)$">
   Require all denied
 </FilesMatch>
+
+# The relay key lives in config.php, written by the deploy workflow.
+<Files "config.php">
+  Require all denied
+</Files>

@@ -73,6 +73,7 @@ export function Hud({ race, controller }: { race: Race; controller: RefObject<Hu
       wrongWay: find('wrong-way'),
     };
     const dots = [...element.querySelectorAll<SVGCircleElement>('[data-car]')];
+    const rows = [...element.querySelectorAll<HTMLLIElement>('[data-board]')].map((row) => ({ row, name: row.querySelector('.board-name') }));
     const write = (field: Element | null, value: string) => {
       if (field && field.textContent !== value) field.textContent = value;
     };
@@ -97,6 +98,15 @@ export function Hud({ race, controller }: { race: Race; controller: RefObject<Hu
         write(fields.banner, banner);
         fields.banner?.classList.toggle('visible', banner !== '');
         fields.wrongWay?.classList.toggle('visible', current.wrongWay > 1.2 && Math.floor(current.time * 3) % 2 === 0);
+
+        // The live standings: one row per place, in race order.
+        for (const racer of racers) {
+          const entry = rows[racer.position - 1];
+          if (!entry) continue;
+          write(entry.name, racer.finishTime ? `${racer.driverName} ✓` : racer.driverName);
+          entry.row.classList.toggle('me', racer === player);
+          entry.row.classList.toggle('human', racer.isPlayer && racer !== player);
+        }
 
         racers.forEach((racer, index) => {
           const [x, y] = map.project(racer.state.x, racer.state.z);
@@ -124,6 +134,14 @@ export function Hud({ race, controller }: { race: Race; controller: RefObject<Hu
         <div className='hud-lap' data-hud='lap'>
           1/{race.settings.laps}
         </div>
+        <ol className='hud-board' aria-label='Placeringar'>
+          {race.racers.map((racer, index) => (
+            <li key={racer.id} data-board={index}>
+              <span className='board-place'>{index + 1}</span>
+              <span className='board-name'>{racer.driverName}</span>
+            </li>
+          ))}
+        </ol>
       </div>
 
       <div className='hud-times'>

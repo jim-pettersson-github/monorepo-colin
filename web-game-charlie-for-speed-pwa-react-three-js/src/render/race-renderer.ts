@@ -3,7 +3,7 @@ import type { Race } from '../game/race';
 import { buildCarModel, type CarModel } from './car-model';
 import { DrivingEffects } from './driving-effects';
 import { Particles, skyEnvironment } from './effects';
-import { setRetroLook } from './textures';
+import { NameTags } from './name-tags';
 import { buildTrackWorld, type TrackWorld } from './track-world';
 
 export type CameraMode = 'chase' | 'far' | 'bumper';
@@ -24,7 +24,6 @@ export class RaceRenderer {
   private cameraYaw = 0;
   private cameraPosition = new THREE.Vector3();
   private lookTarget = new THREE.Vector3();
-  private retro: boolean;
   private elapsed = 0;
   private smoke = new Particles({ capacity: 600, opacity: 0.28, gravity: -0.8, growth: 1.7 });
   private sparks = new Particles({ capacity: 240, opacity: 1, gravity: 9, growth: -0.4 });
@@ -39,36 +38,33 @@ export class RaceRenderer {
   private frameAverage = 1 / 60;
   private qualityTimer = 0;
   private drivingEffects: DrivingEffects;
+  private nameTags: NameTags;
   mode: CameraMode = 'chase';
 
-  constructor(canvas: HTMLCanvasElement, race: Race, retro: boolean) {
+  constructor(canvas: HTMLCanvasElement, race: Race) {
     this.race = race;
-    this.retro = retro;
     // High-density phone screens hide jaggies anyway, so they skip the costly multisampling.
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: !retro && window.devicePixelRatio < 1.5, powerPreference: 'high-performance' });
-    this.maxPixelRatio = retro ? 0.5 : Math.min(window.devicePixelRatio, 1.5);
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: window.devicePixelRatio < 1.5, powerPreference: 'high-performance' });
+    this.maxPixelRatio = Math.min(window.devicePixelRatio, 1.5);
     this.pixelRatio = this.maxPixelRatio;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    setRetroLook(retro);
     this.world = buildTrackWorld(race.track);
     const { look } = this.world;
 
-    // Modern look: filmic tone mapping, sky reflections and a sun shadow that follows the player.
-    if (!retro) {
-      const phone = matchMedia('(pointer: coarse)').matches;
-      this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      this.renderer.toneMappingExposure = 1.25;
-      this.renderer.shadowMap.enabled = !phone;
-      this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-      const sun = this.world.sunLight;
-      sun.castShadow = !phone;
-      sun.shadow.mapSize.setScalar(window.devicePixelRatio >= 2 ? 1024 : 2048);
-      Object.assign(sun.shadow.camera, { left: -40, right: 40, top: 40, bottom: -40, near: 1, far: 320 });
-      sun.shadow.camera.updateProjectionMatrix();
-      sun.shadow.bias = -0.0004;
-      sun.shadow.normalBias = 0.03;
-      this.world.scene.add(sun.target);
-    }
+    // Filmic tone mapping, sky reflections and a sun shadow that follows the player.
+    const phone = matchMedia('(pointer: coarse)').matches;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.25;
+    this.renderer.shadowMap.enabled = !phone;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    const sun = this.world.sunLight;
+    sun.castShadow = !phone;
+    sun.shadow.mapSize.setScalar(window.devicePixelRatio >= 2 ? 1024 : 2048);
+    Object.assign(sun.shadow.camera, { left: -40, right: 40, top: 40, bottom: -40, near: 1, far: 320 });
+    sun.shadow.camera.updateProjectionMatrix();
+    sun.shadow.bias = -0.0004;
+    sun.shadow.normalBias = 0.03;
+    this.world.scene.add(sun.target);
     this.environment = skyEnvironment(this.renderer, {
       top: look.skyTop,
       horizon: look.skyHorizon,
@@ -83,6 +79,8 @@ export class RaceRenderer {
       this.world.scene.add(model.group);
       return model;
     });
+    this.nameTags = new NameTags(race);
+    this.world.scene.add(this.nameTags.group);
     this.drivingEffects = new DrivingEffects(race.racers.length);
     this.world.scene.add(this.drivingEffects.marks, this.drivingEffects.lights);
     this.world.scene.add(this.smoke.points, this.sparks.points);
@@ -99,7 +97,7 @@ export class RaceRenderer {
 
   // Lowers the render resolution when frames run long and raises it again once there is headroom.
   private adaptQuality(frameTime: number) {
-    if (this.retro || frameTime <= 0 || frameTime >= 0.1) return;
+    if (frameTime <= 0 || frameTime >= 0.1) return;
     this.frameAverage += (frameTime - this.frameAverage) * 0.05;
     this.qualityTimer += frameTime;
     if (this.qualityTimer < 1.5) return;
@@ -128,6 +126,7 @@ export class RaceRenderer {
     this.world.setStartLights(lit, race.phase !== 'countdown' && race.time < 3);
     this.updateCamera(frameTime);
     for (const model of this.models) model.setDistance(model.group.position.distanceTo(this.camera.position));
+    this.nameTags.update(race, this.camera);
     const car = race.player.state;
     const sun = this.world.sunLight;
     sun.target.position.set(car.x, car.y, car.z);
@@ -238,6 +237,7 @@ export class RaceRenderer {
   dispose() {
     this.drivingEffects.dispose();
     for (const model of this.models) model.dispose();
+    this.nameTags.dispose();
     this.smoke.dispose();
     this.environment.dispose();
     this.sparks.dispose();

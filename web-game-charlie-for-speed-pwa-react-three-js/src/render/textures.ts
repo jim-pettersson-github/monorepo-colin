@@ -18,26 +18,15 @@ export function canvas(width: number, height: number, draw: (context: CanvasRend
   return element;
 }
 
-// Retro mode keeps small textures with nearest magnification for the chunky late-90s look.
-let retroLook = false;
+// Texture resolution multiplier: the art is drawn four times finer than its base grid.
+const DETAIL = 4;
 
-export function setRetroLook(on: boolean) {
-  retroLook = on;
-}
-
-export function isRetro() {
-  return retroLook;
-}
-
-// Texture resolution multiplier: the modern look draws the same art four times finer.
-export const detail = () => (retroLook ? 1 : 4);
-
-export function texture(element: HTMLCanvasElement, repeat = true, pixelated = retroLook) {
+export function texture(element: HTMLCanvasElement, repeat = true, pixelated = false) {
   const result = new THREE.CanvasTexture(element);
   result.colorSpace = THREE.SRGBColorSpace;
   if (repeat) result.wrapS = result.wrapT = THREE.RepeatWrapping;
   if (pixelated) result.magFilter = THREE.NearestFilter;
-  result.anisotropy = retroLook ? 4 : 8;
+  result.anisotropy = 8;
   return result;
 }
 
@@ -50,7 +39,7 @@ function speckle(context: CanvasRenderingContext2D, width: number, height: numbe
 }
 
 export function asphaltTexture(edge: string) {
-  const k = detail();
+  const k = DETAIL;
   const size = 128 * k;
   return texture(
     canvas(size, size, (context) => {
@@ -102,7 +91,7 @@ export function curbTexture() {
 }
 
 export function grassTexture(base: string, shades: string[], seed: number) {
-  const k = detail();
+  const k = DETAIL;
   const size = 64 * k;
   return texture(
     canvas(size, size, (context) => {
@@ -138,7 +127,7 @@ export function mowedGrassTexture(base: string, shades: string[], seed: number) 
 }
 
 export function gravelTexture() {
-  const k = detail();
+  const k = DETAIL;
   const size = 64 * k;
   return texture(
     canvas(size, size, (context) => {
@@ -169,7 +158,7 @@ export function gravelTexture() {
 
 // Diamond wire mesh with a top rail; transparent between the wires.
 export function fenceTexture() {
-  const k = detail();
+  const k = DETAIL;
   const width = 64 * k;
   const height = 64 * k;
   return texture(
@@ -196,7 +185,7 @@ export function fenceTexture() {
 }
 
 export function checkerTexture() {
-  const cell = isRetro() ? 1 : 16;
+  const cell = 16;
   return texture(
     canvas(16 * cell, 4 * cell, (context) => {
       for (let x = 0; x < 16; x++) {
@@ -222,7 +211,7 @@ export function barrierTexture(kind: 'armco' | 'concrete' | 'wood') {
         context.fillRect(0, 4, 32, 1);
         context.fillRect(0, 11, 32, 1);
         context.fillRect(14, 0, 4, 16);
-      } else if (kind === 'armco' && detail() > 1) {
+      } else if (kind === 'armco') {
         // Two galvanised W-beam rails with daylight between and below them; posts are real geometry.
         context.clearRect(0, 0, 32, 16);
         for (const top of [1, 6]) {
@@ -237,16 +226,6 @@ export function barrierTexture(kind: 'armco' | 'concrete' | 'wood') {
         }
         context.fillStyle = '#4e555b';
         context.fillRect(15, 1, 1, 9);
-      } else if (kind === 'armco') {
-        context.fillStyle = '#9aa3aa';
-        context.fillRect(0, 0, 32, 16);
-        context.fillStyle = '#c9d0d4';
-        context.fillRect(0, 3, 32, 3);
-        context.fillRect(0, 10, 32, 3);
-        context.fillStyle = '#5a6168';
-        context.fillRect(0, 7, 32, 1);
-        context.fillRect(0, 14, 32, 2);
-        context.fillRect(15, 0, 2, 16);
       } else {
         context.fillStyle = '#c9c6bd';
         context.fillRect(0, 0, 32, 16);
@@ -263,53 +242,42 @@ export function barrierTexture(kind: 'armco' | 'concrete' | 'wood') {
 }
 
 export function crowdTexture(seed: number) {
-  if (detail() > 1) {
-    // One row of spectators per step: shirts, heads, a few raised arms and flags.
-    const shirts = ['#e8322b', '#f2c400', '#2a6fd6', '#f4f4f4', '#3fa34d', '#ff8a2a', '#1d2a44', '#8a3c8a', '#5a5f66'];
-    const skin = ['#f1c9a5', '#e0ac85', '#c68863', '#8d5a3c', '#f5d6bc'];
-    const random = seeded(seed);
-    return texture(
-      canvas(512, 64, (context) => {
-        context.fillStyle = '#3a3f48';
-        context.fillRect(0, 0, 512, 64);
-        context.fillStyle = '#2a2e36';
-        context.fillRect(0, 44, 512, 20);
-        for (let x = 4; x < 512; x += 12 + random() * 6) {
-          if (random() < 0.12) continue;
-          const lean = (random() - 0.5) * 3;
-          const shirt = shirts[Math.floor(random() * shirts.length)];
-          context.fillStyle = shirt;
-          context.beginPath();
-          context.roundRect(x - 5 + lean, 26, 11, 22, 4);
-          context.fill();
-          context.fillStyle = skin[Math.floor(random() * skin.length)];
-          context.beginPath();
-          context.arc(x + lean * 1.4, 19, 4.4, 0, Math.PI * 2);
-          context.fill();
-          if (random() < 0.15) {
-            context.fillRect(x + 4 + lean, 6, 2, 20);
-            if (random() < 0.5) {
-              context.fillStyle = random() < 0.5 ? '#e8322b' : '#f2c400';
-              context.fillRect(x + 6 + lean, 2, 9, 6);
-            }
-          }
-          if (random() < 0.3) {
-            context.fillStyle = random() < 0.5 ? '#1a1a1a' : shirt;
-            context.fillRect(x - 4 + lean * 1.4, 13, 9, 3);
+  // One row of spectators per step: shirts, heads, a few raised arms and flags.
+  const shirts = ['#e8322b', '#f2c400', '#2a6fd6', '#f4f4f4', '#3fa34d', '#ff8a2a', '#1d2a44', '#8a3c8a', '#5a5f66'];
+  const skin = ['#f1c9a5', '#e0ac85', '#c68863', '#8d5a3c', '#f5d6bc'];
+  const random = seeded(seed);
+  return texture(
+    canvas(512, 64, (context) => {
+      context.fillStyle = '#3a3f48';
+      context.fillRect(0, 0, 512, 64);
+      context.fillStyle = '#2a2e36';
+      context.fillRect(0, 44, 512, 20);
+      for (let x = 4; x < 512; x += 12 + random() * 6) {
+        if (random() < 0.12) continue;
+        const lean = (random() - 0.5) * 3;
+        const shirt = shirts[Math.floor(random() * shirts.length)];
+        context.fillStyle = shirt;
+        context.beginPath();
+        context.roundRect(x - 5 + lean, 26, 11, 22, 4);
+        context.fill();
+        context.fillStyle = skin[Math.floor(random() * skin.length)];
+        context.beginPath();
+        context.arc(x + lean * 1.4, 19, 4.4, 0, Math.PI * 2);
+        context.fill();
+        if (random() < 0.15) {
+          context.fillRect(x + 4 + lean, 6, 2, 20);
+          if (random() < 0.5) {
+            context.fillStyle = random() < 0.5 ? '#e8322b' : '#f2c400';
+            context.fillRect(x + 6 + lean, 2, 9, 6);
           }
         }
-        context.fillStyle = 'rgba(0, 0, 0, 0.25)';
-        context.fillRect(0, 48, 512, 16);
-      }),
-    );
-  }
-  return texture(
-    canvas(64, 32, (context) => {
-      context.fillStyle = '#2a2e38';
-      context.fillRect(0, 0, 64, 32);
-      speckle(context, 64, 32, ['#e8322b', '#f2c400', '#2a6fd6', '#f4f4f4', '#3fa34d', '#ff8a2a', '#d9b38c', '#8a5a3c'], 900, seed, 2);
-      context.fillStyle = 'rgba(0, 0, 0, 0.35)';
-      for (let y = 0; y < 32; y += 4) context.fillRect(0, y, 64, 1);
+        if (random() < 0.3) {
+          context.fillStyle = random() < 0.5 ? '#1a1a1a' : shirt;
+          context.fillRect(x - 4 + lean * 1.4, 13, 9, 3);
+        }
+      }
+      context.fillStyle = 'rgba(0, 0, 0, 0.25)';
+      context.fillRect(0, 48, 512, 16);
     }),
   );
 }

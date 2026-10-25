@@ -14,7 +14,8 @@ Every call is `api.php?a=<action>`. POST bodies are JSON sent as `text/plain`, w
 
 | Action | Who | Request | Response |
 | --- | --- | --- | --- |
-| `health` | anyone | GET | `{ ok, php, rooms }` |
+| `health` | anyone | GET | `{ ok, php, rooms, relay }` |
+| `ice` | anyone | GET | `{ iceServers }`: STUN, plus TURN relay credentials when a relay key is set |
 | `create` | host | `{ game }` | `{ code, host }` |
 | `offer` | host | `{ code, host, offer }` | `{ id }`; replaces the open invitation |
 | `answer` | host | GET `code`, `host`, `id` | `{ answer }` or `{ waiting: true }` |
@@ -23,6 +24,10 @@ Every call is `api.php?a=<action>`. POST bodies are JSON sent as `text/plain`, w
 | `close` | host | `{ code, host }` | `{ ok }` |
 
 Each room holds one open invitation at a time. A guest's claim reserves it for 30 seconds. Rooms expire 12 hours after their last use.
+
+## Relay for strict networks
+
+Some networks, often mobile data, block direct contact between two devices. A TURN relay forwards the game traffic for them. With a Cloudflare Realtime TURN key, `ice` hands out day-long Cloudflare credentials, cached on the server; without one, devices get STUN only and those networks cannot connect. The key is the `CLOUDFLARE_TURN_KEY_ID` and `CLOUDFLARE_TURN_API_TOKEN` repository secrets. The deploy writes them to `public/config.php`, which is ignored by Git and blocked from download. After changing the secrets, run the workflow again.
 
 ## Run locally
 

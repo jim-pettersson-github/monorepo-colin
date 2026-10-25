@@ -6,7 +6,7 @@ import { type Session, validSession } from './multi-career';
 import type { RaceSettings } from './race';
 import { trackDefs } from './tracks';
 
-export type Settings = RaceSettings & { retro: boolean; sound: boolean; volume: number; camera: CameraMode };
+export type Settings = RaceSettings & { sound: boolean; volume: number; camera: CameraMode };
 export type LapRecord = { time: number; carId: string };
 
 const SETTINGS_KEY = 'charlie-for-speed:settings';
@@ -18,7 +18,6 @@ export const defaultSettings: Settings = {
   laps: 3,
   difficulty: 'normal',
   transmission: 'auto',
-  retro: false,
   sound: true,
   volume: 0.7,
   camera: 'chase',

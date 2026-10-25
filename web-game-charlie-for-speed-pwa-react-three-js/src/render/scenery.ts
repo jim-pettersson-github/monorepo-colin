@@ -1,20 +1,8 @@
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { sampleAt } from '../game/track-path';
 import type { Region, Track, TrackTheme } from '../game/tracks';
 import { plantFoliage } from './foliage';
-import {
-  chevronTexture,
-  concreteTexture,
-  crowdTexture,
-  facadeDetailTexture,
-  isRetro,
-  seeded,
-  shopTexture,
-  signTexture,
-  texture,
-  windowsTexture,
-} from './textures';
+import { chevronTexture, concreteTexture, crowdTexture, facadeDetailTexture, seeded, shopTexture, signTexture, texture, windowsTexture } from './textures';
 import type { Ground, ThemeLook } from './track-world';
 
 type Disposable = { dispose: () => void };
@@ -56,40 +44,6 @@ const facades: Record<'stockholm' | 'hamburg', { walls: string[]; roofs: string[
   hamburg: { walls: ['#8e3b2a', '#7a3324', '#9c4a34', '#6d6a66', '#a9b4bd'], roofs: ['#3e5a52', '#2f2e2c'], heights: [15, 30] },
 };
 
-function colored(source: THREE.BufferGeometry, color: string, x = 0, y = 0, z = 0) {
-  const geometry = source.index ? source.toNonIndexed() : source;
-  geometry.translate(x, y, z);
-  const tint = new THREE.Color(color);
-  const colors = new Float32Array(geometry.attributes.position.count * 3);
-  for (let i = 0; i < colors.length; i += 3) colors.set([tint.r, tint.g, tint.b], i);
-  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-  geometry.deleteAttribute('uv');
-  return geometry;
-}
-
-function treeGeometries(region: Region) {
-  const sides = isRetro() ? 6 : 10;
-  const round = isRetro() ? 0 : 1;
-  const pine = mergeGeometries([
-    colored(new THREE.CylinderGeometry(0.25, 0.35, 2.4, 5), '#5a3b26', 0, 1.2, 0),
-    colored(new THREE.ConeGeometry(2.6, 5, sides), '#24502a', 0, 4.2, 0),
-    colored(new THREE.ConeGeometry(1.9, 4, sides), '#2b5e30', 0, 6.6, 0),
-    colored(new THREE.ConeGeometry(1.1, 3, sides), '#336b36', 0, 8.6, 0),
-  ]);
-  const leafy =
-    region === 'sweden'
-      ? mergeGeometries([
-          colored(new THREE.CylinderGeometry(0.16, 0.24, 6, 5), '#ebe7de', 0, 3, 0),
-          colored(new THREE.IcosahedronGeometry(2.2, round).scale(1, 1.5, 1), '#7aa646', 0, 7.2, 0),
-        ])
-      : mergeGeometries([
-          colored(new THREE.CylinderGeometry(0.3, 0.42, 3.2, 5), '#5a3b26', 0, 1.6, 0),
-          colored(new THREE.IcosahedronGeometry(3.4, round), '#4f8a2e', 0, 5.6, 0),
-          colored(new THREE.IcosahedronGeometry(2.4, round), '#5f9a36', 1.2, 7.2, 0.6),
-        ]);
-  return { pine, leafy };
-}
-
 function prism(width: number, height: number, depth: number) {
   const shape = new THREE.Shape([new THREE.Vector2(-width / 2, 0), new THREE.Vector2(width / 2, 0), new THREE.Vector2(0, height)]);
   const geometry = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false });
@@ -115,29 +69,6 @@ function flagTexture(region: Region) {
     }
   }
   return texture(element, false);
-}
-
-// City facade: a 2×2 block of windows, some lit, repeated across each wall by scaling the box UVs.
-function facadeTexture(wall: string, lit: number, seed: number) {
-  const random = seeded(seed);
-  const element = document.createElement('canvas');
-  element.width = element.height = 32;
-  const context = element.getContext('2d');
-  if (context) {
-    context.fillStyle = wall;
-    context.fillRect(0, 0, 32, 32);
-    for (const x of [4, 20]) {
-      for (const y of [5, 21]) {
-        context.fillStyle = '#e8e4da';
-        context.fillRect(x - 1, y - 1, 10, 9);
-        context.fillStyle = random() < lit ? '#ffd27a' : '#2a3442';
-        context.fillRect(x, y, 8, 7);
-        context.fillStyle = 'rgba(255,255,255,0.25)';
-        context.fillRect(x, y, 8, 2);
-      }
-    }
-  }
-  return texture(element);
 }
 
 function scaleBoxUv(geometry: THREE.BoxGeometry, width: number, height: number, depth: number, tileWidth = 8, tileHeight = 7) {
@@ -166,8 +97,7 @@ export function buildScenery(scene: THREE.Scene, track: Track, ground: Ground, l
   const animated: ((time: number) => void)[] = [];
   const random = seeded([...track.id].reduce((sum, letter) => sum * 31 + letter.charCodeAt(0), 7) % 100000);
   const { path, halfWidth, wall, theme, setting, region, tunnel } = track;
-  const material = (color: string, options: THREE.MeshLambertMaterialParameters = {}) =>
-    keep(new THREE.MeshLambertMaterial({ color, flatShading: isRetro(), ...options }));
+  const material = (color: string, options: THREE.MeshLambertMaterialParameters = {}) => keep(new THREE.MeshLambertMaterial({ color, ...options }));
   const adList = ads[region];
   const nearTunnel = (s: number) => s > tunnel.start - 40 && s < tunnel.end + 40;
   const shadows = (root: THREE.Object3D) => {
@@ -247,7 +177,7 @@ export function buildScenery(scene: THREE.Scene, track: Track, ground: Ground, l
   // Grandstands beside the start straight: a full circuit gets five, a street race two.
   if (setting !== 'country') {
     const crowd = keep(crowdTexture(5));
-    crowd.repeat.set(isRetro() ? 4 : 3, 1);
+    crowd.repeat.set(3, 1);
     const crowdMaterial = keep(new THREE.MeshLambertMaterial({ map: crowd }));
     const standConcrete = material('#b9b4a8');
     const roofMaterial = material(region === 'sweden' ? '#2c5d9a' : '#d8d8d8');
@@ -475,11 +405,10 @@ export function buildScenery(scene: THREE.Scene, track: Track, ground: Ground, l
     }
 
     const palette = facades[theme];
-    const modern = !isRetro();
     const walls = palette.walls.flatMap((color, index) =>
       [0, 1].map((variant) => {
         const seed = index * 10 + variant + 3;
-        const map = modern ? facadeDetailTexture(color, look.litWindows, seed) : facadeTexture(color, look.litWindows, seed);
+        const map = facadeDetailTexture(color, look.litWindows, seed);
         return keep(new THREE.MeshLambertMaterial({ map: keep(map) }));
       }),
     );
@@ -534,18 +463,7 @@ export function buildScenery(scene: THREE.Scene, track: Track, ground: Ground, l
       const x = sample.x + sample.rx * lateral;
       const z = sample.z + sample.rz * lateral;
       if (reserved.some((spot) => Math.hypot(spot.x - x, spot.z - z) < spot.radius)) return false;
-      if (modern) {
-        frame(detailed(width, depth, height, Math.abs(lateral) < wall + 4 + depth), s, lateral);
-        return true;
-      }
-      const wallMaterial = walls[Math.floor(random() * walls.length)];
-      const roofMaterial = roofs[Math.floor(random() * roofs.length)];
-      const geometry = keep(scaleBoxUv(new THREE.BoxGeometry(width, height, depth), width, height, depth));
-      const building = new THREE.Mesh(geometry, [wallMaterial, wallMaterial, roofMaterial, roofMaterial, wallMaterial, wallMaterial]);
-      building.position.y = height / 2 - 1;
-      const holder = new THREE.Group();
-      holder.add(building);
-      frame(holder, s, lateral);
+      frame(detailed(width, depth, height, Math.abs(lateral) < wall + 4 + depth), s, lateral);
       return true;
     };
     for (const side of [-1, 1]) {
@@ -814,49 +732,7 @@ export function buildScenery(scene: THREE.Scene, track: Track, ground: Ground, l
     z: 0,
   });
   const blocked = (x: number, z: number) => reserved.some((spot) => Math.hypot(spot.x - x, spot.z - z) < spot.radius);
-  if (!isRetro()) disposables.push(...plantFoliage({ scene, region, theme, ground, wall, forest, center, random, blocked }));
-  else plantRetroForest();
-
-  function plantRetroForest() {
-    const { pine, leafy } = treeGeometries(region);
-    keep(pine);
-    keep(leafy);
-    const treeMaterial = material('#ffffff', { vertexColors: true });
-    const transforms: { pine: THREE.Matrix4[]; leafy: THREE.Matrix4[] } = { pine: [], leafy: [] };
-    const quaternion = new THREE.Quaternion();
-    const up = new THREE.Vector3(0, 1, 0);
-    for (let attempt = 0; attempt < 60000 && transforms.pine.length + transforms.leafy.length < forest.count; attempt++) {
-      const x = center.x + (random() - 0.5) * 2500;
-      const z = center.z + (random() - 0.5) * 2500;
-      const distance = ground.trackDistance(x, z);
-      if (distance < wall + forest.clearance || ground.inLake(x, z)) continue;
-      if (random() > (distance < 90 ? 0.95 : distance < 300 ? 0.45 : 0.18)) continue;
-      if (blocked(x, z)) continue;
-      const kind = random() < forest.pines ? 'pine' : 'leafy';
-      const size = 0.8 + random() * 0.7;
-      quaternion.setFromAxisAngle(up, random() * Math.PI * 2);
-      transforms[kind].push(
-        new THREE.Matrix4().compose(
-          new THREE.Vector3(x, ground.height(x, z) - 0.3, z),
-          quaternion,
-          new THREE.Vector3(size, size * (0.85 + random() * 0.4), size),
-        ),
-      );
-    }
-    const tint = new THREE.Color();
-    for (const kind of ['pine', 'leafy'] as const) {
-      if (!transforms[kind].length) continue;
-      const mesh = new THREE.InstancedMesh(kind === 'pine' ? pine : leafy, treeMaterial, transforms[kind].length);
-      transforms[kind].forEach((matrix, index) => {
-        mesh.setMatrixAt(index, matrix);
-        mesh.setColorAt(index, tint.setHSL(0, 0, 0.78 + random() * 0.3));
-      });
-      mesh.computeBoundingSphere();
-      scene.add(mesh);
-      disposables.push({ dispose: () => mesh.dispose() });
-    }
-  }
-
+  disposables.push(...plantFoliage({ scene, region, theme, ground, wall, forest, center, random, blocked }));
   return {
     setStartLights(lit: number, green: boolean) {
       lamps.forEach((lamp, index) => {

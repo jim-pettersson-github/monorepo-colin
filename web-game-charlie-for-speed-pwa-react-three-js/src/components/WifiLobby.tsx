@@ -1,10 +1,33 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import type { Connection } from '../game/network-play';
 import { decodeSignal, PeerLink } from '../game/peer-link';
-import { ONLINE_ICE, Room, roomServer } from '../game/room-server';
+import { Room, roomServer } from '../game/room-server';
 import { CodeRead, CodeShow, InviteSteps } from './QrExchange';
 import { RoomCodeCard, RoomInvite, RoomJoin } from './RoomPairing';
 import './wifi.css';
+
+// What every device shows in the lobby's player list; the host sends it with the settings.
+type RosterEntry = { name: string; state: 'host' | 'ready' | 'waiting' | 'joining' };
+
+const cleanLabel = (value: unknown) =>
+  typeof value === 'string'
+    ? value
+        .replace(/\p{Cc}/gu, '')
+        .trim()
+        .slice(0, 20)
+    : '';
+
+function validRoster(value: unknown, maxPlayers: number): value is RosterEntry[] {
+  return (
+    Array.isArray(value) &&
+    value.length <= maxPlayers &&
+    value.every(
+      (entry) => entry && typeof entry.name === 'string' && entry.name.length <= 20 && ['host', 'ready', 'waiting', 'joining'].includes(entry.state as string),
+    )
+  );
+}
+
+const rosterText = { host: 'värd', ready: 'Redo ✓', waiting: 'väntar på Redo', joining: 'ansluter…' };
 
 // With a room code, QR pairing on the same Wi-Fi is the second option, folded away.
 function FoldedQr({ folded, summary, children }: { folded: boolean; summary: string; children: ReactNode }) {
@@ -32,6 +55,8 @@ export function WifiLobby<T>({
   hostSettings,
   guestPick,
   startLabel = 'Starta Wi-Fi-tävling',
+  playerName = '',
+  onPlayerName,
   onBack,
   onLaunch,
 }: {
@@ -39,8 +64,8 @@ export function WifiLobby<T>({
   title?: string;
   maxPlayers: number;
   config: T;
-  // Picks are the choices guests sent from their own devices, by slot; count includes the host.
-  configure?: (config: T, count: number, picks: Record<number, string>) => T;
+  // Picks are the choices guests sent from their own devices, by slot; count includes the host. Names are by slot, the host's at 0.
+  configure?: (config: T, count: number, picks: Record<number, string>, names: Record<number, string>) => T;
   // The part of the settings a guest confirms with Redo; changing it asks every guest again.
   readyKey?: (config: T) => string;
   validConfig: (value: unknown) => value is T;
@@ -52,6 +77,9 @@ export function WifiLobby<T>({
   // Lets a guest choose something for themself, such as their car.
   guestPick?: (config: T, slot: number, pick: (value: string) => void) => ReactNode;
   startLabel?: string;
+  // This device's player name in the lobby list; with onPlayerName the lobby lets the player change it.
+  playerName?: string;
+  onPlayerName?: (name: string) => void;
   onBack: () => void;
   // The host's room moves with the connections, so the next screen can invite more players or close it.
   onLaunch: (connections: Connection[], config: T, state?: unknown, room?: Room) => void;
@@ -85,6 +113,10 @@ export function WifiLobby<T>({
   const [room, setRoom] = useState<Room | null>(null);
   const [opening, setOpening] = useState(false);
   const [viaRoom, setViaRoom] = useState(false);
+  const [names, setNames] = useState<Record<number, string>>({});
+  const [roster, setRoster] = useState<RosterEntry[]>([]);
+  const [notice, setNotice] = useState('');
+  const [lastCode, setLastCode] = useState('');
   const [, refresh] = useState(0);
   const owned = useRef<PeerLink[]>([]);
   const ownedRoom = useRef<Room | null>(null);
@@ -93,7 +125,7 @@ export function WifiLobby<T>({
   const launch = useRef(onLaunch);
   launch.current = onLaunch;
   const joined = links.filter(({ link }) => link.status === 'connected');
-  const config = configure ? configure(baseConfig, joined.length + 1, picks) : baseConfig;
+  const config = configure ? configure(baseConfig, joined.length + 1, picks, { ...names, 0: cleanLabel(playerName) }) : baseConfig;
   const token = readyKey(config);
   const receivedToken = guestConfig === null ? '' : readyKey(guestConfig);
   const supported = window.isSecureContext && typeof RTCPeerConnection !== 'undefined';
@@ -124,6 +156,8 @@ export function WifiLobby<T>({
         }
         if (role === 'host' && m.kind === 'lobby-ready' && typeof m.token === 'string') {
           setGuestReady((old) => (old[player] === m.token ? old : { ...old, [player]: m.token as string }));
+          const label = cleanLabel(m.name);
+          setNames((old) => (old[player] === label ? old : { ...old, [player]: label }));
         }
         if (
           role === 'guest' &&
@@ -135,6 +169,7 @@ export function WifiLobby<T>({
         ) {
           setGuestConfig(m.config);
           setSlot(Number(m.slot));
+          if (validRoster(m.roster, maxPlayers)) setRoster(m.roster);
         }
         if (
           role === 'guest' &&
@@ -150,8 +185,18 @@ export function WifiLobby<T>({
         }
       }),
     );
+    // Both sides repeat their state, so a missed message or a renumbered slot heals itself within a moment.
     const send = () => {
-      if (role === 'host') for (const { slot, link } of links) link.send({ kind: 'lobby-settings', config, slot });
+      if (role === 'host') {
+        const players: RosterEntry[] = [{ name: cleanLabel(playerName) || 'Spelare 1', state: 'host' }];
+        for (const { slot: player, link } of links) {
+          const name = names[player] || `Spelare ${player + 1}`;
+          if (link.status === 'connected') players.push({ name, state: guestReady[player] === token ? 'ready' : 'waiting' });
+          else if (link.status === 'connecting') players.push({ name, state: 'joining' });
+        }
+        for (const { slot, link } of links) link.send({ kind: 'lobby-settings', config, slot, roster: players });
+      }
+      if (role === 'guest') links[0]?.link.send({ kind: 'lobby-ready', token: ready, name: cleanLabel(playerName) });
     };
     send();
     const timer = window.setInterval(send, 250);
@@ -159,7 +204,7 @@ export function WifiLobby<T>({
       for (const remove of removals) remove();
       clearInterval(timer);
     };
-  }, [links, role, config, validConfig, validStart, maxPlayers, slot]);
+  }, [links, role, config, validConfig, validStart, maxPlayers, slot, names, guestReady, token, ready, playerName]);
   useEffect(() => {
     if (role === 'guest' && ready && (!localAvailable || ready !== receivedToken)) {
       setReady('');
@@ -177,25 +222,32 @@ export function WifiLobby<T>({
     setGuestReady({});
     setPicks({});
     setError('');
+    setNames({});
+    setRoster([]);
+    setNotice('');
     ownedRoom.current?.close();
     ownedRoom.current = null;
     setRoom(null);
     setOpening(false);
     setViaRoom(false);
   };
-  // Removing a player renumbers the rest, so player numbers always run 2, 3, 4…
+  // Removing a player renumbers the rest, so player numbers always run 2, 3, 4…; everyone else keeps their name, pick and Redo.
   const removeLink = (target: PeerLink) => {
     target.close();
     owned.current = owned.current.filter((link) => link !== target);
     if (invite === target) setInvite(null);
-    setLinks((old) => old.filter(({ link }) => link !== target).map((entry, index) => ({ ...entry, slot: index + 1 })));
-    setGuestReady({});
-    setPicks({});
+    const remaining = links.filter(({ link }) => link !== target);
+    const renumber = <V,>(old: Record<number, V>) =>
+      Object.fromEntries(remaining.flatMap((entry, index) => (entry.slot in old ? [[index + 1, old[entry.slot]]] : []))) as Record<number, V>;
+    setLinks(remaining.map((entry, index) => ({ ...entry, slot: index + 1 })));
+    setGuestReady(renumber);
+    setPicks(renumber);
+    setNames(renumber);
   };
   const addGuest = async (open = room) => {
     setError('');
     try {
-      const link = new PeerLink('host', open ? ONLINE_ICE : []);
+      const link = open ? open.link() : new PeerLink('host');
       owned.current.push(link);
       setLinks((old) => [...old, { slot: old.length + 1, link }]);
       setInvite(link);
@@ -229,12 +281,36 @@ export function WifiLobby<T>({
   useEffect(() => {
     if (role === 'host' && room && inviteConnected && links.length + 1 < maxPlayers) void addGuest(room);
   }, [role, room, inviteConnected, links.length, maxPlayers]);
+  // A room invitation that failed, for example on a network that blocks direct contact, makes way for a fresh one.
+  const failedInvite = role === 'host' && room && invite && (invite.status === 'error' || invite.status === 'closed') ? invite : null;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs once per failed invitation with the latest state
+  useEffect(() => {
+    if (!failedInvite || !room) return;
+    const player = (links.find(({ link }) => link === failedInvite)?.slot ?? links.length) + 1;
+    setNotice(`Spelare ${player}: ${failedInvite.error || 'anslutningen bröts.'} Rummet är öppet igen.`);
+    removeLink(failedInvite);
+    void addGuest(room);
+  }, [failedInvite]);
+  // A guest whose room connection fails goes back to the code, ready to try again.
+  const failedJoin = role === 'guest' && viaRoom && invite && (invite.status === 'error' || invite.status === 'closed') ? invite : null;
+  useEffect(() => {
+    if (!failedJoin) return;
+    setNotice(failedJoin.error || 'Anslutningen till värden bröts.');
+    owned.current = [];
+    setLinks([]);
+    setInvite(null);
+    setViaRoom(false);
+    setGuestConfig(null);
+    setRoster([]);
+    setReady('');
+  }, [failedJoin]);
   const pendingSlot = pending ? (links.find(({ link }) => link === pending)?.slot ?? links.length) : 0;
   const allReady = joined.length > 0 && joined.every(({ slot, link }) => link.status === 'connected' && guestReady[slot] === token);
   const guestStep = connected ? 3 : invite ? 2 : 1;
   const linkState = (link: PeerLink, player: number) => {
     if (link.status === 'connected') return guestReady[player] === token ? 'Ansluten · Redo ✓' : 'Ansluten · väntar på Redo';
     if (link.status === 'error' || link.status === 'closed') return 'Anslutningen bröts';
+    if (link.status === 'connecting') return 'Ansluter…';
     return room ? 'Väntar på att någon skriver rumskoden…' : 'Bjuds in…';
   };
   const qrInvite = pending && (
@@ -259,6 +335,13 @@ export function WifiLobby<T>({
       </header>
       {!supported && <p role='alert'>Öppna spelets HTTPS-adress i en webbläsare med WebRTC. Kamera kräver HTTPS eller localhost.</p>}
 
+      {onPlayerName && (
+        <label className='lobby-name'>
+          Ditt namn
+          <input value={playerName} maxLength={16} autoComplete='nickname' placeholder='Valfritt' onChange={(event) => onPlayerName(event.target.value)} />
+        </label>
+      )}
+
       {!role && (
         <>
           <div className='wifi-role-options'>
@@ -282,10 +365,11 @@ export function WifiLobby<T>({
             {opening && <p role='status'>Öppnar ett rum…</p>}
             {room && <RoomCodeCard room={room} />}
             <ul className='player-list'>
-              <li className='done'>✓ Spelare 1 – du (värd)</li>
+              <li className='done'>✓ Spelare 1{cleanLabel(playerName) ? ` (${cleanLabel(playerName)})` : ''} – du (värd)</li>
               {links.map(({ slot: player, link }) => (
                 <li key={player} className={link.status === 'connected' ? 'done' : undefined}>
-                  {link.status === 'connected' ? '✓' : '…'} Spelare {player + 1} – {linkState(link, player)}
+                  {link.status === 'connected' ? '✓' : '…'} Spelare {player + 1}
+                  {names[player] ? ` (${names[player]})` : ''} – {linkState(link, player)}
                   {link.error && <span role='alert'> {link.error}</span>}
                   {link !== pending && link.status !== 'connected' && (
                     <button type='button' onClick={() => removeLink(link)}>
@@ -295,6 +379,7 @@ export function WifiLobby<T>({
                 </li>
               ))}
             </ul>
+            {notice && <p role='status'>{notice}</p>}
             {pending && pending.status !== 'error' && pending.status !== 'closed' ? (
               <>
                 {room ? (
@@ -363,13 +448,17 @@ export function WifiLobby<T>({
             <section className='wifi-step'>
               <h2>Skriv värdens rumskod</h2>
               <p>Koden står överst på värdens skärm. Ni kan vara på samma Wi-Fi eller på olika ställen.</p>
+              {notice && <p role='alert'>{notice} Tryck Gå med i rummet för att försöka igen.</p>}
               <RoomJoin
-                onLink={(link) => {
+                initialCode={lastCode}
+                onLink={(link, code) => {
                   for (const old of owned.current) old.close();
                   owned.current = [link];
                   setLinks([{ slot: 1, link }]);
                   setInvite(link);
                   setViaRoom(true);
+                  setLastCode(code);
+                  setNotice('');
                 }}
               />
             </section>
@@ -425,6 +514,20 @@ export function WifiLobby<T>({
             <section className='wifi-step'>
               <h2>Ansluten som spelare {slot + 1}</h2>
               <p>Enheterna är anslutna!</p>
+              {roster.length > 0 && (
+                <>
+                  <h3>I rummet</h3>
+                  <ul className='player-list' aria-label='Spelare i rummet'>
+                    {roster.map((entry, index) => (
+                      // biome-ignore lint/suspicious/noArrayIndexKey: players are identified by their slot
+                      <li key={index} className={entry.state === 'joining' ? undefined : 'done'}>
+                        {entry.state === 'joining' ? '…' : '✓'} {entry.name}
+                        {index === slot ? ' (du)' : ''} – {rosterText[entry.state]}
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
               {guestConfig ? summary(guestConfig) : <p role='status'>Hämtar värdens inställningar…</p>}
               {guestConfig && guestPick?.(guestConfig, slot, (value) => links[0]?.link.send({ kind: 'lobby-pick', value }))}
               <h3>Din kontroll</h3>

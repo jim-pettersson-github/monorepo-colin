@@ -1,5 +1,5 @@
 import type { CarSpec } from './cars';
-import { type CarState, type Controls, cornerGrip, forwardSpeed, topSpeed } from './physics';
+import { brakeDecel, type CarState, type Controls, cornerGrip, forwardSpeed, MAX_STEER, steeringLock, topSpeed } from './physics';
 import { sampleAt } from './track-path';
 import type { Track } from './tracks';
 
@@ -12,15 +12,16 @@ export type Driver = {
 
 export function targetSpeedAhead(track: Track, spec: CarSpec, s: number, speed: number, skill: number) {
   const { path } = track;
-  const grip = cornerGrip(spec) * 0.9 * skill;
-  const brake = 9 * spec.braking * skill;
+  const brake = brakeDecel(spec) * 0.82 * skill;
   let target = topSpeed(spec) * (0.9 + skill * 0.1);
   const horizon = 30 + (speed * speed) / (2 * brake);
 
   for (let distance = 0; distance <= horizon; distance += 6) {
     const curve = Math.abs(sampleAt(path, s + distance).curve);
     if (curve < 1e-4) continue;
-    const cornerSpeed = Math.sqrt(grip / curve);
+    // Downforce depends on speed, so refine the corner speed once from a first estimate.
+    const first = Math.sqrt((cornerGrip(spec) * 0.9 * skill) / curve);
+    const cornerSpeed = Math.sqrt((cornerGrip(spec, first) * 0.9 * skill) / curve);
     target = Math.min(target, Math.sqrt(cornerSpeed * cornerSpeed + 2 * brake * distance));
   }
   return target;
@@ -58,7 +59,11 @@ export function driveAi(car: CarState, spec: CarSpec, driver: Driver, track: Tra
 
   const wanted = targetSpeedAhead(track, spec, car.s, speed, driver.skill) * pace;
   const controls: Controls = {
-    steer: Math.max(-1, Math.min(1, angle * 2.6)),
+    // The lock narrows with speed; scale the input so the AI still asks for the wheel angle it wants.
+    steer: Math.max(
+      -1,
+      Math.min(1, (angle * 2.6 * MAX_STEER) / steeringLock(cornerGrip(spec, Math.abs(speed)) / Math.max(Math.abs(speed), 6), Math.abs(speed))),
+    ),
     throttle: speed < wanted - 1.5 ? 1 : speed < wanted ? 0.4 : 0,
     brake: speed > wanted + 2.5 ? Math.min(1, (speed - wanted) / 6) : 0,
     handbrake: false,

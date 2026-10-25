@@ -19,7 +19,7 @@ import type { Connection } from './network-play';
 import { NetworkRace, type RaceConfig, validRaceConfig } from './network-race';
 import { PeerLink } from './peer-link';
 import type { ResultRow } from './race';
-import { ONLINE_ICE, type Room } from './room-server';
+import type { Room } from './room-server';
 
 export type Identity = { id: string; name: string };
 export type OwnGarage = { garage: OwnedCar[]; activeCarId: string };
@@ -271,15 +271,24 @@ export class CareerSession {
   // Host: open an invitation for one more device between races, by room code or QR.
   async inviteGuest() {
     if (!this.host || this.invite) return;
-    const link = new PeerLink('host', this.options.room ? ONLINE_ICE : []);
+    const link = this.options.room ? this.options.room.link() : new PeerLink('host');
     this.invite = link;
     const slot = this.nextSlot++;
     const unsubscribe = link.subscribe(() => {
       if (link.status === 'connected') {
         unsubscribe();
         this.invite = undefined;
+        this.error = '';
         this.addGuest(slot, link, true);
         this.broadcast();
+      } else if ((link.status === 'error' || link.status === 'closed') && this.invite === link) {
+        // A join that cannot get through frees its place; with a room code the next invitation opens by itself.
+        unsubscribe();
+        this.invite = undefined;
+        if (this.nextSlot === slot + 1) this.nextSlot = slot;
+        this.error = `${link.error || 'Inbjudan bröts.'}${this.options.room ? ' Rummet är öppet igen.' : ''}`;
+        this.changed();
+        if (this.options.room && !this.ended) void this.inviteGuest();
       } else this.changed();
     });
     this.changed();
@@ -294,8 +303,9 @@ export class CareerSession {
   }
 
   cancelInvite() {
-    this.invite?.close();
+    const invite = this.invite;
     this.invite = undefined;
+    invite?.close();
     this.changed();
   }
 

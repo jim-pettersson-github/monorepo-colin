@@ -9,7 +9,7 @@ import { createMatch } from '../game/model';
 import { validNetworkMatch } from '../game/network-session';
 import { decodeSignal, PeerLink } from '../game/peer-link';
 import { type Footballer, footballer } from '../game/players';
-import { ONLINE_ICE, Room, roomServer } from '../game/room-server';
+import { Room, roomServer } from '../game/room-server';
 import { type TransferSave, withMatchSquads } from '../game/transfers';
 import { ControlSetup } from './ControlSetup';
 import { FullscreenButton } from './FullscreenButton';
@@ -87,6 +87,8 @@ export function WifiLobby({
   const owned = useRef<PeerLink | null>(null);
   const [room, setRoom] = useState<Room | null>(null);
   const [viaRoom, setViaRoom] = useState(false);
+  const [notice, setNotice] = useState('');
+  const [lastCode, setLastCode] = useState('');
   const ownedRoom = useRef<Room | null>(null);
   const online = !!roomServer();
   const transferred = useRef(false);
@@ -146,6 +148,30 @@ export function WifiLobby({
       link.send({ kind: 'lobby-ready', ready: false });
     }
   }, [link, connected, ready, available]);
+  // The guest repeats its Redo, so the host's start button never waits on a lost message.
+  useEffect(() => {
+    if (link?.role !== 'guest' || !connected) return;
+    const timer = window.setInterval(() => link.send({ kind: 'lobby-ready', ready }), 1000);
+    return () => clearInterval(timer);
+  }, [link, connected, ready]);
+  // A room join that cannot get through, for example on a network that blocks direct contact, starts over by itself.
+  const failed = role && link && (link.status === 'error' || link.status === 'closed') && (role === 'host' ? !!room : viaRoom) ? link : null;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs once per failed link with the latest room
+  useEffect(() => {
+    if (!failed) return;
+    setGuestReady(false);
+    setReady(false);
+    if (role === 'host' && room) {
+      setNotice(`${failed.error || 'Anslutningen bröts.'} Rummet är öppet igen.`);
+      const next = keep(room.link());
+      next.createOffer().catch((e) => setError(e instanceof Error ? e.message : 'Matchkoden kunde inte skapas.'));
+    } else {
+      setNotice(`${failed.error || 'Anslutningen bröts.'} Tryck Gå med i rummet för att försöka igen.`);
+      owned.current = null;
+      setLink(null);
+      setViaRoom(false);
+    }
+  }, [failed]);
   const keep = (next: PeerLink) => {
     owned.current?.close();
     owned.current = next;
@@ -159,6 +185,7 @@ export function WifiLobby({
     ownedRoom.current = null;
     setRoom(null);
     setViaRoom(false);
+    setNotice('');
     setLink(null);
     setRole(null);
     setError('');
@@ -237,7 +264,7 @@ export function WifiLobby({
                   problem = `${e instanceof Error ? e.message : 'Spelservern svarar inte.'} Para ihop med QR-koden istället.`;
                 }
               try {
-                await keep(new PeerLink('host', open ? ONLINE_ICE : [])).createOffer();
+                await keep(open ? open.link() : new PeerLink('host')).createOffer();
                 if (problem) setError(problem);
               } catch (e) {
                 setError(e instanceof Error ? e.message : 'Matchkoden kunde inte skapas.');
@@ -303,15 +330,25 @@ export function WifiLobby({
             <section className='wifi-connection-state' aria-label='Rumskod'>
               <RoomCodeCard room={room} />
               {link && <RoomInvite room={room} link={link} onError={setError} />}
+              {link?.status === 'connecting' && <p role='status'>Kompisen ansluter…</p>}
+              {notice && <p role='status'>{notice}</p>}
             </section>
           )}
           {role === 'guest' && online && !link && !viaRoom && (
             <section className='wifi-connection-state' aria-label='Rumskod'>
               <strong>Skriv kompisens rumskod</strong>
               <p>Koden står på värdens skärm. Ni kan vara på samma Wi-Fi eller på olika ställen.</p>
+              {notice && (
+                <p className='control-warning' role='alert'>
+                  {notice}
+                </p>
+              )}
               <RoomJoin
-                onLink={(next) => {
+                initialCode={lastCode}
+                onLink={(next, code) => {
                   setViaRoom(true);
+                  setLastCode(code);
+                  setNotice('');
                   keep(next);
                 }}
               />

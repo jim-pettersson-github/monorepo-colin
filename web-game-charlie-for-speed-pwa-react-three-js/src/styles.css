@@ -504,10 +504,6 @@ h3 {
   height: 100%;
 }
 
-.race-canvas.retro {
-  image-rendering: pixelated;
-}
-
 .render-error {
   position: absolute;
   inset: 40% 16px auto;
@@ -552,6 +548,54 @@ h3 {
 
 .hud-lap {
   font-size: clamp(1.4rem, 4vw, 2.2rem);
+}
+
+.hud-board {
+  display: grid;
+  gap: 1px;
+  width: clamp(124px, 16vw, 176px);
+  margin: 10px 0 0;
+  padding: 5px 6px;
+  border-radius: 6px;
+  background: rgb(5 8 20 / 0.45);
+  font-size: clamp(0.72rem, 1.5vw, 0.92rem);
+  font-style: normal;
+  line-height: 1.25;
+  list-style: none;
+}
+
+.hud-board li {
+  display: grid;
+  grid-template-columns: 1.4em minmax(0, 1fr);
+  gap: 4px;
+  padding: 0 3px;
+  border-radius: 3px;
+}
+
+.hud-board .board-place {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.hud-board .board-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hud-board li.human .board-name {
+  color: var(--accent);
+}
+
+.hud-board li.me {
+  background: var(--accent);
+  color: #10131f;
+  text-shadow: none;
+}
+
+.hud-board li.me .board-place {
+  color: #10131f;
 }
 
 .hud-times {
@@ -995,4 +1039,22 @@ h3 {
   .race-view:has(.race-fullscreen .round-control) .hud-times {
     top: max(10px, env(safe-area-inset-top));
   }
+}
+
+.settings-name {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 14px;
+  font-weight: 700;
+}
+
+.settings-name input {
+  min-height: 48px;
+  padding: 0 12px;
+  border: 2px solid var(--border);
+  border-radius: 4px;
+  background: #0a0d18;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 400;
 }
