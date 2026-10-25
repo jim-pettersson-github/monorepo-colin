@@ -5,7 +5,7 @@ A small PHP 8 + SQLite room server at https://games.charliecare.se. It lets game
 ## Files
 
 - `public/api.php`: the JSON API. It creates `games.sqlite` next to itself on first use, or at the path in `GAME_DB`.
-- `public/.htaccess`: blocks direct downloads of the database.
+- `public/.htaccess`: blocks direct downloads of a database or `config.php` kept next to the API.
 - `public/index.html`: a short info page.
 - `Dockerfile`, `docker/entrypoint.sh`: Apache + PHP 8.5 and coturn in one container. The database lives in the `/data` volume.
 - `docker-compose.yaml`: the Dokploy stack on the home dev host.
@@ -67,6 +67,6 @@ docker run --rm -p 18190:80 -p 3478:3478/udp -p 3478:3478/tcp -e TURN_SECRET=tes
 
 `TURN_ALLOW_PRIVATE_PEERS=1` is for local tests only, where every relay address is a container address.
 
-## Deploy (one.com, before the move)
+## Deploy
 
-`.github/workflows/game-server.yml` uploads `public/` over FTPS to the `games.charliecare.se` webroot (`webroots/0e182b4e`) on pushes to `main` that change this folder. It then checks `?a=health` and that the database cannot be downloaded. The FTP host and users are set in the workflow (it tries the games user, then the main user); the password is the `GAMES_FTP_PASSWORD` repository secret. The upload never overwrites the live database.
+Dokploy builds from `main`. Redeploy the `game-server` stack in the `games` project after a change (Dokploy UI, or `compose.deploy` through its API from the home network). `.github/workflows/game-server.yml` checks on every push that the image builds and the live server answers.
