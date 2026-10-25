@@ -13,7 +13,18 @@ export const clubs = [
   { id: 'stjarnlaget', name: 'IFK Örebro', code: 'IFÖ', shirt: '#ed91be', trim: '#f3f6ed' },
   { id: 'draken', name: 'Värnamo FF', code: 'VFF', shirt: '#56d2c0', trim: '#244738' },
   { id: 'klosskoping', name: 'IFK Lund', code: 'IFK', shirt: '#c4b2fb', trim: '#674735' },
+  { id: 'stockholm', name: 'Stockholm Stjärnor', code: 'STJ', shirt: '#e05780', trim: '#fff4da' },
+  { id: 'uppsala', name: 'Uppsala United', code: 'UU', shirt: '#5c87ce', trim: '#fce7a0' },
+  { id: 'helsingborg', name: 'Helsingborg BK', code: 'HBK', shirt: '#dfba78', trim: '#483257' },
+  { id: 'norrsken', name: 'Norrsken FC', code: 'NFC', shirt: '#60ad83', trim: '#192e4d' },
+  { id: 'petterssons', name: 'Petterssons FC', code: 'PFC', shirt: '#4d92b3', trim: '#fff1ce' },
+  { id: 'katona', name: 'IFK Katona', code: 'IFK', shirt: '#e6bd46', trim: '#253342' },
+  { id: 'danielsson', name: 'IF Danielsson', code: 'IFD', shirt: '#aa6d87', trim: '#fff4da' },
+  { id: 'smaland', name: 'Småland United', code: 'SU', shirt: '#728adb', trim: '#fce7a0' },
 ] as const;
+
+// Keep these twelve IDs and their order for saves made before the division expansion.
+export const originalClubs = clubs.slice(0, 12);
 
 export type ClubId = (typeof clubs)[number]['id'] | (typeof nations)[number]['id'];
 export interface FootballTeam {

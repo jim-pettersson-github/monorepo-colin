@@ -48,14 +48,14 @@ test('two cups keep independent saves, group tables and the league when restarti
   expect(first.duration).toBe(60);
   await page.locator('.cup-choice').filter({ hasText: 'Mästarpokalen' }).click();
   await page.getByRole('button', { name: 'Starta Mästarpokalen', exact: true }).click();
-  await expect(page.locator('.cup-table tbody tr')).toHaveCount(12);
+  await expect(page.locator('.cup-table tbody tr')).toHaveCount(20);
   await page.getByRole('button', { name: 'Simulera direkt', exact: true }).click();
   await page.getByRole('button', { name: 'Simulera cupmatch', exact: true }).click();
   await expect
     .poll(() =>
       page.evaluate((key) => JSON.parse(localStorage.getItem(key) || '{}').fixtures.filter((f: { score: unknown }) => f.score).length, key('masters')),
     )
-    .toBe(6);
+    .toBe(10);
   await expect(page.locator('.cup-table tbody tr').first()).toBeVisible();
   const second = await page.evaluate((key) => JSON.parse(localStorage.getItem(key) || 'null'), key('masters'));
   expect(await page.evaluate((key) => JSON.parse(localStorage.getItem(key) || 'null'), key('alfred'))).toEqual(first);
@@ -183,5 +183,5 @@ test('world cup selects national teams, simulates a group round and restores a s
   await page.getByRole('button', { name: 'Ja, avsluta', exact: true }).click();
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('alfred-fc-cup-world-v1') || 'null'))).toEqual(world);
   await page.getByRole('button', { name: /^Snabbmatch/ }).click();
-  await expect(page.locator('.club-option')).toHaveCount(12);
+  await expect(page.locator('.club-option')).toHaveCount(20);
 });

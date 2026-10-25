@@ -92,7 +92,7 @@ export function CupPanel({ input, cups, kind, onKind, saved, onResume, onCreate,
   };
   const roster = cupTeams(kind);
   const pair: MatchClubs = [club, roster.find((c) => c.id !== club)?.id ?? 'brick'];
-  const groupRounds = cupGroupRounds(kind);
+  const groupRounds = cupGroupRounds(kind, cup?.draw.length);
   const bestThirds = cup && kind === 'world' ? cupThirdPlaces(cup) : [];
   const activeMode = action === 'local' ? 'versus' : 'solo';
   const ready = action === 'watch' || action === 'simulate' || action === 'wifi' || controlsReady(input, activeMode);
@@ -126,7 +126,7 @@ export function CupPanel({ input, cups, kind, onKind, saved, onResume, onCreate,
           <p>
             {kind === 'world'
               ? '24 landslag, inklusive hela Norden. Tre gruppmatcher, sedan slutspel. Välj ditt land och spela om världspokalen!'
-              : 'Alla 12 lag är med. Cuperna och ligan sparas var för sig. Oavgjorda utslagsmatcher fortsätter med gyllene mål.'}
+              : 'Alla 20 klubbar från båda divisionerna är med. Cuperna och ligan sparas var för sig. Oavgjorda utslagsmatcher fortsätter med gyllene mål.'}
           </p>
           <button type='button' className='primary-button' disabled={simulating} onClick={() => (cup ? setReplace(true) : create())}>
             Starta {cupName(kind)}
@@ -344,12 +344,14 @@ export function CupPanel({ input, cups, kind, onKind, saved, onResume, onCreate,
             </p>
           )}
           <section className='cup-bracket' aria-label='Cupens slutspel'>
-            {Array.from({ length: cupFinalRound(kind) - groupRounds + 1 }, (_, i) => groupRounds + i).map((round) => (
+            {Array.from({ length: cupFinalRound(kind, cup.draw.length) - groupRounds + 1 }, (_, i) => groupRounds + i).map((round) => (
               <section className='cup-round' key={round}>
                 <h2>{cupRoundName(cup, round)}</h2>
                 {!cup.fixtures.some((f) => f.round === round) && (
                   <p className='small-copy cup-pending-round'>
-                    {round === cupFinalRound(kind) ? 'Vinnarna i semifinalerna möts här.' : 'Lagen blir klara när föregående omgång är spelad.'}
+                    {round === cupFinalRound(kind, cup.draw.length)
+                      ? 'Vinnarna i semifinalerna möts här.'
+                      : 'Lagen blir klara när föregående omgång är spelad.'}
                   </p>
                 )}
                 {cup.fixtures

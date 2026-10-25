@@ -1,5 +1,5 @@
 import type { ClubId, FootballTeam } from './clubs';
-import { clubs, getClub, validClub } from './clubs';
+import { clubs, getClub, originalClubs, validClub } from './clubs';
 import type { Fixture } from './league';
 import { standings } from './league';
 import { type CupKind, createMatch, type Difficulty, type MatchState } from './model';
@@ -10,13 +10,13 @@ export const cupTypes = [
     id: 'alfred',
     name: 'Alfredcupen',
     label: 'DIREKT UTSLAGNING',
-    description: '12 lag. Fyra lottade lag går direkt till kvartsfinal. Vinn matchen och gå vidare till pokalen.',
+    description: '20 klubbar från båda divisionerna. Tolv lottade lag går direkt till åttondelsfinal. Vinn och gå vidare till pokalen.',
   },
   {
     id: 'masters',
     name: 'Mästarpokalen',
     label: 'GRUPPSPEL & SLUTSPEL',
-    description: 'Två grupper med sex lag. Alla möts en gång. De två bästa i varje grupp går till semifinal.',
+    description: 'Två grupper med tio lag. Alla möts en gång. De två bästa i varje grupp går till semifinal.',
   },
   {
     id: 'world',
@@ -26,8 +26,10 @@ export const cupTypes = [
   },
 ] as const;
 export const cupTeams = (kind: CupKind): readonly FootballTeam[] => (kind === 'world' ? nations : clubs);
-export const cupGroupRounds = (kind: CupKind) => (kind === 'alfred' ? 0 : kind === 'world' ? 3 : 5);
-export const cupFinalRound = (kind: CupKind) => (kind === 'alfred' ? 3 : 6);
+export const cupGroupRounds = (kind: CupKind, count: number = clubs.length) => (kind === 'alfred' ? 0 : kind === 'world' ? 3 : count / 2 - 1);
+export const cupFinalRound = (kind: CupKind, count: number = clubs.length) =>
+  kind === 'alfred' ? Math.ceil(Math.log2(count)) - 1 : kind === 'world' ? 6 : cupGroupRounds(kind, count) + 1;
+const byeCount = (count: number) => 2 ** Math.ceil(Math.log2(count)) - count;
 export const cupName = (kind: CupKind) => cupTypes.find((c) => c.id === kind)?.name ?? cupTypes[0].name;
 export interface CupFixture extends Fixture {
   stage: 'group' | 'knockout';
@@ -59,10 +61,13 @@ function opening(kind: CupKind, draw: ClubId[]) {
       fixtures,
       0,
       'knockout',
-      [0, 1, 2, 3].map((i) => [draw[4 + i * 2], draw[5 + i * 2]]),
+      Array.from({ length: (draw.length - byeCount(draw.length)) / 2 }, (_, i) => [
+        draw[byeCount(draw.length) + i * 2],
+        draw[byeCount(draw.length) + 1 + i * 2],
+      ]),
     );
   else {
-    const size = kind === 'world' ? 4 : 6;
+    const size = kind === 'world' ? 4 : draw.length / 2;
     const groups = Array.from({ length: draw.length / size }, (_, i) => draw.slice(i * size, (i + 1) * size));
     for (let round = 0; round < size - 1; round++) {
       for (const group of groups) {
@@ -80,18 +85,24 @@ function opening(kind: CupKind, draw: ClubId[]) {
 }
 export const cupRoundName = (cup: Cup, round: number) =>
   cup.kind === 'alfred'
-    ? ['Första omgången', 'Kvartsfinal', 'Semifinal', 'Final'][round]
-    : round < cupGroupRounds(cup.kind)
+    ? { 0: 'Final', 1: 'Semifinal', 2: 'Kvartsfinal', 3: cup.draw.length === 12 ? 'Första omgången' : 'Åttondelsfinal', 4: 'Första omgången' }[
+        cupFinalRound(cup.kind, cup.draw.length) - round
+      ]
+    : round < cupGroupRounds(cup.kind, cup.draw.length)
       ? `Gruppomgång ${round + 1}`
-      : { 3: 'Åttondelsfinal', 4: 'Kvartsfinal', 5: 'Semifinal', 6: 'Final' }[round];
+      : cup.kind === 'masters'
+        ? round === cupGroupRounds(cup.kind, cup.draw.length)
+          ? 'Semifinal'
+          : 'Final'
+        : { 3: 'Åttondelsfinal', 4: 'Kvartsfinal', 5: 'Semifinal', 6: 'Final' }[round];
 export const cupChampion = (cup: Cup): ClubId | null => {
-  const final = cup.fixtures.find((f) => f.round === cupFinalRound(cup.kind));
+  const final = cup.fixtures.find((f) => f.round === cupFinalRound(cup.kind, cup.draw.length));
   return final?.score ? (final.score[0] > final.score[1] ? final.home : final.away) : null;
 };
 export const nextCupFixture = (cup: Cup) => cup.fixtures.find((f) => !f.score && (f.home === cup.club || f.away === cup.club));
 export const cupOpponent = (cup: Cup, fixture: CupFixture) => (fixture.home === cup.club ? fixture.away : fixture.home);
 export function cupGroups(cup: Pick<Cup, 'draw' | 'fixtures'>) {
-  const size = cup.draw.length === 24 ? 4 : 6;
+  const size = cup.draw.length === 24 ? 4 : cup.draw.length / 2;
   return Array.from({ length: cup.draw.length / size }, (_, i) => cup.draw.slice(i * size, (i + 1) * size)).map((group) =>
     standings({ fixtures: cup.fixtures.filter((f) => f.stage === 'group') }, cup.draw)
       .filter((row) => group.includes(row.club))
@@ -132,20 +143,23 @@ function worldKnockout(cup: Pick<Cup, 'draw' | 'fixtures'>): [ClubId, ClubId][] 
   return pairs;
 }
 function appendNext(cup: Pick<Cup, 'kind' | 'draw' | 'fixtures'>, round: number) {
-  if (round < cupGroupRounds(cup.kind) - 1 || round === cupFinalRound(cup.kind)) return;
+  if (round < cupGroupRounds(cup.kind, cup.draw.length) - 1 || round === cupFinalRound(cup.kind, cup.draw.length)) return;
   if (cup.kind === 'world' && round === 2) {
     append(cup.fixtures, 3, 'knockout', worldKnockout(cup));
     return;
   }
   let qualified: ClubId[];
-  if (cup.kind === 'masters' && round === 4) {
+  if (cup.kind === 'masters' && round === cupGroupRounds(cup.kind, cup.draw.length) - 1) {
     const [a, b] = cupGroups(cup);
     qualified = [a[0].club, b[1].club, b[0].club, a[1].club];
   } else {
     const winners = cup.fixtures
       .filter((f) => f.round === round)
       .map((f) => ((f.score as [number, number])[0] > (f.score as [number, number])[1] ? f.home : f.away));
-    qualified = cup.kind === 'alfred' && round === 0 ? cup.draw.slice(0, 4).flatMap((club, i) => [club, winners[i]]) : winners;
+    qualified =
+      cup.kind === 'alfred' && byeCount(cup.draw.length) > 0 && round === 0
+        ? cup.draw.slice(0, byeCount(cup.draw.length)).flatMap((club, i) => (i < winners.length ? [club, winners[i]] : [club]))
+        : winners;
   }
   append(
     cup.fixtures,
@@ -164,7 +178,7 @@ function simulateFixture(cup: Cup, fixture: CupFixture) {
 }
 function settle(cup: Cup) {
   // Complete rounds without the chosen club (a bye or elimination), never skip its next match.
-  for (let guard = 0; guard < 8; guard++) {
+  for (let guard = 0; guard < 12; guard++) {
     const round = cup.fixtures.find((f) => !f.score)?.round;
     if (round === undefined) return;
     const pending = cup.fixtures.filter((f) => f.round === round && !f.score);
@@ -243,15 +257,18 @@ export function validCup(value: unknown): value is Cup {
     ![60, 180, 300].includes(s.duration) ||
     ![s.seed, s.randomState].every((n) => Number.isInteger(n) && n >= 0 && n <= 0xffffffff) ||
     !Array.isArray(s.draw) ||
-    s.draw.length !== cupTeams(s.kind).length ||
-    new Set(s.draw).size !== cupTeams(s.kind).length ||
-    !s.draw.every((id) => cupTeams(s.kind).some((team) => team.id === id)) ||
+    !(s.kind === 'world' ? s.draw.length === 24 : [12, 16, 20].includes(s.draw.length)) ||
+    new Set(s.draw).size !== s.draw.length ||
+    !s.draw.includes(s.club) ||
+    !s.draw.every((id) =>
+      (s.kind === 'world' ? nations : s.draw.length === 12 ? originalClubs : clubs.slice(0, s.draw.length)).some((team) => team.id === id),
+    ) ||
     !Array.isArray(s.fixtures) ||
-    s.fixtures.length > (s.kind === 'world' ? 51 : 33)
+    s.fixtures.length > (s.kind === 'world' ? 51 : s.kind === 'masters' ? 93 : 19)
   )
     return false;
   const expected = opening(s.kind, s.draw);
-  for (let round = 0; round <= 6; round++) {
+  for (let round = 0; round <= cupFinalRound(s.kind, s.draw.length); round++) {
     const games = expected.filter((f) => f.round === round);
     if (!games.length) break;
     for (const f of games) {

@@ -5,7 +5,7 @@ import { getClub } from '../game/clubs';
 import type { Cup } from '../game/cups';
 import type { InputManager } from '../game/input';
 import type { LeagueAction, Season } from '../game/league';
-import { nextFixture, opponentClub } from '../game/league';
+import { initialDivisions, nextFixture, opponentClub, seasonRounds } from '../game/league';
 import type { CupKind, Difficulty, MatchMode, MatchState, PlaybackSpeed, Team } from '../game/model';
 import { difficultyNames } from '../game/model';
 import { roomServer } from '../game/room-server';
@@ -46,7 +46,7 @@ interface Props {
   saved: MatchState | null;
   onQuick: () => void;
   onResume: () => void;
-  onSeason: () => void;
+  onSeason: (continuing?: boolean) => void;
   onLeagueMatch: (action: LeagueAction, speed: PlaybackSpeed) => void;
   simulating: boolean;
   simulationError: string;
@@ -121,7 +121,7 @@ export function StartMenu(props: Props) {
         </button>
         <button type='button' disabled={simulating} aria-pressed={league} onClick={() => onScreen('league')}>
           <strong>Divisionsspel</strong>
-          <small>{season ? getClub(season.club).name : '12 lag · En hel säsong'}</small>
+          <small>{season ? getClub(season.club).name : '20 lag · Två divisioner'}</small>
         </button>
         <button type='button' disabled={simulating} aria-pressed={screen === 'cups'} onClick={() => onScreen('cups')}>
           <strong>Cupspel</strong>
@@ -161,7 +161,7 @@ export function StartMenu(props: Props) {
               <small>
                 {hub
                   ? next
-                    ? `Omgång ${next.round + 1} av 22 · ${leagueAction === 'local' ? 'Två på samma skärm' : leagueAction === 'wifi' ? 'Två via Wi-Fi' : leagueAction === 'play' ? 'Mot datorn' : leagueAction === 'watch' ? 'Matchvisning' : 'Simulering'}`
+                    ? `Omgång ${next.round + 1} av ${seasonRounds(season)} · ${leagueAction === 'local' ? 'Två på samma skärm' : leagueAction === 'wifi' ? 'Två via Wi-Fi' : leagueAction === 'play' ? 'Mot datorn' : leagueAction === 'watch' ? 'Matchvisning' : 'Simulering'}`
                     : 'Alla matcher är spelade'
                   : `${league ? 'Divisionsspel' : mode === 'solo' ? 'Mot datorn' : 'Två spelare'} · ${duration / 60} min${activeMode === 'solo' ? ` · ${difficultyNames[difficulty]}` : ''}`}
               </small>
@@ -202,6 +202,11 @@ export function StartMenu(props: Props) {
             <>
               <div className='league-toolbar'>
                 <p className='small-copy'>Din säsong sparas automatiskt. Spelare 1 styr ditt lag; spelare 2 styr motståndarlaget i nästa omgång.</p>
+                {!next && (
+                  <button type='button' className='primary-button' onClick={() => props.onSeason(true)}>
+                    Starta nästa säsong
+                  </button>
+                )}
                 <button
                   type='button'
                   disabled={simulating}
@@ -293,7 +298,7 @@ export function StartMenu(props: Props) {
                 <h2>{league ? 'Välj ditt ligalag.' : 'Din snabbmatch.'}</h2>
                 {league ? (
                   <p className='small-copy'>
-                    Spela själv eller möt en kompis i varje omgång. Alla 12 lag möts hemma och borta: 22 omgångar och ett färdigt spelschema.
+                    20 klubbar i två divisioner med tio lag. Hemma och borta i 18 omgångar. Två lag flyttas upp och två ned efter varje säsong.
                   </p>
                 ) : (
                   <fieldset className='mode-options' aria-label='Spelläge'>
@@ -310,6 +315,12 @@ export function StartMenu(props: Props) {
                   </fieldset>
                 )}
                 <TeamSelection key={league ? 'league' : 'quick'} selected={clubs} mode={activeMode} single={league} onChange={onClub} />
+                {league && (
+                  <p className='small-copy'>
+                    Ditt lag börjar i division {initialDivisions().findIndex((group) => group.includes(clubs[0])) + 1}. Alla lag börjar med balanserade
+                    stjärntrupper.
+                  </p>
+                )}
                 <div className='match-options'>
                   <label>
                     Matchlängd

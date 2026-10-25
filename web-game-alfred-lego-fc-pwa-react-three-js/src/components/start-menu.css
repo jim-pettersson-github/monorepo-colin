@@ -164,6 +164,28 @@
   text-align: center;
   min-width: 460px;
 }
+.division-select {
+  display: grid;
+  gap: 8px;
+  max-width: 360px;
+  margin-block: 16px;
+}
+.division-select select {
+  min-height: 48px;
+  padding: 10px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font: inherit;
+}
+.league-table .promotion-tag,
+.promotion-result {
+  color: var(--accent);
+}
+.league-table .relegation-tag {
+  color: #f6bba2;
+}
 .league-table caption {
   text-align: left;
   padding: 16px;

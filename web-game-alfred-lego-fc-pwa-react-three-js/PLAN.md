@@ -2,15 +2,15 @@
 
 ## Implemented
 
-- Quick match and Division 1 entry, with inline start/resume actions near the top and visible update controls and a focused match-exit confirmation modal.
-- Twelve-club league: 22 home/away rounds, 132 fixtures, standings, automatic results for other games, a final champion and separate validated season saves/backups.
+- Quick match and two-division entry, with inline start/resume actions near the top and visible update controls and a focused match-exit confirmation modal.
+- Twenty clubs in two ten-team divisions: 18 home/away rounds and 180 fixtures, both tables, automatic round results and two promotions/relegations between completed seasons. Season numbers and division membership persist; original 12-club seasons finish unchanged.
 - League results record once at full time. Unfinished fixtures can resume; abandoning one preserves past rounds and lets the player retry. A replacement season requires confirmation.
 - League fixtures support solo, shared-screen and Wi-Fi opponents. Player 2 controls the scheduled opponent; only the Wi-Fi host records the season result. Reconnect per fixture; abandoned games do not count.
 - League-only options to play, watch AI versus AI at 1×/2×/5×, or simulate directly without a pitch view. All use the same fixed-step rules, auto-take penalties, save progress and record each round once.
 - A 96 x 60 pitch, twice the original length and width, with scaled goals, markings, formations and AI positioning. Character sizes and tackle/contact distances remain unchanged.
 - A smooth shared follow camera with limited automatic zoom, pitch-edge bounds and a live overview. The menu preview still shows the whole stadium.
 - Five-a-side football: four outfield players and one AI goalkeeper per team.
-- Twelve selectable clubs with distinct shirt colors, trim and crests; team selections persist through saves and rematches.
+- Twenty selectable clubs with distinct shirt colors, trim and crests; team selections persist through saves and rematches.
 - Procedural LEGO-style characters, animated limbs, selection rings, a patterned ball and brick-built stadium.
 - Solo versus AI or two local human players on one screen, with AI teammates.
 - Two-device LAN play via WebRTC and two-way compressed QR codes, camera/image scanning and copy/paste. The host runs the match; the guest controls player 2. Separate device input/orientation, shared pause, lost-peer handling, host rematches and local-save isolation. No external signaling, STUN or TURN.
@@ -29,16 +29,16 @@
 - Offline production PWA and save-before-update behavior. No accounts or backend.
 - Locally synthesized kick/pass, slide/contact, save/rebound, goal and referee/finish sound effects. Saved mute/volume controls, user-gesture audio unlocking, pause/background silence and event deduplication for restored matches and Wi-Fi snapshots.
 
-- Two independently saved twelve-club cups: Alfredcupen (knockout, four drawn byes) and Mästarpokalen (two six-team groups, cross-group semifinals and final). Group tables, brackets, champions, golden-goal knockout ties, solo/local/QR play, watching and direct simulation.
+- Two independently saved twenty-club cups: Alfredcupen (twelve drawn byes into the round of 16) and Mästarpokalen (two ten-team groups, cross-group semifinals and final). Original 12-club cup saves retain their format. Group tables, brackets, champions, golden-goal knockout ties, solo/local/QR play, watching and direct simulation.
 - Världscupen: 24 national teams selected from the December 2025 FIFA men's ranking plus all five Nordic countries, flags and alternative kits. Six four-team groups, best-third-place table, round of 16 through final, a separate save and the same cup play modes. This is an arcade format; the ranking selects the roster and does not change AI strength.
+
+- Persistent transfers and wallets: 200 players (129 modern stars, 52 classics, 19 family players), balanced ten-player squads with two GK/two DEF/three MID/three FWD, era/position filters, estimated prime-year stats and exact requested family ratings. IF Danielsson has a full ten-player Danielsson squad; IFK Katona and Petterssons FC have the other family players. Purchases, sales, swaps, protected new signings and infrequent AI moves respect money and squad minima. Match and trophy rewards are deduplicated; national squads remain fixed and earnings go to a domestic club. Old domestic slots keep IDs, keeper roles and purchased ownership when upgraded.
 
 ## Verification
 
-- Persistent transfers and wallets: fixed ten-player squads, balanced rating bands, rating-based prices, automatic first fives and real gameplay stat effects. Purchases, sales, swaps, protected new signings and infrequent AI moves respect money and squad minima. Match and trophy rewards are deduplicated; national squads remain fixed and earnings go to a domestic club.
+Rules tests cover balanced star allocation, migration of old economies and schedules, promotion/relegation, the full home/away season, standings, instant/watched simulation equivalence, watch speed/pause, result deduplication, backups and invalid schedules, alongside close non-contact slides, late ball wins, three-way referee decisions, difficulty, pitch boundaries, cameras, scoring, penalties, input and save validation.
 
-Rules tests cover the full home/away season, standings, instant/watched simulation equivalence, watch speed/pause, result deduplication, backups and invalid schedules, alongside close non-contact slides, late ball wins, three-way referee decisions, difficulty, pitch boundaries, cameras, scoring, penalties, input and save validation.
-
-Desktop, portrait-phone and landscape-phone browser checks cover direct simulation/results, watch speed changes, saved viewing, full-time recording, league-only options and close slides without whistles, alongside menu actions, exit confirmation, season fixtures, camera scrolling, scoring, tackles, penalties, input, rotation and offline reload.
+Desktop, portrait-phone and landscape-phone browser checks cover star search and era/position filters, old economy upgrades, season rollover, direct simulation/results, watch speed changes, saved viewing, full-time recording, league-only options and close slides without whistles, alongside menu actions, exit confirmation, season fixtures, camera scrolling, scoring, tackles, penalties, input, rotation and offline reload.
 
 ## Next review
 
@@ -52,4 +52,4 @@ Desktop, portrait-phone and landscape-phone browser checks cover direct simulati
 
 ## Scope
 
-Local single-device quick matches, two-device LAN matches and division play with optional human opponents are implemented. Multiple divisions, promotion/relegation, automatic internet matchmaking/relay, full football rules, music, replays are not implemented. Controller compatibility depends on the OS, browser and device. Universal compatibility is not promised.
+Local single-device quick matches, two-device LAN matches and two-division play with promotion/relegation and optional human opponents are implemented. Automatic internet matchmaking/relay, full football rules, music and replays are not implemented. Controller compatibility depends on the OS, browser and device. Universal compatibility is not promised.

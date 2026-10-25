@@ -269,8 +269,16 @@ export function App() {
       next[team] = id;
       return next;
     });
-  const beginLeague = () => {
-    const created = createSeason(clubs[0], difficulty, duration);
+  const beginLeague = (continuing = false) => {
+    const previous = seasonRef.current;
+    const club = continuing && previous ? previous.club : clubs[0];
+    const created = createSeason(
+      club,
+      continuing && previous ? previous.difficulty : difficulty,
+      continuing && previous ? previous.duration : duration,
+      previous ?? undefined,
+    );
+    seasonRef.current = created;
     saveSeason(created);
     setSeason(created);
     if (saved?.league) {

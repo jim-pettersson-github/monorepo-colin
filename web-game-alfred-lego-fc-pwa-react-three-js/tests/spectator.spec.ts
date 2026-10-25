@@ -26,13 +26,13 @@ test('league-only instant simulation shows a result, advances one round and pers
   await openLeague(page);
   await page.getByRole('button', { name: 'Simulera direkt', exact: true }).click();
   await page.getByRole('button', { name: 'Simulera nästa ligamatch', exact: true }).click();
-  await expect.poll(async () => (await readSeason(page)).fixtures.filter((f) => f.score).length).toBe(6);
+  await expect.poll(async () => (await readSeason(page)).fixtures.filter((f) => f.score).length).toBe(10);
   await expect(page.locator('.game-canvas')).toHaveCount(0);
   await expect(page.locator('.last-league-result')).toContainText('Senaste resultat:');
   expect(await page.evaluate((key) => localStorage.getItem(key), matchKey)).toBeNull();
   await page.screenshot({ path: testInfo.outputPath('simulated-result.png') });
   await page.getByRole('button', { name: 'Simulera nästa ligamatch', exact: true }).click();
-  await expect.poll(async () => (await readSeason(page)).fixtures.filter((f) => f.score).length).toBe(12);
+  await expect.poll(async () => (await readSeason(page)).fixtures.filter((f) => f.score).length).toBe(20);
   const completed = await readSeason(page);
   await page.reload();
   await page.getByRole('button', { name: /^Divisionsspel/ }).click();
@@ -80,7 +80,7 @@ test('watching a league fixture supports speed changes, pause, saved viewing and
   await page.getByRole('button', { name: /Fortsätt sparad matchvisning/ }).click();
   await page.clock.runFor(400);
   await page.getByRole('button', { name: 'Till ligan', exact: true }).click();
-  expect((await readSeason(page)).fixtures.filter((f) => f.score)).toHaveLength(6);
+  expect((await readSeason(page)).fixtures.filter((f) => f.score)).toHaveLength(10);
   await expect(page.locator('.last-league-result')).toBeVisible();
 });
 

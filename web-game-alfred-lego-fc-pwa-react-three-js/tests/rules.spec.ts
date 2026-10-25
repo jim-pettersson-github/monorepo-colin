@@ -1,8 +1,9 @@
 import { expect, test } from '@playwright/test';
 import { BoxGeometry, Group, InstancedMesh, Matrix4, Mesh, MeshBasicMaterial, Vector3 } from 'three';
 import { matchCameraFrame } from '../src/game/camera';
-import { clubs, getMatchClubs } from '../src/game/clubs';
+import { clubs, getMatchClubs, originalClubs } from '../src/game/clubs';
 import {
+  type Cup,
   createCup,
   createCupMatch,
   cupChampion,
@@ -19,7 +20,9 @@ import {
   createLeagueMatch,
   createSeason,
   finishLeagueMatch,
+  initialDivisions,
   loadSeason,
+  nextDivisions,
   nextFixture,
   opponentClub,
   saveSeason,
@@ -43,6 +46,7 @@ import {
   createTransfers,
   domesticClub,
   loadTransfers,
+  migrateTransfers,
   prepareTransferMatch,
   saveTransfers,
   sellPlayer,
@@ -250,7 +254,7 @@ test('only the Wi-Fi host records a completed league fixture and league fixtures
   expect(mirror.state.phase).toBe('finished');
   mirror.save();
   expect(guestRecords).toBe(0);
-  expect(season.fixtures.filter((fixture) => fixture.score)).toHaveLength(6);
+  expect(season.fixtures.filter((fixture) => fixture.score)).toHaveLength(10);
   const completed = structuredClone(season);
   session.save();
   session.rematch();
@@ -296,7 +300,7 @@ test('instant and watched league matches run identical fixed-step AI and resolve
   expect(simulated).toEqual(visible);
   expect(initial.phase).toBe('kickoff');
   expect(validMatch(simulated)).toBe(true);
-  expect(finishLeagueMatch(season, simulated).fixtures.filter((f) => f.score)).toHaveLength(6);
+  expect(finishLeagueMatch(season, simulated).fixtures.filter((f) => f.score)).toHaveLength(10);
   const penalty = missedSlide(1000, FIELD.penaltySpot, 0, 1);
   penalty.league = initial.league;
   penalty.mode = 'solo';
@@ -337,21 +341,23 @@ test('watch speeds advance simulation time at 1x, 2x and 5x and respect pause', 
   expect(validMatch(quick)).toBe(false);
 });
 
-test('the league schedules home and away meetings for all twelve clubs and completes an entire season once', () => {
+test('two ten-team divisions schedule home and away meetings and complete a whole season once', () => {
   const fixtures = seasonSchedule();
-  expect(fixtures).toHaveLength(132);
-  for (let round = 0; round < 22; round++) {
+  expect(fixtures).toHaveLength(180);
+  for (let round = 0; round < 18; round++) {
     const games = fixtures.filter((f) => f.round === round);
-    expect(games).toHaveLength(6);
-    expect(new Set(games.flatMap((f) => [f.home, f.away])).size).toBe(12);
+    expect(games).toHaveLength(10);
+    expect(new Set(games.flatMap((f) => [f.home, f.away])).size).toBe(20);
   }
   for (const club of clubs) {
-    expect(fixtures.filter((f) => f.home === club.id)).toHaveLength(11);
-    expect(fixtures.filter((f) => f.away === club.id)).toHaveLength(11);
-    for (const other of clubs.filter((c) => c.id !== club.id)) expect(fixtures.filter((f) => f.home === club.id && f.away === other.id)).toHaveLength(1);
+    expect(fixtures.filter((f) => f.home === club.id)).toHaveLength(9);
+    expect(fixtures.filter((f) => f.away === club.id)).toHaveLength(9);
+    const division = initialDivisions().find((group) => group.includes(club.id));
+    for (const other of clubs.filter((c) => c.id !== club.id))
+      expect(fixtures.filter((f) => f.home === club.id && f.away === other.id)).toHaveLength(division?.includes(other.id) ? 1 : 0);
   }
   let season = createSeason('skogsby', 'easy', 60);
-  for (let round = 0; round < 22; round++) {
+  for (let round = 0; round < 18; round++) {
     const fixture = nextFixture(season);
     if (!fixture) throw new Error('Missing fixture');
     expect(fixture.round).toBe(round);
@@ -362,13 +368,14 @@ test('the league schedules home and away meetings for all twelve clubs and compl
     match.phase = 'finished';
     season = finishLeagueMatch(season, match);
     expect(season.fixtures[fixture.id].score).toEqual(fixture.home === season.club ? [2, 1] : [1, 2]);
-    expect(season.fixtures.filter((f) => f.score)).toHaveLength((round + 1) * 6);
+    expect(season.fixtures.filter((f) => f.score)).toHaveLength((round + 1) * 10);
     expect(validSeason(season)).toBe(true);
     expect(finishLeagueMatch(season, match)).toBe(season);
   }
   expect(nextFixture(season)).toBeUndefined();
-  expect(standings(season).every((row) => row.played === 22)).toBe(true);
-  expect(standings(season).find((row) => row.club === season.club)).toMatchObject({ won: 22, points: 66, goalsFor: 44, goalsAgainst: 22 });
+  expect(standings(season)).toHaveLength(10);
+  expect(standings(season).every((row) => row.played === 18)).toBe(true);
+  expect(standings(season).find((row) => row.club === season.club)).toMatchObject({ won: 18, points: 54, goalsFor: 36, goalsAgainst: 18 });
 });
 
 test('league saves recover their backup and reject altered schedules or partial rounds', () => {
@@ -395,6 +402,142 @@ test('league saves recover their backup and reject altered schedules or partial 
     if (descriptor) Object.defineProperty(globalThis, 'localStorage', descriptor);
     else Reflect.deleteProperty(globalThis, 'localStorage');
   }
+});
+
+test('promotion swaps exactly two clubs in each direction and persists the next season membership', () => {
+  const season = createSeason('brick', 'easy', 60);
+  if (!season.divisions) throw new Error('Missing divisions');
+  expect(nextDivisions(season)).toEqual(season.divisions);
+  for (const f of season.fixtures) f.score = f.home === season.club ? [9, 0] : f.away === season.club ? [0, 9] : [1, 1];
+  expect(validSeason(season)).toBe(true);
+  const upper = standings(season, season.divisions[0]).map((r) => r.club);
+  const lower = standings(season, season.divisions[1]).map((r) => r.club);
+  const next = createSeason(season.club, 'easy', 60, season);
+  expect(next.divisions?.[0]).toEqual(upper.slice(0, 8).concat(lower.slice(0, 2)));
+  expect(next.divisions?.[1]).toEqual(lower.slice(2).concat(upper.slice(8)));
+  expect(next.divisions?.[0]).toContain('brick');
+  expect(next.year).toBe(2);
+  expect(next.id).not.toBe(season.id);
+  expect(validSeason(next)).toBe(true);
+  const corrupt = structuredClone(next);
+  if (corrupt.divisions) corrupt.divisions[1][0] = corrupt.divisions[0][0];
+  expect(validSeason(corrupt)).toBe(false);
+});
+
+test('a saved original twelve-club season keeps its schedule and can finish after the expansion', () => {
+  let season = createSeason('alfred', 'normal', 60);
+  delete season.divisions;
+  delete season.year;
+  season.fixtures = seasonSchedule([originalClubs.map((c) => c.id)]);
+  expect(season.fixtures).toHaveLength(132);
+  expect(validSeason(season)).toBe(true);
+  for (let round = 0; round < 22; round++) {
+    const match = createLeagueMatch(season);
+    if (!match) throw new Error('Missing legacy fixture');
+    match.phase = 'finished';
+    match.remaining = 0;
+    match.score = [2, 0];
+    season = finishLeagueMatch(season, match);
+    expect(validSeason(season)).toBe(true);
+  }
+  expect(standings(season)).toHaveLength(12);
+  expect(nextFixture(season)).toBeUndefined();
+  expect(createSeason('alfred', 'normal', 60, season).divisions).toEqual(initialDivisions());
+});
+
+for (const kind of ['alfred', 'masters'] as const) {
+  test(`saved twelve-club ${kind} cups can still reach their original final`, () => {
+    const draw = originalClubs.map((c) => c.id);
+    const fixtures =
+      kind === 'alfred'
+        ? Array.from({ length: 4 }, (_, i) => ({
+            id: i,
+            round: 0,
+            home: draw[4 + 2 * i],
+            away: draw[5 + 2 * i],
+            score: null,
+            stage: 'knockout' as const,
+            extraTime: false,
+          }))
+        : seasonSchedule([draw.slice(0, 6), draw.slice(6)])
+            .filter((f) => f.round < 5)
+            .map((f) => ({ ...f, home: f.id % 3 === 1 ? f.away : f.home, away: f.id % 3 === 1 ? f.home : f.away, stage: 'group' as const, extraTime: false }));
+    let cup: Cup = { ...createCup(kind, 'blixten', 'easy', 60, 9), draw, fixtures };
+    expect(validCup(cup)).toBe(true);
+    while (nextCupFixture(cup)) {
+      const match = createCupMatch(cup);
+      if (!match) throw new Error('Missing legacy cup fixture');
+      match.phase = 'finished';
+      match.remaining = 0;
+      match.score = [3, 0];
+      cup = finishCupMatch(cup, match);
+      expect(validCup(cup)).toBe(true);
+    }
+    expect(cupChampion(cup)).toBe('blixten');
+    expect(cup.fixtures).toHaveLength(kind === 'alfred' ? 11 : 33);
+  });
+}
+
+test('old transfer saves retain purchases, balances and protected signings while adding new clubs', () => {
+  let old = createTransfers();
+  old.money.alfred = 50000;
+  old = buyPlayer(old, 'alfred', squadFor(old, 'brick').find((p) => !p.keeper)?.id ?? '').save;
+  old.matches = 2;
+  old.paid = ['paid-before-upgrade'];
+  old.prizes = ['league:older-season'];
+  old.pending = 'unfinished-before-upgrade';
+  const added = clubs.slice(12).map((c) => c.id);
+  old.owners = Object.fromEntries(Object.entries(old.owners).filter(([id]) => Number(id.split('-').at(-1)) < 120));
+  for (const id of added) delete old.money[id];
+  expect(validTransfers(old)).toBe(false);
+  const upgraded = migrateTransfers(old);
+  expect(upgraded).not.toBeNull();
+  if (!upgraded) throw new Error('Legacy migration failed');
+  expect(validTransfers(upgraded)).toBe(true);
+  expect(upgraded.money.alfred).toBe(old.money.alfred);
+  expect(upgraded.paid).toEqual(old.paid);
+  expect(upgraded.prizes).toEqual(old.prizes);
+  expect(upgraded.pending).toBe(old.pending);
+  expect(upgraded.protectedUntil).toEqual(old.protectedUntil);
+  for (const [id, owner] of Object.entries(old.owners)) expect(upgraded.owners[id]).toBe(owner);
+  for (const id of added) expect(squadFor(upgraded, id)).toHaveLength(10);
+  expect(migrateTransfers({ ...old, money: { ...old.money, alfred: -1 } })).toBeNull();
+  const missingWallet = structuredClone(old);
+  Reflect.deleteProperty(missingWallet.money, 'alfred');
+  expect(migrateTransfers(missingWallet)).toBeNull();
+  const withMissing = structuredClone(old);
+  delete withMissing.owners[Object.keys(withMissing.owners)[0]];
+  expect(migrateTransfers(withMissing)).toBeNull();
+});
+
+test('family stars keep the requested ratings and start in their named clubs, with a complete Danielsson squad', () => {
+  const requested = [
+    ['Alfred Danielsson', 99, 'danielsson'],
+    ['Alfred Katona', 98, 'katona'],
+    ['Charlie Danielsson', 97, 'danielsson'],
+    ['Charlie Katona', 96, 'katona'],
+    ['Colin Pettersson', 92, 'petterssons'],
+    ['Jim Pettersson', 93, 'petterssons'],
+    ['Jim Katona', 94, 'katona'],
+    ['Jan Katona', 91, 'katona'],
+    ['Jonas Pettersson', 90, 'petterssons'],
+    ['Geza Katona', 89, 'katona'],
+    ['Colin Katona', 100, 'katona'],
+  ] as const;
+  const save = createTransfers();
+  for (const [name, overall, club] of requested) {
+    const player = requiredTransfer(footballers.find((p) => p.name === name));
+    expect(player.overall).toBe(overall);
+    expect(player.origin).toBe(club);
+    expect(save.owners[player.id]).toBe(club);
+  }
+  const squad = squadFor(save, 'danielsson');
+  expect(squad).toHaveLength(10);
+  expect(squad.every((p) => p.name.endsWith(' Danielsson'))).toBe(true);
+  expect(squad.filter((p) => p.keeper)).toHaveLength(2);
+  expect(prepareTransferMatch(save, createMatch('solo', 60, 'easy', ['katona', 'petterssons'])).state.lineups?.[0]).toContain(
+    requiredTransfer(footballers.find((p) => p.name === 'Colin Katona')).id,
+  );
 });
 
 test('empty slides have no whistle and clean ball-first slides remain legal', () => {
@@ -813,10 +956,10 @@ test('invalid saves reject corrupt coordinates, player IDs, scores and versions 
   expect(validMatch({ ...state, clubs: ['alfred', 'alfred'] })).toBe(false);
 });
 
-test('twelve clubs have distinct kits and the selected names follow goals and results', () => {
-  expect(clubs).toHaveLength(12);
-  expect(new Set(clubs.map((club) => club.id)).size).toBe(12);
-  expect(new Set(clubs.map((club) => club.shirt)).size).toBe(12);
+test('twenty clubs have distinct kits and the selected names follow goals and results', () => {
+  expect(clubs).toHaveLength(20);
+  expect(new Set(clubs.map((club) => club.id)).size).toBe(20);
+  expect(new Set(clubs.map((club) => club.shirt)).size).toBe(20);
   const state = createMatch('solo', 60, 'easy', ['solstad', 'draken']);
   expect(validMatch(state)).toBe(true);
   state.phase = 'playing';
@@ -908,26 +1051,26 @@ for (const kind of ['alfred', 'masters', 'world'] as const) {
         expect(cup).not.toBe(before);
         expect(validCup(cup)).toBe(true);
         expect(finishCupMatch(cup, match)).toBe(cup);
-        expect(played).toBeLessThan(9);
+        expect(played).toBeLessThan(12);
       }
       expect(cupChampion(cup)).toBe(club.id);
-      expect(cup.fixtures).toHaveLength(kind === 'alfred' ? 11 : kind === 'world' ? 51 : 33);
+      expect(cup.fixtures).toHaveLength(kind === 'alfred' ? 19 : kind === 'world' ? 51 : 93);
       expect(cup.fixtures.every((f) => f.score !== null)).toBe(true);
-      expect(played).toBe(kind === 'alfred' ? (cup.draw.slice(0, 4).includes(club.id) ? 3 : 4) : 7);
+      expect(played).toBe(kind === 'alfred' ? (cup.draw.slice(0, 12).includes(club.id) ? 4 : 5) : kind === 'masters' ? 11 : 7);
     }
   });
 }
 
-test('masters groups contain six teams with one meeting per pair and cross-group semifinals', () => {
+test('masters groups contain ten teams with one meeting per pair and cross-group semifinals', () => {
   let cup = createCup('masters', 'alfred', 'normal', 60, 77);
-  expect(cup.fixtures).toHaveLength(30);
-  for (const group of [cup.draw.slice(0, 6), cup.draw.slice(6)]) {
+  expect(cup.fixtures).toHaveLength(90);
+  for (const group of [cup.draw.slice(0, 10), cup.draw.slice(10)]) {
     const games = cup.fixtures.filter((f) => group.includes(f.home));
-    expect(games).toHaveLength(15);
-    expect(new Set(games.map((f) => [f.home, f.away].sort().join(':'))).size).toBe(15);
-    for (const club of group) expect(games.filter((f) => f.home === club || f.away === club)).toHaveLength(5);
+    expect(games).toHaveLength(45);
+    expect(new Set(games.map((f) => [f.home, f.away].sort().join(':'))).size).toBe(45);
+    for (const club of group) expect(games.filter((f) => f.home === club || f.away === club)).toHaveLength(9);
   }
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 9; i++) {
     const match = createCupMatch(cup);
     if (!match) throw new Error('No group match');
     match.phase = 'finished';
@@ -936,8 +1079,8 @@ test('masters groups contain six teams with one meeting per pair and cross-group
     cup = finishCupMatch(cup, match);
   }
   const [a, b] = cupGroups(cup);
-  expect(a.every((row) => row.played === 5)).toBe(true);
-  const semis = cup.fixtures.filter((f) => f.round === 5);
+  expect(a.every((row) => row.played === 9)).toBe(true);
+  const semis = cup.fixtures.filter((f) => f.round === 9);
   expect(semis.map((f) => [f.home, f.away])).toEqual([
     [a[0].club, b[1].club],
     [b[0].club, a[1].club],
@@ -1175,19 +1318,32 @@ test('world cup elimination completes the bracket and saves recover independentl
   }
 });
 
-test('fixed player pool has balanced rating bands, distinct identities and a legal first five for every team', () => {
-  expect(footballers).toHaveLength(360);
-  expect(new Set(footballers.map((p) => p.id)).size).toBe(360);
-  expect(new Set(footballers.map((p) => p.name)).size).toBe(360);
+test('fixed star squads are balanced with distinct identities, role coverage and legal first fives', () => {
+  expect(footballers).toHaveLength(440);
+  expect(new Set(footballers.map((p) => p.id)).size).toBe(440);
+  expect(new Set(footballers.map((p) => p.name)).size).toBe(440);
+  const real = footballers.filter((p) => p.star);
+  expect(real).toHaveLength(200);
+  for (const name of ['Pelé', 'Ronaldinho', 'Zlatan Ibrahimović', 'Lionel Messi', 'Cristiano Ronaldo', 'Lamine Yamal'])
+    expect(real.filter((p) => p.name === name)).toHaveLength(1);
+  const totals = clubs.map((c) => real.filter((p) => p.origin === c.id).reduce((sum, p) => sum + p.overall, 0));
+  expect(Math.max(...totals) - Math.min(...totals)).toBeLessThanOrEqual(5);
   const save = createTransfers();
   expect(validTransfers(save)).toBe(true);
   for (const team of [...clubs, ...nations]) {
     const squad = squadFor(save, team.id);
     expect(squad).toHaveLength(10);
-    expect(squad.filter((p) => p.overall >= 90)).toHaveLength(1);
-    expect(squad.filter((p) => p.overall >= 80 && p.overall < 90)).toHaveLength(2);
-    expect(squad.filter((p) => p.overall >= 70 && p.overall < 80)).toHaveLength(3);
-    expect(squad.filter((p) => p.overall < 70)).toHaveLength(4);
+    if (domesticClub(team.id)) {
+      expect(squad.filter((p) => p.star?.position === 'GK')).toHaveLength(2);
+      expect(squad.filter((p) => p.star?.position === 'DEF')).toHaveLength(2);
+      expect(squad.filter((p) => p.star?.position === 'MID')).toHaveLength(3);
+      expect(squad.filter((p) => p.star?.position === 'FWD')).toHaveLength(3);
+    } else {
+      expect(squad.filter((p) => p.overall >= 90)).toHaveLength(1);
+      expect(squad.filter((p) => p.overall >= 80 && p.overall < 90)).toHaveLength(2);
+      expect(squad.filter((p) => p.overall >= 70 && p.overall < 80)).toHaveLength(3);
+      expect(squad.filter((p) => p.overall < 70)).toHaveLength(4);
+    }
     const lineup = startingFive(squad);
     expect(new Set(lineup).size).toBe(5);
     expect(squad.find((p) => p.id === lineup[0])?.keeper).toBe(true);

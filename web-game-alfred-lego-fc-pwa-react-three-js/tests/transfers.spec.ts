@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { createCup, createCupMatch, finishCupMatch, nextCupFixture } from '../src/game/cups';
+import { createCup, createCupMatch, cupFinalRound, finishCupMatch, nextCupFixture } from '../src/game/cups';
 import { createLeagueMatch, createSeason } from '../src/game/league';
 import { createMatch } from '../src/game/model';
 import { playerPrice } from '../src/game/players';
@@ -9,8 +9,16 @@ const transferKey = 'alfred-fc-transfers-v1';
 
 test('the transfer market buys and sells fixed players with clear costs and persistent balances', async ({ page }, info) => {
   const initial = createTransfers();
-  const target = squadFor(initial, 'brick').find((p) => !p.keeper && p.overall < 70);
+  initial.money.alfred = 50000;
+  initial.money.brick = 50000;
+  const target = squadFor(initial, 'brick').find((p) => !p.keeper);
   if (!target) throw new Error('Missing transfer target');
+  await page.addInitScript(
+    ({ key, initial }) => {
+      if (!localStorage.getItem(key)) localStorage.setItem(key, JSON.stringify(initial));
+    },
+    { key: transferKey, initial },
+  );
   await page.goto('./');
   await page.getByRole('button', { name: /^Trupp & transfers/ }).click();
   await expect(page.locator('.market-window')).toContainText('Transferfönstret är öppet');
@@ -20,13 +28,13 @@ test('the transfer market buys and sells fixed players with clear costs and pers
   await expect(dialog.getByRole('heading', { name: target.name, exact: true })).toBeVisible();
   await expect(dialog.getByRole('meter')).toHaveCount(5);
   await dialog.getByRole('button', { name: 'Avbryt', exact: true }).click();
-  expect(await page.evaluate((key) => localStorage.getItem(key), transferKey)).toBeNull();
+  expect(await page.evaluate((key) => JSON.parse(localStorage.getItem(key) || 'null'), transferKey)).toEqual(initial);
   await page.getByRole('button', { name: `Köp eller byt ${target.name}`, exact: true }).click();
   await dialog.getByRole('button', { name: 'Bekräfta köp', exact: true }).click();
   await expect(dialog).not.toBeVisible();
   const bought = await page.evaluate((key) => JSON.parse(localStorage.getItem(key) || 'null'), transferKey);
   expect(bought.owners[target.id]).toBe('alfred');
-  expect(bought.money.alfred).toBe(6000 - playerPrice(target));
+  expect(bought.money.alfred).toBe(50000 - playerPrice(target));
   await page.reload();
   await page.getByRole('button', { name: /^Trupp & transfers/ }).click();
   await page.getByRole('button', { name: /^Din trupp/ }).click();
@@ -45,7 +53,10 @@ test('the transfer market buys and sells fixed players with clear costs and pers
 test('a top signing enters the first five and keeps its identity after kickoff and reload', async ({ page }) => {
   const initial = createTransfers();
   initial.money.alfred = 100000;
-  const target = squadFor(initial, 'brick').find((p) => !p.keeper && p.overall >= 90);
+  const target = Object.keys(initial.money)
+    .flatMap((club) => (club === 'alfred' ? [] : squadFor(initial, club as typeof initial.activeClub)))
+    .filter((p) => !p.keeper)
+    .sort((a, b) => b.overall - a.overall)[0];
   if (!target) throw new Error('Missing top player');
   await page.addInitScript(
     ({ key, initial }) => {
@@ -114,7 +125,7 @@ for (const kind of ['cup', 'league'] as const) {
     let cup = kind === 'cup' ? createCup('alfred', 'alfred', 'easy', 60, 5) : null;
     const season = kind === 'league' ? createSeason('alfred', 'easy', 60) : null;
     if (cup)
-      while ((nextCupFixture(cup)?.round ?? 3) < 3) {
+      while ((nextCupFixture(cup)?.round ?? cupFinalRound(cup.kind, cup.draw.length)) < cupFinalRound(cup.kind, cup.draw.length)) {
         const match = createCupMatch(cup);
         if (!match) throw new Error('Missing cup fixture');
         match.phase = 'finished';
@@ -122,7 +133,7 @@ for (const kind of ['cup', 'league'] as const) {
         match.score = [4, 0];
         cup = finishCupMatch(cup, match);
       }
-    if (season) for (const f of season.fixtures) if (f.round < 21) f.score = f.home === 'alfred' ? [4, 0] : f.away === 'alfred' ? [0, 4] : [0, 0];
+    if (season) for (const f of season.fixtures) if (f.round < 17) f.score = f.home === 'alfred' ? [4, 0] : f.away === 'alfred' ? [0, 4] : [0, 0];
     const state = cup ? createCupMatch(cup) : season ? createLeagueMatch(season) : null;
     if (!state) throw new Error('Missing final fixture');
     const prepared = prepareTransferMatch(createTransfers(), state);

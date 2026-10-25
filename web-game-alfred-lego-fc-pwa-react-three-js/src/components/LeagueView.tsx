@@ -2,25 +2,36 @@ import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 import { getClub } from '../game/clubs';
 import type { Season } from '../game/league';
-import { nextFixture, opponentClub, standings } from '../game/league';
+import { divisionIndex, nextDivisions, nextFixture, opponentClub, seasonDivisions, seasonRounds, standings } from '../game/league';
 import { difficultyNames } from '../game/model';
 
 export function LeagueView({ season, children }: { season: Season; children?: ReactNode }) {
   const next = nextFixture(season);
-  const rows = standings(season);
-  const completed = rows.find((row) => row.club === season.club)?.played || 0;
+  const divisions = seasonDivisions(season);
+  const ownDivision = divisionIndex(season);
+  const rounds = seasonRounds(season);
+  const [division, setDivision] = useState(ownDivision);
+  useEffect(() => setDivision(divisionIndex(season)), [season]);
+  const rows = standings(season, divisions[division] ?? divisions[ownDivision]);
+  const ownRows = standings(season);
+  const completed = ownRows.find((row) => row.club === season.club)?.played || 0;
+  const nextDivision = nextDivisions(season).findIndex((group) => group.includes(season.club));
   const last = [...season.fixtures].reverse().find((fixture) => fixture.score && (fixture.home === season.club || fixture.away === season.club));
   const [tab, setTab] = useState<'table' | 'fixtures'>('table');
-  const [round, setRound] = useState(next?.round ?? 21);
-  useEffect(() => setRound(next?.round ?? 21), [next?.round]);
+  const [round, setRound] = useState(next?.round ?? rounds - 1);
+  useEffect(() => setRound(next?.round ?? rounds - 1), [next?.round, rounds]);
   return (
     <section className='league-panel' aria-label='Din liga'>
       <div className='league-heading'>
         <div>
-          <p className='eyebrow'>DIVISION 1 · 12 LAG</p>
+          <p className='eyebrow'>
+            DIVISION {ownDivision + 1} · {divisions[ownDivision].length} LAG · SÄSONG {season.year ?? 1}
+          </p>
           <h1>{getClub(season.club).name}</h1>
         </div>
-        <span className='season-progress'>{completed} / 22 matcher</span>
+        <span className='season-progress'>
+          {completed} / {rounds} matcher
+        </span>
       </div>
       {last?.score && (
         <p className='last-league-result' role='status'>
@@ -39,12 +50,32 @@ export function LeagueView({ season, children }: { season: Season; children?: Re
         ) : (
           <>
             <p className='eyebrow'>SÄSONGEN ÄR KLAR</p>
-            <h2>{getClub(rows[0].club).name} vinner ligan!</h2>
-            <p>Ditt lag slutade på plats {rows.findIndex((row) => row.club === season.club) + 1}.</p>
+            <h2>{getClub(ownRows[0].club).name} vinner divisionen!</h2>
+            <p>Ditt lag slutade på plats {ownRows.findIndex((row) => row.club === season.club) + 1}.</p>
+            <p className='promotion-result'>
+              {nextDivision < ownDivision ? 'Uppflyttning! ' : nextDivision > ownDivision ? 'Nedflyttning. ' : ''}Nästa säsong spelar ditt lag i division{' '}
+              {nextDivision + 1}.
+            </p>
           </>
         )}
       </div>
       {children}
+      {divisions.length > 1 && (
+        <label className='division-select'>
+          Visa division
+          <select aria-label='Visa division' value={division} onChange={(e) => setDivision(Number(e.target.value))}>
+            {divisions.map((_, i) => (
+              <option key={i === 0 ? 'upper' : 'lower'} value={i}>
+                Division {i + 1}
+                {i === ownDivision ? ' · Ditt lag' : ''}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      {season.divisions && (
+        <p className='small-copy'>Division 2: de två bästa går upp. Division 1: de två sista går ned. Flytten sker när du startar nästa säsong.</p>
+      )}
       <fieldset className='league-tabs' aria-label='Ligavy'>
         <button type='button' aria-pressed={tab === 'table'} onClick={() => setTab('table')}>
           Tabell
@@ -57,7 +88,7 @@ export function LeagueView({ season, children }: { season: Season; children?: Re
         <>
           <div className='standings-scroll'>
             <table className='league-table'>
-              <caption>Division 1</caption>
+              <caption>Division {division + 1}</caption>
               <thead>
                 <tr>
                   <th scope='col'>#</th>
@@ -87,6 +118,8 @@ export function LeagueView({ season, children }: { season: Season; children?: Re
                     <th scope='row'>
                       {getClub(row.club).name}
                       {row.club === season.club && <small> DITT LAG</small>}
+                      {season.divisions && division === 1 && index < 2 && <small className='promotion-tag'> ↑ UPP</small>}
+                      {season.divisions && division === 0 && index >= rows.length - 2 && <small className='relegation-tag'> ↓ NED</small>}
                     </th>
                     <td>{row.played}</td>
                     <td>{row.won}</td>
@@ -112,7 +145,7 @@ export function LeagueView({ season, children }: { season: Season; children?: Re
           <label>
             Visa omgång
             <select value={round} onChange={(event) => setRound(Number(event.target.value))}>
-              {Array.from({ length: 22 }, (_, i) => i).map((i) => (
+              {Array.from({ length: rounds }, (_, i) => i).map((i) => (
                 <option key={i} value={i}>
                   Omgång {i + 1}
                 </option>
@@ -120,7 +153,7 @@ export function LeagueView({ season, children }: { season: Season; children?: Re
             </select>
           </label>
           {season.fixtures
-            .filter((fixture) => fixture.round === round)
+            .filter((fixture) => fixture.round === round && divisions[division].includes(fixture.home))
             .map((fixture) => (
               <div key={fixture.id} className={`fixture-row ${fixture.home === season.club || fixture.away === season.club ? 'your-club' : ''}`}>
                 <span>{getClub(fixture.home).name}</span>

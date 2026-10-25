@@ -35,7 +35,7 @@ export function validMatch(value: unknown): value is MatchState {
       s.cup.runId.length > 100 ||
       !Number.isInteger(s.cup.fixtureId) ||
       s.cup.fixtureId < 0 ||
-      s.cup.fixtureId >= (s.cup.kind === 'world' ? 51 : 33) ||
+      s.cup.fixtureId >= (s.cup.kind === 'world' ? 51 : s.cup.kind === 'masters' ? 93 : 19) ||
       typeof s.cup.knockout !== 'boolean' ||
       typeof s.cup.extraTime !== 'boolean' ||
       (s.cup.extraElapsed !== undefined &&
@@ -52,7 +52,7 @@ export function validMatch(value: unknown): value is MatchState {
       s.league.seasonId.length > 100 ||
       !Number.isInteger(s.league.fixtureId) ||
       s.league.fixtureId < 0 ||
-      s.league.fixtureId >= 132)
+      s.league.fixtureId >= 180)
   )
     return false;
   if (![60, 180, 300].includes(s.duration) || !finite(s.remaining) || s.remaining < 0 || s.remaining > s.duration) return false;

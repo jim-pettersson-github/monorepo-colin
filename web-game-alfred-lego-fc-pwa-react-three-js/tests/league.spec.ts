@@ -46,10 +46,10 @@ test('a league keeps its schedule, records a round once, restores a fixture and 
   await page.getByRole('combobox', { name: 'Matchlängd', exact: true }).selectOption('60');
   await page.getByRole('button', { name: 'Starta ligan', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Colin FF', exact: true })).toBeVisible();
-  await expect(page.locator('.league-table tbody tr')).toHaveCount(12);
+  await expect(page.locator('.league-table tbody tr')).toHaveCount(10);
   await page.getByRole('button', { name: 'Spelschema', exact: true }).click();
-  await expect(page.getByRole('combobox', { name: 'Visa omgång', exact: true }).locator('option')).toHaveCount(22);
-  await expect(page.locator('.fixture-row')).toHaveCount(6);
+  await expect(page.getByRole('combobox', { name: 'Visa omgång', exact: true }).locator('option')).toHaveCount(18);
+  await expect(page.locator('.fixture-row')).toHaveCount(5);
   await page.screenshot({ path: testInfo.outputPath('league-schedule.png') });
   const initial: Season = await page.evaluate(() => JSON.parse(localStorage.getItem('alfred-fc-season-v1') || '{}'));
   const fixture = nextFixture(initial);
@@ -76,7 +76,7 @@ test('a league keeps its schedule, records a round once, restores a fixture and 
   await page.reload();
   await page.getByRole('button', { name: /^Divisionsspel/ }).click();
   const completed: Season = await page.evaluate(() => JSON.parse(localStorage.getItem('alfred-fc-season-v1') || '{}'));
-  expect(completed.fixtures.filter((f) => f.score)).toHaveLength(6);
+  expect(completed.fixtures.filter((f) => f.score)).toHaveLength(10);
   expect(completed.fixtures[fixture.id].score).toEqual(fixture.home === completed.club ? [2, 0] : [0, 2]);
   const row = page.locator('.league-table tbody tr.your-club');
   await expect(row).toContainText('Colin FF');
@@ -131,7 +131,7 @@ test('division shared-screen play restores two players and records the fixture o
   await page.clock.runFor(400);
   await page.getByRole('button', { name: 'Till ligan', exact: true }).click();
   const season: Season = await page.evaluate(() => JSON.parse(localStorage.getItem('alfred-fc-season-v1') || '{}'));
-  expect(season.fixtures.filter((fixture) => fixture.score)).toHaveLength(6);
+  expect(season.fixtures.filter((fixture) => fixture.score)).toHaveLength(10);
   expect(season.fixtures[saved.league.fixtureId].score).toEqual(season.fixtures[saved.league.fixtureId].home === season.club ? [1, 2] : [2, 1]);
   await page.reload();
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('alfred-fc-season-v1') || '{}'))).toEqual(season);

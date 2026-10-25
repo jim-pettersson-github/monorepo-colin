@@ -83,7 +83,7 @@
 }
 .market-filters {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
   gap: 16px;
   margin-block: 16px;
 }
@@ -98,6 +98,20 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
   margin-block: 16px;
+}
+.star-prime {
+  display: grid;
+  gap: 4px;
+  margin-block: 8px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--accent);
+}
+.star-prime.legend {
+  color: #ffe5a6;
+}
+.star-prime span {
+  color: var(--muted);
 }
 .athlete-card {
   border: 1px solid var(--border);

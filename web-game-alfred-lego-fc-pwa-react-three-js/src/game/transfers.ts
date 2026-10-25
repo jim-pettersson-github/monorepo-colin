@@ -1,4 +1,4 @@
-import { type ClubId, clubs, getClub } from './clubs';
+import { type ClubId, clubs, getClub, originalClubs } from './clubs';
 import type { MatchState } from './model';
 import { type Footballer, footballer, footballers, playerPrice, startingFive } from './players';
 
@@ -199,10 +199,31 @@ export function loadTransfers(): TransferSave {
     try {
       const saved = JSON.parse(localStorage.getItem(name) || 'null');
       if (validTransfers(saved)) return saved;
+      const upgraded = migrateTransfers(saved);
+      if (upgraded) return upgraded;
     } catch {
       /* Try the backup. */
     }
   return createTransfers();
+}
+export function migrateTransfers(value: unknown): TransferSave | null {
+  if (!value || typeof value !== 'object') return null;
+  const old = value as TransferSave;
+  const previousCount = old.money ? Object.keys(old.money).length : 0;
+  if (![originalClubs.length, 16].includes(previousCount)) return null;
+  const previousClubs = clubs.slice(0, previousCount);
+  const originalPool = pool.filter((p) => previousClubs.some((c) => c.id === p.origin));
+  if (
+    !old.owners ||
+    !old.money ||
+    !previousClubs.every((club) => Number.isSafeInteger(old.money[club.id]) && old.money[club.id] >= 0) ||
+    Object.keys(old.owners).length !== originalPool.length ||
+    !originalPool.every((p) => previousClubs.some((c) => c.id === old.owners[p.id]))
+  )
+    return null;
+  const next = { ...old, owners: { ...createTransfers().owners, ...old.owners }, money: { ...accounts(6000), ...old.money } };
+  // Retain purchases, balances, rewards, signing protection and in-progress matches.
+  return validTransfers(next) ? next : null;
 }
 export function saveTransfers(save: TransferSave) {
   if (!validTransfers(save)) return;

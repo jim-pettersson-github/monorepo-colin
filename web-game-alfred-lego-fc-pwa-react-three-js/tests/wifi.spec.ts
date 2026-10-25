@@ -254,7 +254,7 @@ test('a Wi-Fi league fixture locks its teams, records only the host season and p
     await expect(guest.getByText('Resultatet sparas i värdens liga.', { exact: true })).toBeVisible();
     await expect(host.getByRole('button', { name: /Spela igen/ })).toHaveCount(0);
     const completed = await host.evaluate(() => JSON.parse(localStorage.getItem('alfred-fc-season-v1') || '{}'));
-    expect(completed.fixtures.filter((f: { score: unknown }) => f.score)).toHaveLength(6);
+    expect(completed.fixtures.filter((f: { score: unknown }) => f.score)).toHaveLength(10);
     expect(completed.fixtures[fixture.league?.fixtureId ?? -1].score).toEqual(
       completed.fixtures[fixture.league?.fixtureId ?? -1].home === completed.club ? [2, 1] : [1, 2],
     );

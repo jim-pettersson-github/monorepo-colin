@@ -1,10 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import { type ClubId, clubs, getClub } from '../game/clubs';
 import { type Footballer, footballers, playerPrice, startingFive } from '../game/players';
+import { starRoleNames, stars } from '../game/stars';
 import { buyPlayer, type DomesticClub, domesticClub, sellPlayer, squadFor, type TransferSave } from '../game/transfers';
 import './transfers.css';
 
 const coins = (amount: number) => `${amount.toLocaleString('sv-SE')} mynt`;
+const searchText = (value: string) =>
+  value
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLocaleLowerCase('sv');
 export function PlayerStats({ player }: { player: Footballer }) {
   return (
     <dl className='athlete-stats'>
@@ -50,6 +56,7 @@ export function TransferPanel({ save, onChange, locked }: { save: TransferSave; 
   const [search, setSearch] = useState('');
   const [role, setRole] = useState('all');
   const [band, setBand] = useState('all');
+  const [era, setEra] = useState('all');
   const [limit, setLimit] = useState(12);
   const [deal, setDeal] = useState<{ id: string; sell: boolean } | null>(null);
   const [offer, setOffer] = useState('');
@@ -70,8 +77,9 @@ export function TransferPanel({ save, onChange, locked }: { save: TransferSave; 
   const filtered = (view === 'squad' ? squad : footballers.filter((p) => domesticClub(p.origin) && save.owners[p.id] !== club))
     .filter(
       (p) =>
-        `${p.name} ${getClub(save.owners[p.id]).name}`.toLocaleLowerCase('sv').includes(search.toLocaleLowerCase('sv')) &&
-        (role === 'all' || (role === 'keeper') === p.keeper) &&
+        searchText(`${p.name} ${getClub(save.owners[p.id]).name}`).includes(searchText(search)) &&
+        (role === 'all' || p.star?.position === role) &&
+        (era === 'all' || p.star?.era === era) &&
         (band === 'all' || p.overall >= Number(band)),
     )
     .sort((a, b) => b.overall - a.overall || a.name.localeCompare(b.name, 'sv'));
@@ -94,9 +102,11 @@ export function TransferPanel({ save, onChange, locked }: { save: TransferSave; 
     <section className='transfer-panel' aria-label='Trupp och transfers'>
       <header className='transfer-heading'>
         <div>
-          <p className='eyebrow'>DIN KLUBB · DIN STARTFEMMA</p>
+          <p className='eyebrow'>
+            {stars.length} STJÄRNOR · {clubs.length} KLUBBAR · PRIME
+          </p>
           <h1>Bygg ditt drömlag.</h1>
-          <p>Köp, sälj och byt spelare mellan matcherna.</p>
+          <p>Moderna världsstjärnor och klassiska legender i sin storhetstid. Köp, sälj och byt mellan matcherna.</p>
         </div>
         <div className='club-balance'>
           <span>Klubbkassa</span>
@@ -142,8 +152,27 @@ export function TransferPanel({ save, onChange, locked }: { save: TransferSave; 
           Världscupen: 10 000 för seger. VM-pengarna går till den här klubben.
         </p>
         <p>
-          Spelarpoolen är alltid densamma. Varje klubb börjar med 10 spelare: 10 % har 90–98, 20 % har 80–89, 30 % har 70–79 och 40 % har 40–69 i betyg. Skalan
-          är 0–100. Högre betyg ger högre pris.
+          {stars.length} stjärnor och familjespelare fördelas likadant på varje enhet. Varje klubb börjar med tio spelare: två målvakter, två försvarare, tre
+          mittfältare och tre anfallare. En balanserad draft och positionsbyten jämnar ut lagens sammanlagda betyg. Familjespelarna börjar i sina egna klubbar.
+          Stjärnor och legender spelar i sin prime; betygen är våra egna spelvärden på skalan 0–100. Högre betyg ger högre pris. Landslagen behåller sina
+          separata, fasta trupper.
+        </p>
+        <p>
+          Urvalet bygger på världsstjärnor från 2016–2025 och äldre klassiker, inklusive Pelé, Ronaldinho och Zlatan. Prime-året visar vilken version du spelar
+          med; det är inte en officiell ranking eller dagens klubbtillhörighet.
+        </p>
+        <p>
+          <a href='https://www.fifpro.org/en/articles/2023/10/history-mens-world-11' target='_blank' rel='noreferrer'>
+            FIFPRO World 11 genom åren ↗
+          </a>
+          {' · '}
+          <a
+            href='https://www.uefa.com/ballondor/news/0287-195e642735da-0594342b9554-1000--history-of-the-ballon-d-or-all-the-winners/'
+            target='_blank'
+            rel='noreferrer'
+          >
+            Ballon d’Or-historik ↗
+          </a>
         </p>
         <p>
           Startfemman väljs automatiskt: en målvakt och de fyra andra med högst betyg. Varje trupp behöver minst en målvakt och fyra utespelare. Försäljningar
@@ -198,8 +227,26 @@ export function TransferPanel({ save, onChange, locked }: { save: TransferSave; 
             }}
           >
             <option value='all'>Alla positioner</option>
-            <option value='keeper'>Målvakter</option>
-            <option value='outfield'>Utespelare</option>
+            {Object.entries(starRoleNames).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Spelarera
+          <select
+            value={era}
+            onChange={(e) => {
+              setEra(e.target.value);
+              setLimit(12);
+            }}
+          >
+            <option value='all'>Alla stjärnor</option>
+            <option value='modern'>Stjärnor från 2016</option>
+            <option value='legend'>Klassiska legender</option>
+            <option value='family'>Familjespelare</option>
           </select>
         </label>
         <label>
@@ -212,7 +259,7 @@ export function TransferPanel({ save, onChange, locked }: { save: TransferSave; 
             }}
           >
             <option value='all'>Alla betyg</option>
-            <option value='90'>90–98 · Toppspelare</option>
+            <option value='90'>90 och högre</option>
             <option value='80'>80 och högre</option>
             <option value='70'>70 och högre</option>
           </select>
@@ -228,9 +275,17 @@ export function TransferPanel({ save, onChange, locked }: { save: TransferSave; 
               <PlayerPortrait player={player} club={save.owners[player.id]} />
               <div>
                 <small>
-                  {player.keeper ? 'MÅLVAKT' : 'UTESPELARE'} · {getClub(save.owners[player.id]).name}
+                  {player.star ? starRoleNames[player.star.position] : player.keeper ? 'Målvakt' : 'Utespelare'} · {getClub(save.owners[player.id]).name}
                 </small>
                 <h2>{player.name}</h2>
+                {player.star && (
+                  <p className={`star-prime ${player.star.era}`}>
+                    <strong>
+                      {player.star.era === 'family' ? 'FAMILJESPELARE' : `${player.star.era === 'legend' ? 'LEGEND' : 'STJÄRNA'} · PRIME ${player.star.prime}`}
+                    </strong>
+                    <span>{player.star.country}</span>
+                  </p>
+                )}
                 <span>{view === 'squad' ? (lineup.includes(player.id) ? 'Startfemman' : 'Avbytare') : coins(playerPrice(player))}</span>
               </div>
               <strong className='overall-rating' role='img' aria-label={`Totalbetyg ${player.overall} av 100`}>
@@ -280,6 +335,12 @@ export function TransferPanel({ save, onChange, locked }: { save: TransferSave; 
             <p>
               {selected.keeper ? 'Målvakt' : 'Utespelare'} · Betyg {selected.overall} · {getClub(save.owners[selected.id]).name}
             </p>
+            {selected.star && (
+              <p className={`star-prime ${selected.star.era}`}>
+                {selected.star.era === 'family' ? 'Familjespelare' : `Prime ${selected.star.prime}`} · {selected.star.country} ·{' '}
+                {starRoleNames[selected.star.position]}
+              </p>
+            )}
             <PlayerStats player={selected} />
             {deal?.sell ? (
               <label>

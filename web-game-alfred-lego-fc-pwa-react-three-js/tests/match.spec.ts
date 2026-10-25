@@ -268,10 +268,10 @@ test('full time shows the result and supports a rematch', async ({ page }) => {
   await expect(page.getByRole('timer')).toHaveText('3:00');
 });
 
-test('twelve selectable teams follow the match, save and rematch', async ({ page }, testInfo) => {
+test('twenty selectable teams follow the match, save and rematch', async ({ page }, testInfo) => {
   await page.clock.install();
   await page.goto('./');
-  await expect(page.locator('.club-grid button')).toHaveCount(12);
+  await expect(page.locator('.club-grid button')).toHaveCount(20);
   await page.getByRole('button', { name: 'Välj Norrköping FC', exact: true }).click();
   await page.locator('.selected-club').nth(1).click();
   await page.getByRole('button', { name: 'Välj Värnamo FF', exact: true }).click();
