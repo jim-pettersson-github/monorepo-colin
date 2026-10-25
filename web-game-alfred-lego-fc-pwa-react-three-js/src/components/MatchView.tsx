@@ -14,6 +14,7 @@ import { PitchOverview } from './PitchOverview';
 import { PlaybackSpeedSelect } from './PlaybackSpeedSelect';
 import { SoundSettings, SoundToggle } from './SoundControls';
 import { Substitutions } from './Substitutions';
+import { MatchTeams } from './TeamBrowser';
 import { TouchControls } from './TouchControls';
 
 export function MatchView({
@@ -250,6 +251,7 @@ export function MatchView({
             </button>
             <SoundSettings />
             <Substitutions session={session} />
+            {state.lineups && <MatchTeams clubs={state.clubs} match={state} />}
             {state.lineups && (
               <details className='match-lineups'>
                 <summary>Matchens spelare och betyg</summary>

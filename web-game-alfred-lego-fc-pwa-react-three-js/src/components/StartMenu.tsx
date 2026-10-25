@@ -21,6 +21,7 @@ import { TeamSelection } from './TeamSelection';
 import './start-menu.css';
 import type { TransferSave } from '../game/transfers';
 import { LineupPicker } from './LineupPicker';
+import { MatchTeams, TeamBrowser } from './TeamBrowser';
 import { TransferPanel } from './TransferPanel';
 
 interface Props {
@@ -56,6 +57,11 @@ interface Props {
 export function StartMenu(props: Props) {
   const { input, screen, onScreen, mode, onMode, clubs, onClub, duration, onDuration, difficulty, onDifficulty, season, saved } = props;
   const [leagueSetup, setLeagueSetup] = useState(false);
+  const [browsingTeams, setBrowsingTeams] = useState(false);
+  const chooseScreen = (next: Props['screen']) => {
+    setBrowsingTeams(false);
+    onScreen(next);
+  };
   const [replaceSeason, setReplaceSeason] = useState(false);
   const [leagueAction, setLeagueAction] = useState<LeagueAction>(saved?.watching ? 'watch' : 'play');
   const [watchSpeed, setWatchSpeed] = useState<PlaybackSpeed>(saved?.playbackSpeed || 1);
@@ -106,6 +112,9 @@ export function StartMenu(props: Props) {
           </span>
           ALFRED <span>FC</span>
         </a>
+        <button type='button' className='team-browser-entry' aria-pressed={browsingTeams} onClick={() => setBrowsingTeams(!browsingTeams)}>
+          Lag & spelare
+        </button>
         <div className='header-tools'>
           <a className='all-games-link' href={`${import.meta.env.BASE_URL}../`}>
             ← Alla spel
@@ -116,24 +125,26 @@ export function StartMenu(props: Props) {
       </header>
       <GameUpdate />
       <nav className='play-mode-tabs' aria-label='Välj spelsätt'>
-        <button type='button' disabled={simulating} aria-pressed={screen === 'quick'} onClick={() => onScreen('quick')}>
+        <button type='button' disabled={simulating} aria-pressed={!browsingTeams && screen === 'quick'} onClick={() => chooseScreen('quick')}>
           <strong>Snabbmatch</strong>
           <small>Välj lag och spela direkt</small>
         </button>
-        <button type='button' disabled={simulating} aria-pressed={league} onClick={() => onScreen('league')}>
+        <button type='button' disabled={simulating} aria-pressed={!browsingTeams && league} onClick={() => chooseScreen('league')}>
           <strong>Divisionsspel</strong>
           <small>{season ? getClub(season.club).name : '20 lag · Två divisioner'}</small>
         </button>
-        <button type='button' disabled={simulating} aria-pressed={screen === 'cups'} onClick={() => onScreen('cups')}>
+        <button type='button' disabled={simulating} aria-pressed={!browsingTeams && screen === 'cups'} onClick={() => chooseScreen('cups')}>
           <strong>Cupspel</strong>
           <small>Klubbcuper & Världscupen</small>
         </button>
-        <button type='button' disabled={simulating} aria-pressed={screen === 'market'} onClick={() => onScreen('market')}>
+        <button type='button' disabled={simulating} aria-pressed={!browsingTeams && screen === 'market'} onClick={() => chooseScreen('market')}>
           <strong>Trupp & transfers</strong>
           <small>{props.transfers.money[props.transfers.activeClub].toLocaleString('sv-SE')} mynt</small>
         </button>
       </nav>
-      {screen === 'market' ? (
+      {browsingTeams ? (
+        <TeamBrowser save={props.transfers} season={season} onClose={() => setBrowsingTeams(false)} />
+      ) : screen === 'market' ? (
         <TransferPanel save={props.transfers} onChange={props.onTransfers} locked={!!saved || simulating} />
       ) : screen === 'cups' ? (
         <CupPanel
@@ -224,6 +235,13 @@ export function StartMenu(props: Props) {
                 </button>
               </div>
               <LeagueView season={season}>
+                {next && (
+                  <MatchTeams
+                    save={props.transfers}
+                    clubs={[season.club, opponentClub(season, next)]}
+                    match={saved?.league?.seasonId === season.id ? saved : undefined}
+                  />
+                )}
                 <LineupPicker save={props.transfers} club={season.club} onChange={props.onTransfers} disabled={!!saved || simulating} />
                 {leagueAction === 'local' && next && (
                   <LineupPicker save={props.transfers} club={opponentClub(season, next)} onChange={props.onTransfers} disabled={!!saved || simulating} />
@@ -322,6 +340,7 @@ export function StartMenu(props: Props) {
                   </fieldset>
                 )}
                 <TeamSelection key={league ? 'league' : 'quick'} selected={clubs} mode={activeMode} single={league} onChange={onClub} />
+                {!league && <MatchTeams save={props.transfers} clubs={clubs} />}
                 <LineupPicker save={props.transfers} club={clubs[0]} onChange={props.onTransfers} disabled={!!saved || simulating} />
                 {!league && mode === 'versus' && (
                   <LineupPicker save={props.transfers} club={clubs[1]} onChange={props.onTransfers} disabled={!!saved || simulating} />

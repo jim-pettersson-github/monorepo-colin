@@ -36,6 +36,8 @@
 
 - Saved manual starting fives per club, family-first and automatic shortcuts, setup selectors across quick/league/cup modes, and guest lineup selection from the host roster. Paused rolling substitutions preserve bench snapshots, positions and personal cards; shared-screen players manage either team and network peers only their own team.
 
+- Read-only team browser in the menu header: all clubs and nations, current-owner player search, starter pitch, bench list and full player-stat cards. Match previews and pause views use the actual roster snapshot, including the host roster on guest devices.
+
 ## Verification
 
 Rules tests cover balanced star allocation, migration of old economies and schedules, promotion/relegation, the full home/away season, standings, instant/watched simulation equivalence, watch speed/pause, result deduplication, backups and invalid schedules, alongside close non-contact slides, late ball wins, three-way referee decisions, difficulty, pitch boundaries, cameras, scoring, penalties, input and save validation.

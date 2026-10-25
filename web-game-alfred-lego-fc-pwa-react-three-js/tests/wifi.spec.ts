@@ -99,7 +99,17 @@ test('the guest chooses its starting five from the host roster and both peers se
     const squad = squadFor(save, 'brick');
     const first = squad.find((p) => !p.keeper && !lineupFor(save, 'brick').includes(p.id));
     if (!first) throw new Error('Missing guest starter');
+    const guestSave = createTransfers();
+    guestSave.owners[first.id] = 'alfred';
+    await guest.evaluate((save) => localStorage.setItem('alfred-fc-transfers-v1', JSON.stringify(save)), guestSave);
+    await guest.reload();
     await connect(host, guest);
+    await guest.getByText('Matchens lag & spelare', { exact: true }).click();
+    const roster = guest.locator('.match-team-browser');
+    await roster.getByRole('combobox', { name: 'Lag att titta på', exact: true }).selectOption('1');
+    await expect(roster.locator('.squad-player-list')).toContainText(first.name);
+    await expect(roster.locator('.squad-player-list button')).toHaveCount(10);
+    await guest.getByText('Matchens lag & spelare', { exact: true }).click();
     await guest.getByText('Välj startfemma · IFK Göteborg', { exact: true }).click();
     await guest.getByRole('combobox', { name: 'Startande utespelare 1', exact: true }).selectOption(first.id);
     await expect(guest.getByRole('combobox', { name: 'Startande utespelare 1', exact: true })).toHaveValue(first.id);

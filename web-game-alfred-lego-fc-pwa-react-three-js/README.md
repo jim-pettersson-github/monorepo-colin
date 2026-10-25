@@ -23,6 +23,12 @@ All cups support solo, shared-screen opponents, two-device QR matches, watching 
 
 The selection uses the top 18 in the men's ranking of 22 December 2025, Iran (20) to include a second Asian side, and all five Nordic countries. FIFA covers the world, while UEFA covers Europe. See [FIFA's year-end report](https://inside.fifa.com/fifa-rankings/world-ranking/men/news/coca-cola-december-2025-rank-spain-top-morocco-arab-cup-win) and the [December top-20 list](https://fieldlevelmedia.com/news/spain-ends-2025-atop-fifa-mens-world-rankings-u-s-stays-14th/). Ranking determines this roster; selected difficulty controls gameplay, with no national strength multiplier. All play and assets remain local; these reference links are optional reading.
 
+## Team browser
+
+Choose **Lag & spelare** in the menu header to browse all 20 clubs and 24 national teams. Search by team or player name (accent-insensitive), use previous/next, pick a team, or expand the full catalogue. Player searches use current transfer ownership. The pitch shows the selected starting five, with a black-shirted keeper, names and ratings. Select a pitch marker or squad-list player to see their position, overall rating, era/prime information and all five attributes. The roster distinguishes starters from substitutes and shows the starting-five average.
+
+**Matchens lag & spelare** previews either side before quick matches, scheduled league/cup fixtures and peer matches, and is also available while paused. It uses saved match rosters and current starters when a snapshot exists; a network guest sees the host's roster. Browsing leaves chosen teams, manual starting preferences, transfers and saved match progress unchanged.
+
 ## Players and transfers
 
 **Trupp & transfers** manages a persistent club squad and wallet, independently of a season or cup restart. The domestic pool contains 200 players: 129 players prominent from 2016 onward, 52 classic legends and 19 family players, including Pelé (1970), Ronaldinho (2005) and Zlatan Ibrahimović (2013). Each appears once, at an estimated prime season. Twenty clubs each start with 6,000 coins and ten stars: two keepers, two defenders, three midfielders and three forwards. Family assignments are fixed first. A deterministic role-based draft and swaps between players in the same position balance the remaining stars without moving family players. Initial squad totals differ by at most five points. The old domestic 10/20/30/40 rating-band distribution is replaced by the star roster.

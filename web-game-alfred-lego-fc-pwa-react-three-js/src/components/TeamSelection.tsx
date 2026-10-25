@@ -6,7 +6,7 @@ import type { MatchMode, Team } from '../game/model';
 import { nations } from '../game/nations';
 import { NationalFlag } from './NationalFlag';
 
-function ClubCrest({ id }: { id: ClubId }) {
+export function ClubCrest({ id }: { id: ClubId }) {
   const club = getClub(id);
   if (nations.some((nation) => nation.id === id)) return <NationalFlag id={id} />;
   return (

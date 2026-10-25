@@ -17,6 +17,7 @@ import { FiveEditor, LineupPicker } from './LineupPicker';
 import { QrExchange } from './QrExchange';
 import { RoomCodeCard, RoomInvite, RoomJoin } from './RoomPairing';
 import { SoundToggle } from './SoundControls';
+import { MatchTeams } from './TeamBrowser';
 import { TeamSelection } from './TeamSelection';
 import './wifi.css';
 
@@ -341,6 +342,7 @@ export function WifiLobby({
               />
             </QrFallback>
           )}
+          {(role === 'host' || guestPreview) && <MatchTeams clubs={clubs} match={role === 'host' ? preview : (guestPreview ?? undefined)} />}
           {role === 'host' && <LineupPicker save={transfers} club={clubs[0]} onChange={onTransfers} disabled={!!fixture?.career} />}
           {role === 'guest' && guestPreview?.squads && guestPreview.lineups && (
             <details className='lineup-picker'>

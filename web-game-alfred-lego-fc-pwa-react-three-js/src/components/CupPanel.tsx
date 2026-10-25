@@ -23,6 +23,7 @@ import { ControlSetup, controlsReady } from './ControlSetup';
 import { LineupPicker } from './LineupPicker';
 import { NationalFlag } from './NationalFlag';
 import { PlaybackSpeedSelect } from './PlaybackSpeedSelect';
+import { MatchTeams } from './TeamBrowser';
 import { TeamSelection } from './TeamSelection';
 import './cups.css';
 
@@ -197,6 +198,7 @@ export function CupPanel({ transfers, onTransfers, input, cups, kind, onKind, sa
           ) : (
             fixture && (
               <section className='cup-next' aria-label='Nästa cupmatch'>
+                <MatchTeams save={transfers} clubs={[cup.club, cupOpponent(cup, fixture)]} match={resumed ? (saved ?? undefined) : undefined} />
                 <LineupPicker save={transfers} club={cup.club} onChange={onTransfers} disabled={!!saved || simulating} />
                 {action === 'local' && (
                   <LineupPicker save={transfers} club={cupOpponent(cup, fixture)} onChange={onTransfers} disabled={!!saved || simulating} />
