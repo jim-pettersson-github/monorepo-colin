@@ -242,3 +242,48 @@
     gap: 12px;
   }
 }
+.national-squad-open {
+  margin-block: 8px 18px;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.match-dialog.national-squad-dialog {
+  width: min(940px, calc(100vw - 24px));
+  max-width: min(940px, calc(100vw - 24px));
+  max-height: 88dvh;
+  text-align: left;
+  scroll-padding-top: 128px;
+}
+.national-squad-dialog > header {
+  position: sticky;
+  top: -27px;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-block: 12px;
+  background: var(--surface);
+}
+.national-squad-dialog > header h2 {
+  margin: 0;
+  font-size: 24px;
+}
+.national-squad-dialog > label {
+  display: grid;
+  gap: 8px;
+  margin-block: 16px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.national-squad-dialog > label select {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}

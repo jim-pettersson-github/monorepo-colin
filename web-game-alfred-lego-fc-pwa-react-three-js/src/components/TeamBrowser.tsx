@@ -57,7 +57,10 @@ export function TeamSquad({
     setSelected(id);
     requestAnimationFrame(() => {
       detail.current?.focus({ preventScroll: true });
-      detail.current?.scrollIntoView({ block: 'nearest', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+      detail.current?.scrollIntoView({
+        block: detail.current.closest('dialog') ? 'start' : 'nearest',
+        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+      });
     });
   };
   return (

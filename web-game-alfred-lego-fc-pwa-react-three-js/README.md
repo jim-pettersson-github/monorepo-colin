@@ -29,6 +29,8 @@ Choose **Lag & spelare** in the menu header to browse all 20 clubs and 24 nation
 
 **Matchens lag & spelare** previews either side before quick matches, scheduled league/cup fixtures and peer matches, and is also available while paused. It uses saved match rosters and current starters when a snapshot exists; a network guest sees the host's roster. Browsing leaves chosen match teams, transfers and saved match progress unchanged. In the main browser, select a bench player, choose whom to replace and press **Sätt i startfemman**; keepers replace keepers. **Välj startfemma** also exposes all five selectors and family/rating shortcuts. Changes save immediately for future matches. A saved or ongoing match locks these edits; use paused substitutions for that match. Match previews remain read-only.
 
+In **Cupspel → Världscupen**, **Visa landslagens spelare** opens a scrollable national-squad dialog before or during the cup. Browse all 24 countries, their full ten-player squads, selected starters, bench, player cards and effective form stats. Closing the dialog returns to the same cup setup or schedule; browsing does not change the chosen country or save.
+
 ## Results and temporary form
 
 Background league and cup fixtures use the currently selected starting five and transfer ownership. Team strength combines the outfield players’ overall, pace, shooting, passing and defending with the keeper’s overall and goalkeeping. A small strength gap gives a small scoring edge; a larger gap increases it along a capped curve. Scores remain uncertain, including draws and upsets. Tied background knockouts also favour the stronger side when deciding the extra-time goal. Played, watched and directly simulated chosen fixtures continue to use the same full gameplay engine.

@@ -1,8 +1,75 @@
 import { expect, test } from '@playwright/test';
 import { createCup, createCupMatch, nextCupFixture } from '../src/game/cups';
 import { createSeason } from '../src/game/league';
+import { nations } from '../src/game/nations';
+import { createTransfers, lineupFor, squadFor } from '../src/game/transfers';
 
 const key = (kind: string) => `alfred-fc-cup-${kind}-v1`;
+
+test('browse every national squad from World Cup setup and an active cup without changing the selected country or saves', async ({ page }, info) => {
+  const save = createTransfers();
+  save.form = { swe: { bonus: 2, remaining: 2 } };
+  await page.addInitScript((save) => localStorage.setItem('alfred-fc-transfers-v1', JSON.stringify(save)), save);
+  await page.goto('./');
+  await page.getByRole('button', { name: /^Cupspel/ }).click();
+  await page.locator('.cup-choice').filter({ hasText: 'Världscupen' }).click();
+  await page.getByRole('button', { name: 'Välj Norge', exact: true }).click();
+  const entry = page.getByRole('button', { name: 'Visa landslagens spelare', exact: true });
+  await entry.click();
+  const dialog = page.getByRole('dialog', { name: 'Landslagens spelare', exact: true });
+  const chooser = dialog.getByRole('combobox', { name: 'Landslag att titta på', exact: true });
+  await expect(chooser).toHaveValue('nor');
+  await expect(chooser.locator('option')).toHaveCount(24);
+  // Every nation exposes all ten names, both starters and substitutes, through the same viewer.
+  for (const nation of nations) {
+    await chooser.selectOption(nation.id);
+    await expect(dialog.locator('.squad-heading')).toContainText(nation.name);
+    const names = await dialog.locator('.squad-player-list button strong').allTextContents();
+    expect(names.sort()).toEqual(
+      squadFor(save, nation.id)
+        .map((p) => p.name)
+        .sort(),
+    );
+    await expect(dialog.locator('.squad-pitch button')).toHaveCount(5);
+  }
+  await chooser.selectOption('swe');
+  await expect(dialog.locator('.team-form-badge')).toHaveText('Segerform +2 · 2 matcher kvar');
+  const substitute = squadFor(save, 'swe').find((p) => !lineupFor(save, 'swe').includes(p.id));
+  if (!substitute) throw new Error('Missing national substitute');
+  await dialog.getByRole('button', { name: `Visa spelarkort för ${substitute.name}`, exact: true }).click();
+  const card = dialog.getByRole('article', { name: `Spelarkort för ${substitute.name}`, exact: true });
+  await expect(card).toContainText('Avbytare');
+  await expect(card.getByRole('meter')).toHaveCount(5);
+  await expect
+    .poll(() =>
+      dialog.evaluate((el) => {
+        const name = el.querySelector('.squad-player-detail h3')?.getBoundingClientRect();
+        const header = el.querySelector(':scope > header')?.getBoundingClientRect();
+        return !!name && !!header && name.top >= header.bottom && name.bottom <= innerHeight;
+      }),
+    )
+    .toBe(true);
+  await expect(dialog.getByRole('button', { name: 'Sätt i startfemman', exact: true })).toHaveCount(0);
+  await expect(dialog.getByRole('button', { name: 'Tillbaka till Världscupen', exact: true })).toBeVisible();
+  await page.screenshot({ path: info.outputPath('national-squad-popup.png') });
+  await page.keyboard.press('Escape');
+  await expect(dialog).not.toBeVisible();
+  await expect(entry).toBeFocused();
+  await expect(page.getByRole('button', { name: 'Välj Norge', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  expect(await page.evaluate(() => localStorage.getItem('alfred-fc-cup-world-v1'))).toBeNull();
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('alfred-fc-transfers-v1') || 'null'))).toEqual(save);
+  await page.getByRole('button', { name: 'Starta Världscupen', exact: true }).click();
+  const cup = await page.evaluate(() => JSON.parse(localStorage.getItem('alfred-fc-cup-world-v1') || 'null'));
+  expect(cup.club).toBe('nor');
+  await entry.click();
+  await expect(chooser).toHaveValue('nor');
+  await chooser.selectOption('jpn');
+  await expect(dialog.locator('.squad-heading')).toContainText('Japan');
+  await dialog.getByRole('button', { name: 'Tillbaka till Världscupen', exact: true }).click();
+  await expect(dialog).not.toBeVisible();
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('alfred-fc-cup-world-v1') || 'null'))).toEqual(cup);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
 
 test('a saved golden-goal match displays a compact overtime clock and resumes without ending a tied match', async ({ page }, info) => {
   await page.clock.install();

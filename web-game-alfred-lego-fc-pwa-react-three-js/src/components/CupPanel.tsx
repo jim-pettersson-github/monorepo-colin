@@ -17,13 +17,13 @@ import {
 import type { InputManager } from '../game/input';
 import type { LeagueAction } from '../game/league';
 import { type CupKind, type Difficulty, difficultyNames, type MatchState, type PlaybackSpeed } from '../game/model';
-import { rankingSource } from '../game/nations';
-import type { TransferSave } from '../game/transfers';
+import { nations, rankingSource } from '../game/nations';
+import { lineupFor, squadFor, type TransferSave } from '../game/transfers';
 import { ControlSetup, controlsReady } from './ControlSetup';
 import { LineupPicker } from './LineupPicker';
 import { NationalFlag } from './NationalFlag';
 import { PlaybackSpeedSelect } from './PlaybackSpeedSelect';
-import { MatchTeams } from './TeamBrowser';
+import { MatchTeams, TeamSquad } from './TeamBrowser';
 import { TeamSelection } from './TeamSelection';
 import './cups.css';
 
@@ -76,6 +76,12 @@ export function CupPanel({ transfers, onTransfers, input, cups, kind, onKind, sa
   const [action, setAction] = useState<LeagueAction>('play');
   const [speed, setSpeed] = useState<PlaybackSpeed>(1);
   const [replace, setReplace] = useState(false);
+  const [viewNation, setViewNation] = useState<ClubId | null>(null);
+  const squadDialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    if (viewNation && !squadDialog.current?.open) squadDialog.current?.showModal();
+    else if (!viewNation) squadDialog.current?.close();
+  }, [viewNation]);
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     if (replace) dialog.current?.showModal();
@@ -124,6 +130,11 @@ export function CupPanel({ transfers, onTransfers, input, cups, kind, onKind, sa
           </button>
         ))}
       </div>
+      {kind === 'world' && (
+        <button type='button' className='national-squad-open' disabled={simulating} onClick={() => setViewNation(cup && !setup ? cup.club : club)}>
+          Visa landslagens spelare
+        </button>
+      )}
       {!cup || setup ? (
         <section className='cup-setup' aria-label='Skapa en cup'>
           <p className='eyebrow'>{cupName(kind).toUpperCase()}</p>
@@ -414,6 +425,41 @@ export function CupPanel({ transfers, onTransfers, input, cups, kind, onKind, sa
           </a>
         </details>
       )}
+      <dialog
+        ref={squadDialog}
+        className='match-dialog national-squad-dialog'
+        aria-labelledby='national-squad-title'
+        onCancel={() => setViewNation(null)}
+        onClose={() => setViewNation(null)}
+      >
+        <header>
+          <h2 id='national-squad-title'>Landslagens spelare</h2>
+          <button type='button' onClick={() => setViewNation(null)}>
+            Tillbaka till Världscupen
+          </button>
+        </header>
+        <p>Bläddra bland alla 24 landslag. Se hela truppen, startfemman och avbytarna. Tryck på en spelare för alla egenskaper.</p>
+        <label>
+          Landslag att titta på
+          <select value={viewNation ?? 'swe'} onChange={(event) => setViewNation(event.target.value as ClubId)}>
+            {nations.map((nation) => (
+              <option key={nation.id} value={nation.id}>
+                {nation.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        {viewNation && (
+          <TeamSquad
+            key={viewNation}
+            club={viewNation}
+            squad={squadFor(transfers, viewNation)}
+            five={lineupFor(transfers, viewNation)}
+            form={transfers.form?.[viewNation]}
+            label='Vald startfemma'
+          />
+        )}
+      </dialog>
       <dialog
         className='match-dialog'
         ref={dialog}
