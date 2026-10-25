@@ -12,6 +12,7 @@ import { createLeagueMatch, createSeason, finishLeagueMatch, loadSeason, nextFix
 import type { CupKind, Difficulty, MatchMode, MatchState, PlaybackSpeed, Team } from './game/model';
 import { createMatch } from './game/model';
 import { NetworkSession } from './game/network-session';
+import { resultContext } from './game/result-simulation';
 import { MatchSession } from './game/session';
 import { gameSound } from './game/sound';
 import { clearMatch, loadMatch, saveMatch } from './game/storage';
@@ -134,17 +135,18 @@ export function App() {
   }, [input]);
 
   const recordResult = (result: MatchState) => {
+    const results = resultContext(transfersRef.current);
     if (result.cup) {
       const current = cupsRef.current[result.cup.kind];
       if (!current) return;
-      const updated = finishCupMatch(current, result);
+      const updated = finishCupMatch(current, result, results);
       if (updated === current) return;
       const champion = cupChampion(updated);
       const bonus =
         champion === updated.club
           ? { id: `cup:${updated.id}`, amount: updated.kind === 'alfred' ? 6000 : updated.kind === 'masters' ? 8000 : 10000 }
           : undefined;
-      updateTransfers(settleTransfers(transfersRef.current, result, bonus));
+      updateTransfers(settleTransfers(results.save, result, bonus));
       saveCup(updated);
       const next = { ...cupsRef.current, [updated.kind]: updated };
       cupsRef.current = next;
@@ -162,12 +164,12 @@ export function App() {
       return;
     }
     if (!current) return;
-    const updated = finishLeagueMatch(current, result);
+    const updated = finishLeagueMatch(current, result, results);
     if (updated === current) return;
     const complete = updated.fixtures.every((fixture) => fixture.score);
     const place = complete ? standings(updated).findIndex((row) => row.club === updated.club) : -1;
     const bonus = place >= 0 && place < 3 ? { id: `league:${updated.id}`, amount: [8000, 4000, 2000][place] } : undefined;
-    updateTransfers(settleTransfers(transfersRef.current, result, bonus));
+    updateTransfers(settleTransfers(results.save, result, bonus));
     saveSeason(updated);
     seasonRef.current = updated;
     setSeason(updated);
@@ -216,6 +218,7 @@ export function App() {
       <MatchView
         session={session}
         reward={transfers.lastReward}
+        nextForms={transfers.form}
         onMarket={() => {
           exit();
           setWifi(false);
@@ -328,7 +331,9 @@ export function App() {
     if (state) void playCompetition(state, action, speed);
   };
   const beginCup = (kind: CupKind, club: ClubId, level: Difficulty, length: number) => {
-    const created = createCup(kind, club, level, length);
+    const results = resultContext(transfersRef.current);
+    const created = createCup(kind, club, level, length, undefined, results);
+    updateTransfers(results.save);
     saveCup(created);
     const next = { ...cupsRef.current, [kind]: created };
     cupsRef.current = next;

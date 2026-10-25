@@ -1,5 +1,6 @@
 import type { ClubId, MatchClubs } from './clubs';
 import { defaultClubs } from './clubs';
+import type { TeamForm } from './form';
 
 export type Team = 0 | 1;
 export type CupKind = 'alfred' | 'masters' | 'world';
@@ -56,6 +57,7 @@ export interface MatchState {
   lineups?: [string[], string[]];
   squads?: [string[], string[]];
   bookings?: Record<string, number>;
+  form?: [TeamForm | null, TeamForm | null];
   cup?: { kind: CupKind; runId: string; fixtureId: number; knockout: boolean; extraTime: boolean; extraElapsed?: number } | null;
   watching: boolean;
   playbackSpeed: PlaybackSpeed;

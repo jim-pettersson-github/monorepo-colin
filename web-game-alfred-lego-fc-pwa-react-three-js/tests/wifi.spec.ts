@@ -100,7 +100,11 @@ test('the guest chooses its starting five from the host roster and both peers se
     const first = squad.find((p) => !p.keeper && !lineupFor(save, 'brick').includes(p.id));
     if (!first) throw new Error('Missing guest starter');
     const guestSave = createTransfers();
+    guestSave.form = { brick: { bonus: 2, remaining: 1 } };
     guestSave.owners[first.id] = 'alfred';
+    save.form = { brick: { bonus: 2, remaining: 3 } };
+    await host.evaluate((save) => localStorage.setItem('alfred-fc-transfers-v1', JSON.stringify(save)), save);
+    await host.reload();
     await guest.evaluate((save) => localStorage.setItem('alfred-fc-transfers-v1', JSON.stringify(save)), guestSave);
     await guest.reload();
     await connect(host, guest);
@@ -109,11 +113,13 @@ test('the guest chooses its starting five from the host roster and both peers se
     await roster.getByRole('combobox', { name: 'Lag att titta på', exact: true }).selectOption('1');
     await expect(roster.locator('.squad-player-list')).toContainText(first.name);
     await expect(roster.locator('.squad-player-list button')).toHaveCount(10);
+    await expect(roster.locator('.team-form-badge')).toHaveText('Segerform +2 · 3 matcher kvar');
     await guest.getByText('Matchens lag & spelare', { exact: true }).click();
     await guest.getByText('Välj startfemma · IFK Göteborg', { exact: true }).click();
     await guest.getByRole('combobox', { name: 'Startande utespelare 1', exact: true }).selectOption(first.id);
     await expect(guest.getByRole('combobox', { name: 'Startande utespelare 1', exact: true })).toHaveValue(first.id);
     await start(host, guest);
+    for (const p of [host, guest]) await expect(p.locator('.player-badge.team-1 .team-form-badge')).toContainText('3 matcher kvar');
     await guest.getByRole('button', { name: 'Pausa matchen' }).click();
     for (const p of [host, guest]) await expect(p.getByRole('dialog', { name: 'Vi tar en paus.' })).toBeVisible();
     for (const p of [host, guest]) {
@@ -134,6 +140,7 @@ test('the guest chooses its starting five from the host roster and both peers se
       await expect(p.locator('.match-lineups')).not.toContainText(first.name);
     }
     expect(await guest.evaluate(() => JSON.parse(localStorage.getItem('alfred-fc-match-v1') || '{}'))).toEqual(pair.saved);
+    expect(await guest.evaluate(() => JSON.parse(localStorage.getItem('alfred-fc-transfers-v1') || '{}'))).toEqual(guestSave);
   } finally {
     await pair.close();
   }

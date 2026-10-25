@@ -1,7 +1,9 @@
 import type { ClubId } from './clubs';
 import { clubs, originalClubs, validClub } from './clubs';
+import { applyFormResult, formResultId } from './form';
 import type { Difficulty, MatchState } from './model';
 import { createMatch, neutralControls, STEP } from './model';
+import { type ResultContext, resultContext, simulateResult } from './result-simulation';
 import { stepMatch } from './simulation';
 
 export type LeagueAction = 'play' | 'local' | 'wifi' | 'watch' | 'simulate';
@@ -146,7 +148,7 @@ export function standings(season: Pick<Season, 'fixtures'> & Partial<Pick<Season
   );
 }
 
-export function finishLeagueMatch(season: Season, match: MatchState): Season {
+export function finishLeagueMatch(season: Season, match: MatchState, results: ResultContext = resultContext()): Season {
   const fixture = nextFixture(season);
   if (
     match.phase !== 'finished' ||
@@ -158,14 +160,14 @@ export function finishLeagueMatch(season: Season, match: MatchState): Season {
   )
     return season;
   const next = structuredClone(season);
+  results.save = applyFormResult(results.save, match.clubs, match.score, formResultId(match));
   next.fixtures[fixture.id].score = fixture.home === season.club ? [...match.score] : [match.score[1], match.score[0]];
   const roll = () => {
     next.randomState = (Math.imul(next.randomState, 1664525) + 1013904223) >>> 0;
     return next.randomState / 0x100000000;
   };
   for (const game of next.fixtures.filter((game) => game.round === fixture.round && !game.score)) {
-    const goals = (chance: number) => Array.from({ length: 8 }, () => (roll() < chance ? 1 : 0)).reduce<number>((sum, goal) => sum + goal, 0);
-    game.score = [goals(0.28), goals(0.25)];
+    game.score = simulateResult(results, [game.home, game.away], roll, `league:${season.id}:${game.id}`).score;
   }
   return next;
 }

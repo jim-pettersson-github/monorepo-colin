@@ -15,6 +15,7 @@ import { PlaybackSpeedSelect } from './PlaybackSpeedSelect';
 import { SoundSettings, SoundToggle } from './SoundControls';
 import { Substitutions } from './Substitutions';
 import { MatchTeams } from './TeamBrowser';
+import { TeamFormBadge } from './TeamFormBadge';
 import { TouchControls } from './TouchControls';
 
 export function MatchView({
@@ -23,12 +24,14 @@ export function MatchView({
   onRematch,
   onMarket,
   reward,
+  nextForms,
 }: {
   session: MatchSession;
   onExit: () => void;
   onRematch: () => void;
   onMarket: () => void;
   reward: TransferSave['lastReward'];
+  nextForms?: TransferSave['form'];
 }) {
   useSyncExternalStore(session.subscribe, session.getSnapshot);
   useSyncExternalStore(session.input.subscribe, session.input.getSnapshot);
@@ -149,10 +152,12 @@ export function MatchView({
           <span className='player-badge team-0'>
             {state.watching ? clubs[0].code : `● P1 · #${(state.selected[0] % 5) + 1}`}
             <small>{footballer(state.players[state.selected[0]].athlete)?.name}</small>
+            <TeamFormBadge form={state.form?.[0]} />
           </span>
           <span className='player-badge team-1'>
             {state.mode === 'solo' ? 'DATOR' : `● P2 · #${(state.selected[1] % 5) + 1}`}
             <small>{footballer(state.players[state.selected[1]].athlete)?.name}</small>
+            <TeamFormBadge form={state.form?.[1]} />
           </span>
         </div>
         {state.phase !== 'penalty' && state.phase !== 'penalty-ready' && <PitchOverview state={state} />}
@@ -208,9 +213,19 @@ export function MatchView({
               <span className='away-name'>{state.score[1]}</span>
             </p>
             {session.networkRole !== 'guest' && reward && reward.id === state.career?.id && (
-              <p className='match-reward' role='status'>
-                +{reward.game} mynt för matchen{reward.prize ? ` · +${reward.prize.toLocaleString('sv-SE')} i prispengar` : ''}. Transferfönstret är öppet.
-              </p>
+              <>
+                <p className='match-reward' role='status'>
+                  +{reward.game} mynt för matchen{reward.prize ? ` · +${reward.prize.toLocaleString('sv-SE')} i prispengar` : ''}. Transferfönstret är öppet.
+                </p>
+                {state.clubs.map(
+                  (club, side) =>
+                    nextForms?.[club] && (
+                      <p key={club}>
+                        {clubs[side].name}: <TeamFormBadge form={nextForms[club]} />
+                      </p>
+                    ),
+                )}
+              </>
             )}
             {session.networkRole !== 'guest' && state.career && (
               <button type='button' className='primary-button' onClick={onMarket}>

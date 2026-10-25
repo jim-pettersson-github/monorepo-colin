@@ -73,6 +73,7 @@ export function LineupPicker({
         En målvakt och fyra utespelare.
       </p>
       {locked && <p className='small-copy'>Startfemman kan ändras mellan matcherna. Gör byten i pausmenyn under en pågående match.</p>}
+      {save.form?.[club] && <p className='small-copy'>Listorna visar ordinarie betyg. Laget har segerform: +2 på alla egenskaper, högst 100.</p>}
       <FiveEditor squad={squad} five={five} disabled={locked} onChange={(ids) => onChange(setLineup(save, club, ids))} />
       <div className='lineup-actions'>
         {squad.some((p) => p.star?.era === 'family') && (

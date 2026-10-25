@@ -38,6 +38,8 @@
 
 - Team browser in the menu header with persistent starting-five edits from bench-player cards and lineup selectors: all clubs and nations, current-owner player search, starter pitch, bench list and full player-stat cards. Browsing stays read-only until an explicit edit; saved matches and simulation lock lineup edits. Match previews and pause views remain read-only and use the actual roster snapshot, including the host roster on guest devices.
 
+- Stat-based background league/cup results use current starters, ownership and role-weighted skills with a modest nonlinear advantage and upset chance. Shared team form gives +2 to all stats for 1–3 completed games; wins cannot refresh active form. Form saves, match snapshots, substitutions, peer validation, result deduplication, cup byes/elimination and visible effective stat cards are implemented.
+
 ## Verification
 
 Rules tests cover balanced star allocation, migration of old economies and schedules, promotion/relegation, the full home/away season, standings, instant/watched simulation equivalence, watch speed/pause, result deduplication, backups and invalid schedules, alongside close non-contact slides, late ball wins, three-way referee decisions, difficulty, pitch boundaries, cameras, scoring, penalties, input and save validation.

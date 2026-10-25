@@ -1,9 +1,10 @@
 import { type ClubId, getClub } from '../game/clubs';
+import { boostedStat, type TeamForm } from '../game/form';
 import type { Footballer } from '../game/players';
 import { palette } from '../palette';
 import './transfers.css';
 
-export function PlayerStats({ player }: { player: Footballer }) {
+export function PlayerStats({ player, form }: { player: Footballer; form?: TeamForm | null }) {
   return (
     <dl className='athlete-stats'>
       {(
@@ -14,15 +15,18 @@ export function PlayerStats({ player }: { player: Footballer }) {
           ['Försvar', player.defending],
           ['Målvakt', player.goalkeeping],
         ] as const
-      ).map(([label, value]) => (
-        <div key={label}>
-          <dt>{label}</dt>
-          <dd>
-            <meter min='0' max='100' value={value} aria-label={`${label}: ${value} av 100`} />
-            <span>{value}</span>
-          </dd>
-        </div>
-      ))}
+      ).map(([label, base]) => {
+        const value = boostedStat(base, form);
+        return (
+          <div key={label}>
+            <dt>{label}</dt>
+            <dd>
+              <meter min='0' max='100' value={value} aria-label={`${label}: ${value} av 100`} />
+              <span>{value}</span>
+            </dd>
+          </div>
+        );
+      })}
     </dl>
   );
 }

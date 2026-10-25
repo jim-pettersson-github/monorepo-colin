@@ -1,0 +1,10 @@
+.team-form-badge {
+  display: inline-block;
+  color: var(--accent);
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 11px;
+  line-height: 1.5;
+}

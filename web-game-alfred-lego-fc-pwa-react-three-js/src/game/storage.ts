@@ -1,4 +1,5 @@
 import { defaultClubs, validClub } from './clubs';
+import { validForm } from './form';
 import type { MatchState } from './model';
 import { ensureMatchRules, FALL_DURATION, FIELD, SLIDE_DURATION } from './model';
 import { footballer, footballers } from './players';
@@ -9,6 +10,7 @@ const finite = (value: unknown, limit = 10_000): value is number => typeof value
 export function validMatch(value: unknown): value is MatchState {
   if (!value || typeof value !== 'object') return false;
   const s = value as MatchState;
+  if (s.form !== undefined && (!Array.isArray(s.form) || s.form.length !== 2 || !s.form.every((form) => form === null || validForm(form)))) return false;
   if (s.career !== undefined && (!s.career || typeof s.career.id !== 'string' || !s.career.id.length || s.career.id.length > 100 || !validClub(s.career.club)))
     return false;
   if (

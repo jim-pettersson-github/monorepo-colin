@@ -58,6 +58,7 @@ import {
   squadFor,
   validTransfers,
 } from '../src/game/transfers';
+import './results-rules';
 
 test('player batches follow articulated parts and update bounds after moving across the pitch', () => {
   const actors = new Group();

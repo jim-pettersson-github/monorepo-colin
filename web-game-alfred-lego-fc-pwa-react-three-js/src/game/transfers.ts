@@ -1,4 +1,5 @@
 import { type ClubId, clubs, getClub, originalClubs, validClub } from './clubs';
+import { applyFormResult, formResultId, type TeamForm, validForms } from './form';
 import { preferredFive, validFive } from './lineups';
 import type { MatchState } from './model';
 import { type Footballer, footballer, footballers, playerPrice } from './players';
@@ -20,6 +21,8 @@ export interface TransferSave {
   news: { id: string; message: string }[];
   lastReward: { id: string; club: DomesticClub; game: number; prize: number } | null;
   lineups?: Partial<Record<ClubId, string[]>>;
+  form?: Partial<Record<ClubId, TeamForm>>;
+  formResults?: string[];
 }
 const accounts = (value: number) => Object.fromEntries(clubs.map((club) => [club.id, value])) as Record<DomesticClub, number>;
 export function createTransfers(): TransferSave {
@@ -103,6 +106,7 @@ export function sellPlayer(save: TransferSave, seller: DomesticClub, id: string,
 }
 export function withMatchSquads(save: TransferSave, state: MatchState): MatchState {
   const match = structuredClone(state);
+  match.form ??= match.clubs.map((club) => structuredClone(save.form?.[club] ?? null)) as MatchState['form'];
   match.lineups ??= match.clubs.map((club) => lineupFor(save, club)) as [string[], string[]];
   for (const player of match.players) player.athlete = match.lineups[player.team][player.role];
   if (!match.squads && match.lineups) {
@@ -128,7 +132,7 @@ export function settleTransfers(save: TransferSave, match: MatchState, prize?: {
     save.paid.includes(match.career.id)
   )
     return save;
-  const next = structuredClone(save),
+  const next = structuredClone(applyFormResult(save, match.clubs, match.score, formResultId(match))),
     club = match.career.club;
   const reward = match.score[0] > match.score[1] ? 400 : match.score[0] === match.score[1] ? 300 : 200;
   const bonus = prize && !next.prizes.includes(prize.id) ? prize.amount : 0;
@@ -218,6 +222,8 @@ export function validTransfers(value: unknown): value is TransferSave {
       !Object.entries(s.lineups).every(([club, ids]) => validClub(club) && validFive(ids, squadFor(s, club))))
   )
     return false;
+  if (s.form !== undefined && !validForms(s.form)) return false;
+  if (s.formResults !== undefined && (!strings(s.formResults, 100000) || new Set(s.formResults).size !== s.formResults.length)) return false;
   return clubs.every((club) => playable(squadFor(s, club.id)));
 }
 export function loadTransfers(): TransferSave {

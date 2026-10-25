@@ -1,9 +1,11 @@
 import type { ClubId, FootballTeam } from './clubs';
 import { clubs, getClub, originalClubs, validClub } from './clubs';
+import { applyFormResult, formResultId } from './form';
 import type { Fixture } from './league';
 import { standings } from './league';
 import { type CupKind, createMatch, type Difficulty, type MatchState } from './model';
 import { nations } from './nations';
+import { type ResultContext, resultContext, simulateResult } from './result-simulation';
 
 export const cupTypes = [
   {
@@ -168,26 +170,30 @@ function appendNext(cup: Pick<Cup, 'kind' | 'draw' | 'fixtures'>, round: number)
     Array.from({ length: qualified.length / 2 }, (_, i) => [qualified[i * 2], qualified[i * 2 + 1]]),
   );
 }
-function simulateFixture(cup: Cup, fixture: CupFixture) {
-  const goals = () => Array.from({ length: 8 }, () => (roll(cup) < 0.27 ? 1 : 0)).reduce<number>((a, b) => a + b, 0);
-  fixture.score = [goals(), goals()];
-  if (fixture.stage === 'knockout' && fixture.score[0] === fixture.score[1]) {
-    fixture.extraTime = true;
-    fixture.score[roll(cup) < 0.5 ? 0 : 1]++;
-  }
+function simulateFixture(cup: Cup, fixture: CupFixture, results: ResultContext) {
+  const result = simulateResult(results, [fixture.home, fixture.away], () => roll(cup), `cup:${cup.id}:${fixture.id}`, fixture.stage === 'knockout');
+  fixture.score = result.score;
+  fixture.extraTime = result.extraTime;
 }
-function settle(cup: Cup) {
+function settle(cup: Cup, results: ResultContext) {
   // Complete rounds without the chosen club (a bye or elimination), never skip its next match.
   for (let guard = 0; guard < 12; guard++) {
     const round = cup.fixtures.find((f) => !f.score)?.round;
     if (round === undefined) return;
     const pending = cup.fixtures.filter((f) => f.round === round && !f.score);
     if (pending.some((f) => f.home === cup.club || f.away === cup.club)) return;
-    for (const f of pending) simulateFixture(cup, f);
+    for (const f of pending) simulateFixture(cup, f, results);
     appendNext(cup, round);
   }
 }
-export function createCup(kind: CupKind, club: ClubId, difficulty: Difficulty, duration: number, seed = Math.floor(Math.random() * 0x100000000)): Cup {
+export function createCup(
+  kind: CupKind,
+  club: ClubId,
+  difficulty: Difficulty,
+  duration: number,
+  seed = Math.floor(Math.random() * 0x100000000),
+  results: ResultContext = resultContext(),
+): Cup {
   const cup: Cup = {
     version: 1,
     id: crypto.randomUUID(),
@@ -205,7 +211,7 @@ export function createCup(kind: CupKind, club: ClubId, difficulty: Difficulty, d
     [cup.draw[i], cup.draw[j]] = [cup.draw[j], cup.draw[i]];
   }
   cup.fixtures = opening(kind, cup.draw);
-  settle(cup);
+  settle(cup, results);
   return cup;
 }
 export function createCupMatch(cup: Cup): MatchState | null {
@@ -216,7 +222,7 @@ export function createCupMatch(cup: Cup): MatchState | null {
   state.randomState = (cup.seed ^ Math.imul(fixture.id + 1, 2654435761)) >>> 0;
   return state;
 }
-export function finishCupMatch(cup: Cup, match: MatchState): Cup {
+export function finishCupMatch(cup: Cup, match: MatchState, results: ResultContext = resultContext()): Cup {
   const fixture = nextCupFixture(cup);
   if (
     match.phase !== 'finished' ||
@@ -235,11 +241,12 @@ export function finishCupMatch(cup: Cup, match: MatchState): Cup {
     return cup;
   const next = structuredClone(cup),
     game = next.fixtures[fixture.id];
+  results.save = applyFormResult(results.save, match.clubs, match.score, formResultId(match));
   game.score = fixture.home === cup.club ? [...match.score] : [match.score[1], match.score[0]];
   game.extraTime = match.cup.extraTime;
-  for (const other of next.fixtures.filter((f) => f.round === fixture.round && !f.score)) simulateFixture(next, other);
+  for (const other of next.fixtures.filter((f) => f.round === fixture.round && !f.score)) simulateFixture(next, other, results);
   appendNext(next, fixture.round);
-  settle(next);
+  settle(next, results);
   return next;
 }
 export function validCup(value: unknown): value is Cup {

@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react';
 import { useRef, useState } from 'react';
 import { type ClubId, clubs, getClub, type MatchClubs } from '../game/clubs';
+import { boostedStat, type TeamForm } from '../game/form';
 import { initialDivisions, type Season, seasonDivisions } from '../game/league';
 import { pickStarter } from '../game/lineups';
 import type { MatchState } from '../game/model';
@@ -10,6 +11,7 @@ import { starRoleNames } from '../game/stars';
 import { lineupFor, setLineup, squadFor, type TransferSave } from '../game/transfers';
 import { LineupPicker } from './LineupPicker';
 import { PlayerPortrait, PlayerStats } from './PlayerProfile';
+import { TeamFormBadge } from './TeamFormBadge';
 import { ClubCrest } from './TeamSelection';
 import './team-browser.css';
 
@@ -34,6 +36,7 @@ export function TeamSquad({
   label = 'Startfemma',
   onPick,
   locked = false,
+  form,
 }: {
   club: ClubId;
   squad: readonly Footballer[];
@@ -41,6 +44,7 @@ export function TeamSquad({
   label?: string;
   onPick?: (five: string[]) => void;
   locked?: boolean;
+  form?: TeamForm | null;
 }) {
   const [selected, setSelected] = useState(five[4]);
   const [replacement, setReplacement] = useState(1);
@@ -66,10 +70,11 @@ export function TeamSquad({
           <p>
             {squad.length} spelare · {starters.length} startar · {squad.length - starters.length} avbytare
           </p>
+          <TeamFormBadge form={form} />
         </div>
         {starters.length > 0 && (
           <div className='squad-average'>
-            <strong>{(starters.reduce((sum, p) => sum + p.overall, 0) / starters.length).toFixed(1).replace('.', ',')}</strong>
+            <strong>{(starters.reduce((sum, p) => sum + boostedStat(p.overall, form), 0) / starters.length).toFixed(1).replace('.', ',')}</strong>
             <span>Startfemmans snitt</span>
           </div>
         )}
@@ -88,12 +93,12 @@ export function TeamSquad({
               type='button'
               className={`pitch-starter ${player?.id === p.id ? 'selected' : ''}`}
               style={{ left: `${positions[i][0]}%`, top: `${positions[i][1]}%` }}
-              aria-label={`Visa ${p.name}, ${p.overall} i betyg`}
+              aria-label={`Visa ${p.name}, ${boostedStat(p.overall, form)} i betyg`}
               aria-pressed={player?.id === p.id}
               onClick={() => select(p.id)}
             >
               <span>
-                {i === 0 ? 'MV' : `#${i + 1}`} · {p.overall}
+                {i === 0 ? 'MV' : `#${i + 1}`} · {boostedStat(p.overall, form)}
               </span>
               <PlayerPortrait player={p} club={club} />
               <strong>{p.name}</strong>
@@ -109,8 +114,8 @@ export function TeamSquad({
                 <h3>{player.name}</h3>
                 <span>{five.includes(player.id) ? `${label} · ${player.keeper ? 'MV' : `#${five.indexOf(player.id) + 1}`}` : 'Avbytare'}</span>
               </div>
-              <strong className='overall-rating' role='img' aria-label={`Totalbetyg ${player.overall} av 100`}>
-                {player.overall}
+              <strong className='overall-rating' role='img' aria-label={`Totalbetyg ${boostedStat(player.overall, form)} av 100`}>
+                {boostedStat(player.overall, form)}
                 <small>BETYG</small>
               </strong>
             </header>
@@ -122,7 +127,8 @@ export function TeamSquad({
                 <span>{player.star.country}</span>
               </p>
             )}
-            <PlayerStats player={player} />
+            <PlayerStats player={player} form={form} />
+            {form && <p className='small-copy'>Ordinarie betyg {player.overall}. Segerform ger +2 på alla egenskaper, högst 100.</p>}
             <p className='small-copy'>Betyg och egenskaper visas på skalan 0–100.</p>
             {onPick && (
               <div className='browser-starter-actions'>
@@ -181,7 +187,7 @@ export function TeamSquad({
                 {p.star?.era === 'family' ? ' · Familj' : ''}
               </small>
             </span>
-            <b>{p.overall}</b>
+            <b>{boostedStat(p.overall, form)}</b>
           </button>
         ))}
       </section>
@@ -208,7 +214,14 @@ export function MatchTeams({ save, clubs: pair, match }: { save?: TransferSave; 
           ))}
         </select>
       </label>
-      <TeamSquad key={id} club={id} squad={squad} five={five} label={match ? 'Matchens femma' : 'Vald startfemma'} />
+      <TeamSquad
+        key={id}
+        club={id}
+        squad={squad}
+        five={five}
+        form={match ? match.form?.[side] : save?.form?.[id]}
+        label={match ? 'Matchens femma' : 'Vald startfemma'}
+      />
     </details>
   );
 }
@@ -329,6 +342,7 @@ export function TeamBrowser({
             five={lineupFor(save, active.id)}
             label={save.lineups?.[active.id] ? 'Din valda startfemma' : 'Standardfemma'}
             locked={locked}
+            form={save.form?.[active.id]}
             onPick={(ids) => {
               if (!locked) onChange(setLineup(save, active.id, ids));
             }}

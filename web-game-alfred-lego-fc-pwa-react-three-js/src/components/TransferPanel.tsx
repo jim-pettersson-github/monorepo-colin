@@ -116,8 +116,12 @@ export function TransferPanel({ save, onChange, locked }: { save: TransferSave; 
         <p>
           {clubFootballers.length} stjärnor och familjespelare fördelas likadant på varje enhet. Varje klubb börjar med tio spelare: två målvakter, två
           försvarare, tre mittfältare och tre anfallare. En balanserad draft och positionsbyten jämnar ut lagens sammanlagda betyg. Familjespelarna börjar i
-          sina egna klubbar. Stjärnor och legender spelar i sin prime med totalbetyg 86–96 och högst 96 i varje egenskap. Familjens egna betyg är oförändrade.
-          Högre betyg ger högre pris. Landslagen behåller sina separata, fasta trupper.
+          sina egna klubbar. Stjärnor och legender spelar i sin prime med ordinarie totalbetyg 86–96 och högst 96 i varje egenskap. Familjens egna betyg är
+          oförändrade. Högre betyg ger högre pris. Landslagen behåller sina separata, fasta trupper.
+        </p>
+        <p>
+          Segerform ger +2 på alla egenskaper, högst 100, i 1–3 matcher. Aktiv segerform kan inte förlängas eller staplas. Marknadens kort och priser visar
+          ordinarie betyg; se de tillfälliga matchvärdena i Lag & spelare.
         </p>
         <p>
           Urvalet bygger på världsstjärnor från 2016–2025 och äldre klassiker, inklusive Pelé, Ronaldinho och Zlatan. Prime-året visar vilken version du spelar
