@@ -49,12 +49,12 @@ The Charlie for Speed Playwright tests start this server themselves.
 
 The server runs on the home dev host (the NUC behind `vps.academy.charliecare.se`) as the Dokploy stack `game-server` in the project `games`. Dokploy builds `docker-compose.yaml` from this public repository's `main` branch. Traefik serves `games.charliecare.se` over HTTPS with a Let's Encrypt certificate. The TURN ports bypass Traefik:
 
-| Port | Use |
-| --- | --- |
-| 3478 UDP and TCP | TURN, and STUN |
-| 49160–49259 UDP | relayed traffic, one port per allocation |
+| Port | Use | Router |
+| --- | --- | --- |
+| 3478 UDP and TCP | TURN, and STUN | forwarded to the NUC (192.168.1.221) |
+| 49160–49259 UDP | relayed traffic, one port per allocation | not forwarded |
 
-Each port is published 1:1 from the container and forwarded on the home router to the NUC (192.168.1.221). Docker opens published ports past ufw by itself. The Dokploy variable `GAMES_TURN_SECRET` holds the secret (`openssl rand -hex 32`). DNS: `games.charliecare.se` is a CNAME to `vps.academy.charliecare.se`.
+Every game device gets the same relay, so two relayed devices meet inside coturn and their traffic never leaves the NUC (checked with tcpdump). Only a peer outside the relay would need the relay range, and the router cannot forward ranges. The ports are published 1:1 from the container, and Docker opens them past ufw by itself. The Dokploy variable `GAMES_TURN_SECRET` holds the secret (`openssl rand -hex 32`). DNS: `games.charliecare.se` is a CNAME to `vps.academy.charliecare.se`.
 
 When the home IP changes, the container notices within five minutes and restarts with the new address.
 
