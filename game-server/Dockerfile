@@ -3,7 +3,7 @@
 FROM php:8.5-apache
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends coturn \
+  && apt-get install -y --no-install-recommends coturn iproute2 \
   && rm -rf /var/lib/apt/lists/*
 
 COPY public/ /var/www/html/

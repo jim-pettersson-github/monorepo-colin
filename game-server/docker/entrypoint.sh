@@ -37,7 +37,10 @@ CONF
   if [ -n "${TURN_PUBLIC_HOST:-}" ]; then
     public=$(public_ip "$TURN_PUBLIC_HOST")
     [ -n "$public" ] || { echo "game-server: $TURN_PUBLIC_HOST does not resolve" >&2; exit 1; }
-    echo "external-ip=$public/$(hostname -i | awk '{ print $1 }')" >> "$conf"
+    # Published ports arrive on the interface with the default route (Docker's gateway bridge when the
+    # container also sits on Dokploy's overlay network), so relay there and map that address.
+    private=$(ip -4 route get 1.1.1.1 | awk '{ for (i = 1; i < NF; i++) if ($i == "src") print $(i + 1) }')
+    printf 'relay-ip=%s\nexternal-ip=%s/%s\n' "$private" "$public" "$private" >> "$conf"
   fi
 
   # The relay sits inside the home network: it may only forward to the internet, never to local addresses.
