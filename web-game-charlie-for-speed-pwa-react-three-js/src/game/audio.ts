@@ -9,10 +9,7 @@ const profiles = {
 };
 
 export function engineProfile(car: CarSpec) {
-  if (car.id === 'arrow') return profiles.compact;
-  if (['nxr', 'velox'].includes(car.id)) return profiles.six;
-  if (['sting', 'xk', 'dbs', 'stallion'].includes(car.id)) return profiles.muscle;
-  return profiles.exotic;
+  return profiles[car.engine];
 }
 
 const clamp = (value: number, low = 0, high = 1) => Math.max(low, Math.min(high, value));

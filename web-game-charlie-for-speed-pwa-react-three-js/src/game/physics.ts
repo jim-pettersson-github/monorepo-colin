@@ -48,11 +48,10 @@ export function forwardSpeed(car: CarState) {
 }
 
 // Faster classes press harder into the road at speed, so a supercar holds a quick bend that a coupé cannot.
-const DOWNFORCE: Record<CarSpec['carClass'], number> = { C: 0.06, B: 0.14, A: 0.24 };
 
 // Arcade cornering grip, well above the spec sheet so most bends flow without braking; it grows with downforce.
 export function cornerGrip(spec: CarSpec, speed = 0) {
-  return spec.grip * GRAVITY * 1.6 * (1 + DOWNFORCE[spec.carClass] * Math.min(1.4, (speed / 70) ** 2));
+  return spec.grip * GRAVITY * 1.6 * (1 + spec.downforce * Math.min(1.4, (speed / 70) ** 2));
 }
 
 // The front-wheel angle that full steering input reaches at this speed and yaw-rate limit.

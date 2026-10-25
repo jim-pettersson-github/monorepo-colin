@@ -8,7 +8,7 @@ React, TypeScript, Three.js, Vite and vite-plugin-pwa. React owns menus and the 
 
 ## Direction
 
-An original arcade racer inspired by late-1990s supercar racing games in feel and layout, without recreating any specific game, drawn with modern graphics: smooth cars with clear-coated paint, tone mapping, shadows and reflections, bold colors, chunky HUD, chase camera. Cars are fictional lookalikes of real 80s/90s supercars; never use real brand names or logos. Shapes live in src/render/car-designs.ts.
+An original arcade racer inspired by late-1990s supercar racing games in feel and layout, without recreating any specific game, drawn with modern graphics: smooth cars with clear-coated paint, tone mapping, shadows and reflections, bold colors, chunky HUD, chase camera. The requested roster uses the 19 racer names from the Need for Speed III PC car list. Recreate their recognizable silhouettes with local procedural geometry; avoid adding manufacturer logos. Shapes live in src/render/car-designs.ts.
 
 ## Language and layout
 
@@ -22,4 +22,4 @@ Run commands here with Node 22.12+. npm ci, npm start (4014), npm run check, npm
 
 Keep VITE_BASE_PATH support, offline precaching and user-requested updates without forced refresh. Charlie-specific storage and caches. GitHub Pages publishes the game under `/charlie-fs/`; the elevator service worker excludes that path from its navigation fallback, so keep both in sync. Do not change the pre-commit hook. Do not commit or push unless requested. Distinguish implemented behavior from future plans.
 
-WebRTC quick races for 2–8 devices (one player per device, never split screen) use two-way QR signaling, no servers, host-owned simulation and per-device cameras. Preserve local career/records during network play. Pause all peers on background/input/connection loss.
+WebRTC quick races for 2–8 devices (one player per device, never split screen) use the room server for joining, host-owned simulation and per-device cameras. Preserve local career/records during network play. Pause all peers on background/input/connection loss.

@@ -1,9 +1,10 @@
 import type { CameraMode } from '../render/race-renderer';
 import type { Career } from './career';
 import type { Identity } from './career-session';
-import { cars } from './cars';
+import { canonicalCarId, cars } from './cars';
 import { type Session, validSession } from './multi-career';
 import type { RaceSettings } from './race';
+import { migrateCareer, migrateSession } from './roster-migration';
 import { trackDefs } from './tracks';
 
 export type Settings = RaceSettings & { sound: boolean; volume: number; camera: CameraMode };
@@ -14,7 +15,7 @@ const RECORDS_KEY = 'charlie-for-speed:records';
 
 export const defaultSettings: Settings = {
   trackId: 'vaxjo',
-  carId: 'sting',
+  carId: 'corvette',
   laps: 3,
   difficulty: 'normal',
   transmission: 'auto',
@@ -42,6 +43,7 @@ function write(key: string, value: unknown) {
 
 export function loadSettings(): Settings {
   const settings = read(SETTINGS_KEY, defaultSettings);
+  settings.carId = canonicalCarId(settings.carId);
   if (!cars.some((car) => car.id === settings.carId)) settings.carId = defaultSettings.carId;
   if (!trackDefs.some((track) => track.id === settings.trackId)) settings.trackId = defaultSettings.trackId;
   settings.volume =
@@ -54,7 +56,9 @@ export function saveSettings(settings: Settings) {
 }
 
 export function loadRecords(): Record<string, LapRecord> {
-  return read<Record<string, LapRecord>>(RECORDS_KEY, {});
+  return Object.fromEntries(
+    Object.entries(read<Record<string, LapRecord>>(RECORDS_KEY, {})).map(([track, record]) => [track, { ...record, carId: canonicalCarId(record.carId) }]),
+  );
 }
 
 // Returns true when the lap beats the stored record for the track.
@@ -74,7 +78,7 @@ export function loadCareer(): Career | undefined {
   try {
     const raw = localStorage.getItem(CAREER_KEY);
     const career = raw ? (JSON.parse(raw) as Career) : undefined;
-    return career?.version === 1 ? career : undefined;
+    return career?.version === 1 ? migrateCareer(career) : undefined;
   } catch {
     return undefined;
   }
@@ -118,7 +122,16 @@ export function loadSessions(): Session[] {
   try {
     const raw = localStorage.getItem(SESSIONS_KEY);
     const list = raw ? (JSON.parse(raw) as unknown[]) : [];
-    return list.filter(validSession).sort((a, b) => b.updated - a.updated);
+    return list
+      .flatMap((value) => {
+        try {
+          const migrated = migrateSession(value as Session);
+          return validSession(migrated) ? [migrated] : [];
+        } catch {
+          return [];
+        }
+      })
+      .sort((a, b) => b.updated - a.updated);
   } catch {
     return [];
   }

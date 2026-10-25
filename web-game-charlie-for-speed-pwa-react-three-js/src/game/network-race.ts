@@ -71,8 +71,6 @@ export function validRaceConfig(value: unknown): value is RaceConfig {
     c.cars[0] === s.carId &&
     validEntrants(c) &&
     validNames(c) &&
-    // Everyone races in the host's class.
-    c.cars.every((id) => carById(id).carClass === carById(s.carId).carClass) &&
     [1, 2, 3, 5].includes(s.laps) &&
     ['easy', 'normal', 'hard'].includes(s.difficulty) &&
     ['auto', 'manual'].includes(s.transmission) &&
@@ -104,7 +102,7 @@ export function createNetworkRace(config: RaceConfig, slot = 0) {
     taken.add(racer.driverName);
     racer.spec = cars.find((car) => car.id === carId) ?? cars[0];
   });
-  // Quick online races are arcade-balanced, so every car in the class has a fair chance; the AI field included.
+  // Quick online races share one performance range across every career class, including the AI field.
   for (const racer of race.racers) racer.spec = arcadeSpec(racer.spec);
   race.player = race.racers[HUMAN_SLOTS[slot]];
   return race;

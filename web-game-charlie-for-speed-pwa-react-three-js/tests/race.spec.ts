@@ -8,7 +8,7 @@ test('choose a car and track, race, pause and return to the menu', async ({ page
 
   await expect(page.getByRole('heading', { name: 'Välj bil' })).toBeVisible();
   await page.getByRole('button', { name: 'Nästa bil' }).click();
-  await expect(page.getByRole('heading', { name: 'XK Coupé' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'R42' })).toBeVisible();
   await page.getByRole('button', { name: /Välj bana/ }).click();
 
   await page.getByRole('button', { name: /Rheinland-Ring/ }).click();
@@ -33,6 +33,6 @@ test('choose a car and track, race, pause and return to the menu', async ({ page
 
   await page.getByRole('button', { name: 'Pausa' }).click();
   await page.getByRole('button', { name: 'Avsluta racet' }).click();
-  await expect(page.getByRole('button', { name: /Snabbstart.*Albion XK Coupé.*Rheinland-Ring.*1 varv/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Snabbstart.*Spectre R42.*Rheinland-Ring.*1 varv/ })).toBeVisible();
   expect(errors).toEqual([]);
 });

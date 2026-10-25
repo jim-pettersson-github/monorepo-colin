@@ -64,7 +64,7 @@ test('old and malformed volume settings recover without losing the chosen car', 
     await page.goto('./');
     await page.evaluate((volume) => localStorage.setItem('charlie-for-speed:settings', JSON.stringify({ carId: 'nxr', volume })), volume);
     await page.reload();
-    await expect(page.getByRole('button', { name: /Snabbstart.*Kaida NX-R/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Snabbstart.*HSV VT GTS/ })).toBeVisible();
     await page.getByRole('button', { name: 'Inställningar' }).click();
     await expect(page.getByRole('slider', { name: /Ljudvolym/ })).toHaveValue(
       String(typeof volume === 'number' ? Math.max(0, Math.min(100, volume * 100)) : 70),

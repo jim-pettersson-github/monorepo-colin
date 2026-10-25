@@ -1,0 +1,22 @@
+// Measured by node scripts/tune-online.mjs --write across all six tracks.
+export const onlineTrims: Record<string, number> = {
+  falcon: 1.01545,
+  db7: 1.01473,
+  hsvgts: 1.00963,
+  xk8: 1.01094,
+  xkr: 1.01207,
+  sl600: 1.009,
+  countach: 1.00258,
+  indy98: 1.00284,
+  corvette: 1.00284,
+  spectre: 1.004,
+  f355: 1.00008,
+  f456: 0.99714,
+  scighera: 0.99446,
+  elnino: 0.98477,
+  f550: 0.98978,
+  diablo: 0.98828,
+  xjr15: 0.98974,
+  storm: 0.98565,
+  clkgtr: 0.98678,
+};

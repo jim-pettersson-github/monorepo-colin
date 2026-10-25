@@ -8,7 +8,7 @@
 
 - Six tracks: two circuits, two city tracks and two country roads.
 - Career mode with cups, prize money, car classes, upgrades and rivals who upgrade too.
-- Fourteen fictional 80s/90s supercar lookalikes with distinct stats and silhouettes.
+- Nineteen cars from the requested Need for Speed III PC racer list, with distinct procedural silhouettes and rating-derived arcade performance.
 - Tyre smoke, grass dust, barrier sparks and lens flare.
 - Published on GitHub Pages under /charlie-fs/.
 - Single race against seven AI drivers, laps, positions, lap records and results.

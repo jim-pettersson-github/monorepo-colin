@@ -25,3 +25,22 @@ export function plateTexture() {
   map.anisotropy = 4;
   return map;
 }
+
+export function paceLiveryTexture() {
+  const element = document.createElement('canvas');
+  element.width = 512;
+  element.height = 64;
+  const context = element.getContext('2d');
+  if (context) {
+    context.fillStyle = '#e9c82b';
+    context.fillRect(0, 0, 512, 64);
+    context.fillStyle = '#352456';
+    for (let x = 0; x < 512; x += 16) context.fillRect(x, x % 32 ? 0 : 48, 16, 16);
+    context.font = 'italic bold 30px Arial';
+    context.textAlign = 'center';
+    context.fillText('INDY 500 · PACE CAR', 256, 43);
+  }
+  const map = new THREE.CanvasTexture(element);
+  map.colorSpace = THREE.SRGBColorSpace;
+  return map;
+}

@@ -82,8 +82,9 @@ test('three devices race together and each guest picks their own car', async ({ 
     await host.getByRole('button', { name: /^Jag är värd/ }).click();
 
     await connect(host, guest);
-    await guest.getByLabel('Din bil').selectOption('arrow');
-    await expect(host.getByText('Spelare 2: Lynx Arrow')).toBeVisible();
+    await expect(guest.getByLabel('Din bil').locator('option')).toHaveCount(19);
+    await guest.getByLabel('Din bil').selectOption('clkgtr');
+    await expect(host.getByText('Spelare 2: Mercedes-Benz CLK-GTR')).toBeVisible();
     await guest.getByRole('button', { name: 'Jag är redo', exact: true }).click();
 
     await connect(host, third);

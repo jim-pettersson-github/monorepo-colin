@@ -129,7 +129,7 @@ test('game list: a hosted game is listed, a guest joins with one tap and the hos
     await guest.getByRole('button', { name: /^Spela online/ }).click();
     await guest.getByRole('button', { name: /^Jag går med/ }).click();
     const listed = guest.getByRole('list', { name: 'Öppna spel' }).getByRole('listitem').filter({ hasText: 'Listos spel' });
-    await expect(listed).toContainText('Växjö Motorring · 3 varv · klass C', { timeout: 10000 });
+    await expect(listed).toContainText('Växjö Motorring · 3 varv · utjämnade bilar', { timeout: 10000 });
     await guest.screenshot({ path: info.outputPath('game-list.png') });
     await listed.getByRole('button', { name: /^Gå med · 1\/8/ }).click();
     await expect(guest.getByText('Enheterna är anslutna!')).toBeVisible({ timeout: 30000 });

@@ -39,7 +39,8 @@ function loft(rings: THREE.Vector3[][], groups?: (station: number, segment: numb
       const b = (i + 1) * ringSize + j;
       const c = (i + 1) * ringSize + ((j + 1) % ringSize);
       const d = i * ringSize + ((j + 1) % ringSize);
-      indices[groups ? groups(i, j) : 0].push(a, b, d, b, c, d);
+      const material = groups ? groups(i, j) : 0;
+      if (material >= 0) indices[material].push(a, b, d, b, c, d);
     }
   }
   // Separate cap vertices keep each bumper face flat instead of rounding it into a pointed tip.
@@ -170,7 +171,18 @@ export function buildBodyShape(design: CarDesign, length: number, width: number,
     for (const [x, y] of [...side].reverse()) ring.push(new THREE.Vector3(-x * w, y, z));
     bodyRings.push(ring);
   }
-  const body = loft(bodyRings);
+  const body = loft(
+    bodyRings,
+    design.openTop
+      ? (station, segment) => {
+          const a = bodyRings[station][segment];
+          const b = bodyRings[station][(segment + 1) % bodyRings[station].length];
+          const u = a.z / length;
+          const inside = u > design.cabin[1][0] && u < design.cabin[2][0];
+          return inside && a.y > 0.6 && b.y > 0.6 && Math.max(Math.abs(a.x), Math.abs(b.x)) < section(a.z).halfWidth * 0.82 ? -1 : 0;
+        }
+      : undefined,
+  );
 
   // Glasshouse: windscreen, side windows and rear glass, with painted roof and pillars (group 1).
   const [rearBase, roofRear, roofFront, screenBase] = design.cabin;
@@ -204,6 +216,7 @@ export function buildBodyShape(design: CarDesign, length: number, width: number,
     glassRings,
     (station, segment) => {
       const u = stationU[station];
+      if (design.openTop && u < roofFront[0]) return -1;
       const outer = segment === 1 || segment === ringSize - 2;
       if (segment === 0 || segment === ringSize - 1) return 1;
       if (u > roofFront[0]) return outer ? 1 : 0;

@@ -30,9 +30,9 @@ test('online career: shared session, own shopping, a race and resuming with prog
     await guest.getByRole('button', { name: 'Bilhandlare', exact: true }).click();
     await guest.getByRole('button', { name: 'Köp 18 000 kr', exact: true }).click();
     await expect(guest.getByTestId('money')).toHaveText('7 000 kr');
-    await expect(host.getByRole('cell', { name: 'Lynx Arrow' })).toBeVisible();
+    await expect(host.getByRole('cell', { name: 'Ford Falcon GT' })).toBeVisible();
     await host.getByRole('button', { name: 'Bilhandlare', exact: true }).click();
-    await host.getByRole('button', { name: 'Köp 21 000 kr', exact: true }).click();
+    await host.getByRole('button', { name: 'Köp 22 000 kr', exact: true }).click();
 
     await host.getByRole('button', { name: 'Turneringar', exact: true }).click();
     await host.getByRole('button', { name: 'Starta cupen', exact: true }).first().click();

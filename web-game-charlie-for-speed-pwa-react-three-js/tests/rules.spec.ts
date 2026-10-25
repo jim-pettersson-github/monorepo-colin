@@ -16,10 +16,68 @@ import {
 import { applyUpgrades, arcadeSpec, carById, cars } from '../src/game/cars';
 import { brakeDecel, type CarState, cornerGrip, forwardSpeed, placeCar, stepCar } from '../src/game/physics';
 import { createRace, formatTime, raceDistance, raceResults, STEP, stepRace } from '../src/game/race';
+import { migrateCareer, migrateSession } from '../src/game/roster-migration';
 import { trackById, trackDefs } from '../src/game/tracks';
 import { batchStatic } from '../src/render/batch';
 
 const idle = { throttle: 0, brake: 0, steer: 0, handbrake: false };
+
+test('the complete replacement roster has balanced career classes and reference performance', () => {
+  expect(cars).toHaveLength(19);
+  expect(new Set(cars.map((car) => car.id)).size).toBe(19);
+  expect(['C', 'B', 'A'].map((level) => cars.filter((car) => car.carClass === level).length)).toEqual([7, 6, 6]);
+  expect(carById('elnino').zeroTo100).toBeLessThan(carById('clkgtr').zeroTo100);
+  expect(carById('elnino').topKmh).toBeLessThan(carById('clkgtr').topKmh);
+  expect(carById('db7').braking).toBeLessThan(carById('storm').braking);
+  expect(cars.every((car) => car.ratings.handling === 8)).toBe(true);
+  expect(carById('indy98').ratings).toEqual(carById('corvette').ratings);
+});
+
+test('old solo and online career garages migrate without losing progress or starter cup access', () => {
+  const old = {
+    ...newCareer(9),
+    money: 3500,
+    garage: [{ carId: 'sting', upgrades: { engine: 2, tyres: 1, brakes: 3 } }],
+    activeCarId: 'sting',
+    cupsWon: ['klubb'],
+    run: { cupId: 'sport', race: 2, standings: { Du: 18, Sanna: 20 } },
+  };
+  old.rivals[0].cars = { C: 'arrow', B: 'stallion', A: 'skarv' };
+  const saved = structuredClone(old);
+  const migrated = migrateCareer(old);
+  expect(migrated).toMatchObject({ money: 3500, activeCarId: 'corvette', cupsWon: old.cupsWon, run: old.run });
+  expect(migrated.garage).toEqual([
+    { carId: 'corvette', upgrades: { engine: 2, tyres: 1, brakes: 3 } },
+    { carId: 'falcon', upgrades: { engine: 0, tyres: 0, brakes: 0 } },
+  ]);
+  for (const rival of migrated.rivals) for (const level of ['C', 'B', 'A'] as const) expect(carById(rival.cars[level]).carClass).toBe(level);
+  expect(migrateCareer(migrated)).toEqual(migrated);
+  expect(old).toEqual(saved);
+
+  const session = joinSession(newSession('Saved', 'own', 4), 'a', 'Alva');
+  session.members[0] = { ...session.members[0], money: old.money, garage: old.garage, activeCarId: old.activeCarId, cupsWon: old.cupsWon };
+  const result = migrateSession({ ...session, rivals: old.rivals });
+  expect(result.members[0]).toMatchObject({ money: 3500, garage: migrated.garage, activeCarId: 'corvette', cupsWon: old.cupsWon });
+  expect(result.rivals).toEqual(migrated.rivals);
+  expect(result.updated).toBe(session.updated);
+  expect(validSession(result)).toBe(true);
+  expect(migrateSession(result)).toEqual(result);
+});
+
+test('all online cars stay within one percent on every track with the same solo driver', () => {
+  test.setTimeout(60000);
+  for (const track of trackDefs) {
+    const times = cars.map((car) => {
+      const race = createRace({ trackId: track.id, carId: car.id, laps: 2, difficulty: 'normal', transmission: 'auto' }, 7, [
+        { driverName: 'Calibration', spec: arcadeSpec(car), skill: 1 },
+      ]);
+      for (let tick = 0; tick < 120 * 260 && !race.player.finishTime; tick++) stepRace(race, idle);
+      expect(race.player.finishTime, `${track.id}/${car.id}`).toBeGreaterThan(0);
+      return race.player.bestLap;
+    });
+    expect(Math.max(...times) / Math.min(...times), track.id).toBeLessThan(1.01);
+  }
+});
 
 test('static batches preserve transformed roots, shadow flags and dynamic parts', () => {
   const root = new Group();
@@ -51,7 +109,7 @@ test('static batches preserve transformed roots, shadow flags and dynamic parts'
 
 for (const def of trackDefs) {
   test(`AI field completes a race on ${def.name}`, () => {
-    const race = createRace({ trackId: def.id, carId: 'sting', laps: 2, difficulty: 'normal', transmission: 'auto' }, 7);
+    const race = createRace({ trackId: def.id, carId: 'xk8', laps: 2, difficulty: 'normal', transmission: 'auto' }, 7);
     // The player rides on autopilot so the whole field is AI-driven.
     race.player.isPlayer = false;
     let wallHits = 0;
@@ -88,10 +146,10 @@ test('cars launch and reach top speed close to their specification', () => {
 });
 
 test('race distance and positions start from the grid behind the line', () => {
-  const race = createRace({ trackId: 'vaxjo', carId: 'skarv', laps: 3, difficulty: 'easy', transmission: 'manual' }, 3);
+  const race = createRace({ trackId: 'vaxjo', carId: 'elnino', laps: 3, difficulty: 'easy', transmission: 'manual' }, 3);
   expect(race.phase).toBe('countdown');
   for (const racer of race.racers) expect(raceDistance(race, racer)).toBeLessThan(0);
-  expect(race.player.spec.id).toBe('skarv');
+  expect(race.player.spec.id).toBe('elnino');
   for (const racer of race.racers) expect(racer.spec.carClass).toBe('A');
 });
 
@@ -100,19 +158,19 @@ test('career: buy a car, upgrade it and respect cup entry rules', () => {
   expect(career.money).toBe(START_MONEY);
   expect(entryProblem(career, cupById('klubb'))).toMatch(/Köp en bil/);
 
-  career = buyCar(career, 'skarv');
+  career = buyCar(career, 'elnino');
   expect(career.garage).toHaveLength(0);
-  career = buyCar(career, 'arrow');
-  expect(career.money).toBe(START_MONEY - carById('arrow').price);
+  career = buyCar(career, 'falcon');
+  expect(career.money).toBe(START_MONEY - carById('falcon').price);
   expect(entryProblem(career, cupById('klubb'))).toBeUndefined();
   expect(entryProblem(career, cupById('mastare'))).toMatch(/Supercupen/);
 
-  career = buyUpgrade(career, 'arrow', 'engine');
-  const tuned = applyUpgrades(carById('arrow'), career.garage[0].upgrades);
+  career = buyUpgrade(career, 'falcon', 'engine');
+  const tuned = applyUpgrades(carById('falcon'), career.garage[0].upgrades);
   expect(career.garage[0].upgrades.engine).toBe(1);
-  expect(tuned.topKmh).toBeGreaterThan(carById('arrow').topKmh);
-  expect(tuned.zeroTo100).toBeLessThan(carById('arrow').zeroTo100);
-  const broke = buyUpgrade(buyUpgrade(career, 'arrow', 'engine'), 'arrow', 'engine');
+  expect(tuned.topKmh).toBeGreaterThan(carById('falcon').topKmh);
+  expect(tuned.zeroTo100).toBeLessThan(carById('falcon').zeroTo100);
+  const broke = buyUpgrade(buyUpgrade(career, 'falcon', 'engine'), 'falcon', 'engine');
   expect(broke.money).toBeGreaterThanOrEqual(0);
 
   career = startCup(career, 'klubb');
@@ -122,7 +180,7 @@ test('career: buy a car, upgrade it and respect cup entry rules', () => {
 });
 
 test('career: a full cup pays prizes, crowns a winner and rivals spend their winnings', () => {
-  let career = startCup(buyCar(newCareer(5), 'nxr'), 'klubb');
+  let career = startCup(buyCar(newCareer(5), 'hsvgts'), 'klubb');
   const before = career.money;
   const cup = cupById('klubb');
   for (let round = 0; round < cup.tracks.length; round++) {
@@ -231,24 +289,24 @@ import { createNetworkRace, NetworkRace, validRaceConfig, validRaceFrame } from 
 
 test('network racing advances the countdown, separates human controls and validates compact frames', () => {
   const config = {
-    settings: { trackId: 'vaxjo', carId: 'sting', laps: 1, difficulty: 'easy' as const, transmission: 'auto' as const },
-    cars: ['sting', 'nxr'],
+    settings: { trackId: 'vaxjo', carId: 'xk8', laps: 1, difficulty: 'easy' as const, transmission: 'auto' as const },
+    cars: ['xk8', 'hsvgts'],
     seed: 7,
   };
   expect(validRaceConfig(config)).toBe(true);
   expect(validRaceConfig({ ...config, seed: NaN })).toBe(false);
   const race = createNetworkRace(config);
   expect(race.racers.filter((r) => r.isPlayer)).toHaveLength(2);
-  expect(validRaceConfig({ ...config, cars: ['sting'] })).toBe(false);
-  expect(validRaceConfig({ ...config, cars: ['nxr', 'sting'] })).toBe(false);
-  expect(validRaceConfig({ ...config, cars: Array(9).fill('sting') })).toBe(false);
-  const six = { ...config, cars: ['sting', 'nxr', 'arrow', 'xk', 'dbs', 'sting'] };
+  expect(validRaceConfig({ ...config, cars: ['xk8'] })).toBe(false);
+  expect(validRaceConfig({ ...config, cars: ['hsvgts', 'xk8'] })).toBe(false);
+  expect(validRaceConfig({ ...config, cars: Array(9).fill('xk8') })).toBe(false);
+  const six = { ...config, cars: ['xk8', 'hsvgts', 'falcon', 'xk8', 'db7', 'xk8'] };
   expect(validRaceConfig(six)).toBe(true);
   const crowd = createNetworkRace(six, 4);
   const humans = crowd.racers.filter((r) => r.isPlayer);
   expect(humans.map((r) => r.driverName).sort()).toEqual(['Spelare 1', 'Spelare 2', 'Spelare 3', 'Spelare 4', 'Spelare 5', 'Spelare 6']);
   expect(crowd.player.driverName).toBe('Spelare 5');
-  expect(crowd.player.spec.id).toBe('dbs');
+  expect(crowd.player.spec.id).toBe('db7');
   expect(crowd.racers.filter((r) => !r.isPlayer)).toHaveLength(2);
   const session = new NetworkRace(config, [], 0);
   for (let i = 0; i < 100; i++) session.advance(0.05, { throttle: 0, brake: 0, steer: 0, handbrake: false }, true);
@@ -334,7 +392,7 @@ import {
 
 test('online career: fresh and own-car members, fair names, cup entry and a shared grid', () => {
   let session = newSession('Fredagsracet', 'fresh', 5);
-  session = joinSession(session, 'host', 'Charlie', { garage: [{ carId: 'skarv', upgrades: { engine: 3, tyres: 3, brakes: 3 } }], activeCarId: 'skarv' });
+  session = joinSession(session, 'host', 'Charlie', { garage: [{ carId: 'elnino', upgrades: { engine: 3, tyres: 3, brakes: 3 } }], activeCarId: 'elnino' });
   session = joinSession(session, 'guest', 'Charlie');
   session = joinSession(session, 'ai-name', 'Klaus');
   expect(session.members.map((member) => member.name)).toEqual(['Charlie', 'Charlie 2', 'Klaus 2']);
@@ -343,41 +401,41 @@ test('online career: fresh and own-car members, fair names, cup entry and a shar
   expect(joinSession(session, 'host', 'Someone else')).toBe(session);
 
   const own = joinSession(newSession('Egna', 'own', 6), 'host', 'Alva', {
-    garage: [{ carId: 'skarv', upgrades: { engine: 2, tyres: 1, brakes: 0 } }],
-    activeCarId: 'skarv',
+    garage: [{ carId: 'elnino', upgrades: { engine: 2, tyres: 1, brakes: 0 } }],
+    activeCarId: 'elnino',
   });
   expect(own.members[0].garage[0].upgrades.engine).toBe(2);
-  expect(own.members[0].activeCarId).toBe('skarv');
+  expect(own.members[0].activeCarId).toBe('elnino');
 
   const present = ['host', 'guest'];
   expect(cupProblems(session, 'klubb', present)).toHaveLength(2);
-  session = memberBuy(session, 'host', 'nxr');
-  session = memberBuy(session, 'guest', 'arrow');
-  session = memberUpgrade(session, 'guest', 'arrow', 'engine');
-  expect(session.members[1].money).toBe(START_MONEY - carById('arrow').price - 4000);
+  session = memberBuy(session, 'host', 'hsvgts');
+  session = memberBuy(session, 'guest', 'falcon');
+  session = memberUpgrade(session, 'guest', 'falcon', 'engine');
+  expect(session.members[1].money).toBe(START_MONEY - carById('falcon').price - 4000);
   expect(cupProblems(session, 'klubb', present)).toEqual([]);
   expect(cupProblems(session, 'mastare', present)[0]).toMatch(/Supercupen/);
 
   session = startSessionCup(session, 'klubb', present);
   expect(sessionTrack(session)).toBe('smaland');
-  expect(memberBuy(session, 'host', 'sting')).toBe(session);
+  expect(memberBuy(session, 'host', 'xk8')).toBe(session);
   const field = sessionField(session, present);
   expect(field).toHaveLength(8);
-  expect(field[5]).toMatchObject({ driverName: 'Charlie', carId: 'nxr', player: 0 });
-  expect(field[6]).toMatchObject({ driverName: 'Charlie 2', carId: 'arrow', player: 1, upgrades: { engine: 1, tyres: 0, brakes: 0 } });
+  expect(field[5]).toMatchObject({ driverName: 'Charlie', carId: 'hsvgts', player: 0 });
+  expect(field[6]).toMatchObject({ driverName: 'Charlie 2', carId: 'falcon', player: 1, upgrades: { engine: 1, tyres: 0, brakes: 0 } });
   expect(field.filter((entrant) => entrant.player === undefined)).toHaveLength(6);
 
   const config = {
-    settings: { trackId: 'smaland', carId: 'nxr', laps: 1, difficulty: 'normal' as const, transmission: 'auto' as const },
-    cars: ['nxr', 'arrow'],
+    settings: { trackId: 'smaland', carId: 'hsvgts', laps: 1, difficulty: 'normal' as const, transmission: 'auto' as const },
+    cars: ['hsvgts', 'falcon'],
     seed: 3,
     entrants: field,
   };
   expect(validRaceConfig(config)).toBe(true);
-  expect(validRaceConfig({ ...config, cars: ['nxr', 'sting'] })).toBe(false);
+  expect(validRaceConfig({ ...config, cars: ['hsvgts', 'xk8'] })).toBe(false);
   const guestRace = createNetworkRace(config, 1);
   expect(guestRace.player.driverName).toBe('Charlie 2');
-  expect(guestRace.player.spec.topKmh).toBeGreaterThan(carById('arrow').topKmh);
+  expect(guestRace.player.spec.topKmh).toBeGreaterThan(carById('falcon').topKmh);
   expect(guestRace.racers.filter((racer) => racer.isPlayer)).toHaveLength(2);
   expect(validSession(JSON.parse(JSON.stringify(session)))).toBe(true);
 });
@@ -389,13 +447,13 @@ test('online career: races pay every member and a finished cup crowns a winner a
     ['b', 'Bo'],
   ])
     session = joinSession(session, id, name);
-  session = memberBuy(memberBuy(session, 'a', 'nxr'), 'b', 'sting');
+  session = memberBuy(memberBuy(session, 'a', 'hsvgts'), 'b', 'xk8');
   session = startSessionCup(session, 'klubb', ['a', 'b']);
   const rows = (first: string, second: string) =>
     [first, second, 'Sanna', 'Klaus', 'Lotta', 'Henrik', 'Greta', 'Jürgen'].map((driverName, index) => ({
       position: index + 1,
       driverName,
-      car: carById('nxr'),
+      car: carById('hsvgts'),
       isPlayer: false,
       time: 60 + index,
       estimated: false,
@@ -417,9 +475,9 @@ test('online career: races pay every member and a finished cup crowns a winner a
 });
 
 test('faster classes grip and brake harder, and full keyboard lock at speed turns without bogging down', () => {
-  const coupe = carById('arrow');
-  const supercar = carById('skarv');
-  expect(cornerGrip(supercar, 70)).toBeGreaterThan(cornerGrip(coupe, 70) * 1.25);
+  const coupe = carById('falcon');
+  const supercar = carById('elnino');
+  expect(cornerGrip(supercar, 70)).toBeGreaterThan(cornerGrip(coupe, 70) * 1.15);
   expect(cornerGrip(supercar, 70)).toBeGreaterThan(cornerGrip(supercar, 0));
   expect(brakeDecel(supercar)).toBeGreaterThan(brakeDecel(coupe) * 1.1);
 
@@ -435,15 +493,15 @@ test('faster classes grip and brake harder, and full keyboard lock at speed turn
   expect(speed * 3.6 - forwardSpeed(car) * 3.6).toBeLessThan(5);
 });
 
-test('online quick races keep one class, carry lobby names and arcade-balance the cars', () => {
+test('online quick races allow mixed classes, carry lobby names and balance all cars', () => {
   const config = {
-    settings: { trackId: 'vaxjo', carId: 'sting', laps: 1, difficulty: 'easy' as const, transmission: 'auto' as const },
-    cars: ['sting', 'arrow', 'nxr'],
+    settings: { trackId: 'vaxjo', carId: 'corvette', laps: 1, difficulty: 'easy' as const, transmission: 'auto' as const },
+    cars: ['corvette', 'falcon', 'clkgtr'],
     seed: 11,
     names: ['Charlie', 'Lotta', ''],
   };
   expect(validRaceConfig(config)).toBe(true);
-  expect(validRaceConfig({ ...config, cars: ['sting', 'velox'] })).toBe(false);
+  expect(validRaceConfig({ ...config, cars: ['corvette', 'elnino', 'db7'] })).toBe(true);
   expect(validRaceConfig({ ...config, names: ['x'.repeat(17), '', ''] })).toBe(false);
 
   const race = createNetworkRace(config);
@@ -454,16 +512,18 @@ test('online quick races keep one class, carry lobby names and arcade-balance th
   expect(humans.some((name) => name === 'Lotta' || name === 'Lotta 2')).toBe(true);
   expect(new Set(race.racers.map((racer) => racer.driverName)).size).toBe(race.racers.length);
 
-  for (const carClass of ['C', 'B', 'A'] as const) {
-    const peers = cars.filter((car) => car.carClass === carClass);
-    const spread = (values: number[]) => Math.max(...values) - Math.min(...values);
-    expect(spread(peers.map((car) => arcadeSpec(car).grip))).toBeLessThan(spread(peers.map((car) => car.grip)) * 0.3);
-  }
+  const online = cars.map((car) => arcadeSpec(car));
+  const spread = (values: number[]) => Math.max(...values) - Math.min(...values);
+  expect(spread(online.map((car) => car.topKmh))).toBeLessThan(12);
+  expect(spread(online.map((car) => car.zeroTo100))).toBeLessThan(0.25);
+  expect(spread(online.map((car) => cornerGrip(car, 70)))).toBe(0);
+  expect(spread(online.map((car) => car.braking))).toBeLessThan(spread(cars.map((car) => car.braking)) * 0.11);
+  expect(race.racers.filter((racer) => racer.isPlayer).map((racer) => racer.spec.carClass)).toEqual(expect.arrayContaining(['A', 'B', 'C']));
   expect(race.racers[0].spec.grip).toBeCloseTo(arcadeSpec(cars.find((car) => car.id === race.racers[0].spec.id) ?? cars[0]).grip, 5);
 });
 
 test('AI cars drive forward from the grid instead of first backing up', () => {
-  const race = createRace({ trackId: 'vaxjo', carId: 'sting', laps: 1, difficulty: 'normal', transmission: 'auto' }, 3);
+  const race = createRace({ trackId: 'vaxjo', carId: 'corvette', laps: 1, difficulty: 'normal', transmission: 'auto' }, 3);
   while (race.phase === 'countdown') stepRace(race, idle);
   const atGo = new Map(race.racers.map((racer) => [racer.id, raceDistance(race, racer)]));
   // Two seconds after the start every AI car is in a forward gear and has moved up the road.
