@@ -1,3 +1,7 @@
 public/config.php
 **/*.sqlite*
 README.md
+.env
+release.mjs
+package.json
+.env.example

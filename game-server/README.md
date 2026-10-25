@@ -9,6 +9,7 @@ A small PHP 8 + SQLite room server at https://games.charliecare.se. It lets game
 - `public/index.html`: a short info page.
 - `Dockerfile`, `docker/entrypoint.sh`: Apache + PHP 8.5 and coturn in one container. The database lives in the `/data` volume.
 - `docker-compose.yaml`: the Dokploy stack on the home dev host.
+- `release.mjs` (`npm run release`): deploys the pushed server and checks it.
 
 ## API
 
@@ -69,4 +70,13 @@ docker run --rm -p 18190:80 -p 3478:3478/udp -p 3478:3478/tcp -e TURN_SECRET=tes
 
 ## Deploy
 
-Dokploy builds from `main`. Redeploy the `game-server` stack in the `games` project after a change (Dokploy UI, or `compose.deploy` through its API from the home network). `.github/workflows/game-server.yml` checks on every push that the image builds and the live server answers.
+Dokploy builds from `main`, and a push does not deploy by itself. After pushing a server change, release it from a computer on the home network or Tailscale:
+
+```bash
+cd game-server
+npm run release
+```
+
+`release.mjs` refuses while `game-server/` has uncommitted or unpushed changes. It then deploys the `game-server` stack in the `games` project through Dokploy's API, waits for the build, and checks that the live API answers with its relay on. If the build fails, it prints the build log, read over SSH from the NUC. It needs `DOKPLOY_API_KEY` in `game-server/.env`, which Git ignores ([.env.example](.env.example)). `DOKPLOY_URL` defaults to `http://192.168.1.221:3000`.
+
+`.github/workflows/game-server.yml` checks on every push that the image builds and the live server answers.
