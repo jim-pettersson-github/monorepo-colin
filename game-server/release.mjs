@@ -61,15 +61,17 @@ try {
 }
 const commit = git('rev-parse', '--short', 'origin/main');
 
-// 2. Deploy and wait for the new deployment to finish.
-const before = (await api(`compose.one?composeId=${COMPOSE_ID}`)).deployments?.[0]?.deploymentId;
+// 2. Deploy and wait for the new deployment to finish. Dokploy lists deployments oldest first.
+const newest = async () =>
+  ((await api(`compose.one?composeId=${COMPOSE_ID}`)).deployments ?? []).toSorted((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+const before = (await newest())?.deploymentId;
 await api('compose.deploy', { composeId: COMPOSE_ID });
 console.log(`Deploying origin/main (${commit}) through Dokploy…`);
 const started = Date.now();
 let deployment;
 while (Date.now() - started < 10 * 60_000) {
   await wait(5_000);
-  const latest = (await api(`compose.one?composeId=${COMPOSE_ID}`)).deployments?.[0];
+  const latest = await newest();
   if (latest && latest.deploymentId !== before && latest.status !== 'running') {
     deployment = latest;
     break;
