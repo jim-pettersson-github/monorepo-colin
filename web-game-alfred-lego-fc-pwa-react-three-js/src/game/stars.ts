@@ -15,7 +15,9 @@ type Entry = readonly [name: string, country: string, prime: number, overall: nu
 const group = (position: StarRole, era: Star['era'], entries: readonly Entry[]): Star[] =>
   entries.map(([name, country, prime, overall]) => ({ name, country, prime, overall, position, era }));
 
-export const stars: readonly Star[] = [
+// Keep these original draft weights stable: changing the draft would reassign saved player IDs.
+// players.ts applies the current playable ratings after allocating identities to club slots.
+export const rosterSeed: readonly Star[] = [
   ...group('GK', 'modern', [
     ['Manuel Neuer', 'Tyskland', 2016, 97],
     ['Thibaut Courtois', 'Belgien', 2022, 96],

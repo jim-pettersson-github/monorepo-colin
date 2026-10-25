@@ -2,11 +2,13 @@ import type { CSSProperties } from 'react';
 import { useRef, useState } from 'react';
 import { type ClubId, clubs, getClub, type MatchClubs } from '../game/clubs';
 import { initialDivisions, type Season, seasonDivisions } from '../game/league';
+import { pickStarter } from '../game/lineups';
 import type { MatchState } from '../game/model';
 import { nations } from '../game/nations';
 import { type Footballer, footballer } from '../game/players';
 import { starRoleNames } from '../game/stars';
-import { lineupFor, squadFor, type TransferSave } from '../game/transfers';
+import { lineupFor, setLineup, squadFor, type TransferSave } from '../game/transfers';
+import { LineupPicker } from './LineupPicker';
 import { PlayerPortrait, PlayerStats } from './PlayerProfile';
 import { ClubCrest } from './TeamSelection';
 import './team-browser.css';
@@ -30,13 +32,18 @@ export function TeamSquad({
   squad,
   five,
   label = 'Startfemma',
+  onPick,
+  locked = false,
 }: {
   club: ClubId;
   squad: readonly Footballer[];
   five: readonly string[];
   label?: string;
+  onPick?: (five: string[]) => void;
+  locked?: boolean;
 }) {
   const [selected, setSelected] = useState(five[4]);
+  const [replacement, setReplacement] = useState(1);
   const detail = useRef<HTMLElement>(null);
   const player = squad.find((p) => p.id === selected) ?? squad.find((p) => p.id === five[4]) ?? squad[0];
   const team = getClub(club);
@@ -117,6 +124,40 @@ export function TeamSquad({
             )}
             <PlayerStats player={player} />
             <p className='small-copy'>Betyg och egenskaper visas på skalan 0–100.</p>
+            {onPick && (
+              <div className='browser-starter-actions'>
+                {five.includes(player.id) ? (
+                  <p aria-live='polite'>{player.name} spelar i startfemman.</p>
+                ) : (
+                  <>
+                    {!player.keeper && (
+                      <label>
+                        Ersätt i startfemman
+                        <select value={replacement} disabled={locked} onChange={(event) => setReplacement(Number(event.target.value))}>
+                          {starters.slice(1).map((p, i) => (
+                            <option key={p.id} value={i + 1}>
+                              #{i + 2} · {p.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
+                    <button
+                      type='button'
+                      disabled={locked}
+                      onClick={() => {
+                        const next = pickStarter(squad, five, player.keeper ? 0 : replacement, player.id);
+                        if (next && !locked) onPick(next);
+                      }}
+                    >
+                      Sätt i startfemman
+                    </button>
+                    {player.keeper && <p className='small-copy'>Ersätter startande målvakt.</p>}
+                  </>
+                )}
+                {locked && <p className='small-copy'>Startfemman kan ändras mellan matcherna. Gör spelarbyten i pausmenyn under en sparad match.</p>}
+              </div>
+            )}
             <div className='squad-player-arrows'>
               <button type='button' disabled={ordered.indexOf(player) <= 0} onClick={() => select(ordered[ordered.indexOf(player) - 1].id)}>
                 ← Förra spelaren
@@ -172,7 +213,19 @@ export function MatchTeams({ save, clubs: pair, match }: { save?: TransferSave; 
   );
 }
 
-export function TeamBrowser({ save, season, onClose }: { save: TransferSave; season: Season | null; onClose: () => void }) {
+export function TeamBrowser({
+  save,
+  season,
+  onClose,
+  onChange,
+  disabled = false,
+}: {
+  save: TransferSave;
+  season: Season | null;
+  onClose: () => void;
+  onChange: (save: TransferSave) => void;
+  disabled?: boolean;
+}) {
   const [kind, setKind] = useState<'clubs' | 'nations'>('clubs');
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<ClubId>(save.activeClub);
@@ -187,13 +240,14 @@ export function TeamBrowser({ save, season, onClose }: { save: TransferSave; sea
   const index = active ? teams.findIndex((t) => t.id === active.id) : -1;
   const division = active && kind === 'clubs' && season ? seasonDivisions(season).findIndex((group) => group.includes(active.id)) : -1;
   const initialDivision = active ? initialDivisions().findIndex((group) => group.includes(active.id)) : -1;
+  const locked = disabled || !!save.pending;
   return (
     <section className='team-browser' aria-label='Lag och spelare'>
       <header className='browser-heading'>
         <div>
           <p className='eyebrow'>KLUBBAR · LANDSLAG · STJÄRNOR</p>
           <h1>Lag & spelare</h1>
-          <p>Se lagen, startfemman och avbytarna. Tryck på en spelare för namn och alla egenskaper.</p>
+          <p>Se lagen, startfemman och avbytarna. Tryck på en spelare för alla egenskaper och välj vilka som ska starta.</p>
         </div>
         <button type='button' onClick={onClose}>
           Tillbaka till menyn
@@ -265,13 +319,21 @@ export function TeamBrowser({ save, season, onClose }: { save: TransferSave; sea
         </div>
       </details>
       {active && (
-        <TeamSquad
-          key={active.id}
-          club={active.id}
-          squad={squadFor(save, active.id)}
-          five={lineupFor(save, active.id)}
-          label={save.lineups?.[active.id] ? 'Din valda startfemma' : 'Automatisk startfemma'}
-        />
+        <div key={active.id}>
+          <LineupPicker save={save} club={active.id} onChange={onChange} disabled={locked} />
+          <p className='small-copy'>Välj en avbytare och tryck på Sätt i startfemman. Dina val sparas automatiskt för lagets kommande matcher.</p>
+          <TeamSquad
+            key={active.id}
+            club={active.id}
+            squad={squadFor(save, active.id)}
+            five={lineupFor(save, active.id)}
+            label={save.lineups?.[active.id] ? 'Din valda startfemma' : 'Standardfemma'}
+            locked={locked}
+            onPick={(ids) => {
+              if (!locked) onChange(setLineup(save, active.id, ids));
+            }}
+          />
+        </div>
       )}
     </section>
   );

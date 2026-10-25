@@ -52,6 +52,7 @@
 }
 .browser-controls input,
 .browser-controls select,
+.browser-starter-actions select,
 .match-team-browser > label select {
   width: 100%;
   min-width: 0;
@@ -224,6 +225,21 @@
   font-size: 11px;
   flex: 1;
   padding: 8px;
+}
+.browser-starter-actions {
+  display: grid;
+  gap: 10px;
+  padding-block: 12px;
+  border-top: 1px solid var(--border);
+}
+.browser-starter-actions label {
+  display: grid;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.browser-starter-actions p {
+  margin: 0;
 }
 .team-squad > h3 {
   margin-top: 24px;

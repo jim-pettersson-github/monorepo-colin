@@ -1,6 +1,6 @@
 import { type ClubId, clubs, originalClubs } from './clubs';
 import { nations } from './nations';
-import { type Star, stars } from './stars';
+import { type Star, rosterSeed as stars } from './stars';
 
 export interface Footballer {
   id: string;
@@ -191,7 +191,22 @@ for (let attempt = 0; attempt < 200; attempt++) {
   allocated[a][i] = { ...right, id: left.id, origin: left.origin };
   allocated[b][j] = { ...left, id: right.id, origin: right.origin };
 }
-export const clubFootballers: readonly Footballer[] = allocated.flat();
+// Balance after the original draft so purchased players, roles and saved IDs keep their identities.
+export const clubFootballers: readonly Footballer[] = allocated.flat().map((player) => {
+  if (player.star?.era === 'family') return player;
+  const lower = (value: number) => Math.max(0, Math.min(96, value - 3));
+  const overall = lower(player.overall);
+  return {
+    ...player,
+    overall,
+    pace: lower(player.pace),
+    shooting: lower(player.shooting),
+    passing: lower(player.passing),
+    defending: lower(player.defending),
+    goalkeeping: lower(player.goalkeeping),
+    star: player.star ? { ...player.star, overall } : undefined,
+  };
+});
 export const footballers: readonly Footballer[] = [...clubFootballers, ...legacyPlayers.filter((p) => nations.some((n) => n.id === p.origin))];
 const byId = new Map(footballers.map((player) => [player.id, player]));
 export const footballer = (id: unknown) => (typeof id === 'string' ? byId.get(id) : undefined);

@@ -143,7 +143,13 @@ export function StartMenu(props: Props) {
         </button>
       </nav>
       {browsingTeams ? (
-        <TeamBrowser save={props.transfers} season={season} onClose={() => setBrowsingTeams(false)} />
+        <TeamBrowser
+          save={props.transfers}
+          season={season}
+          onChange={props.onTransfers}
+          disabled={!!saved || simulating}
+          onClose={() => setBrowsingTeams(false)}
+        />
       ) : screen === 'market' ? (
         <TransferPanel save={props.transfers} onChange={props.onTransfers} locked={!!saved || simulating} />
       ) : screen === 'cups' ? (

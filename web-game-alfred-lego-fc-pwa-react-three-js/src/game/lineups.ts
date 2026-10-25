@@ -10,7 +10,7 @@ export function validFive(ids: unknown, squad: readonly Footballer[]): ids is st
 // Keep each surviving selection in its position when a transfer removes a starter.
 export function preferredFive(squad: readonly Footballer[], preference?: readonly string[]): string[] {
   const best = startingFive(squad);
-  if (!preference) return best;
+  if (!preference) return squad.some((p) => p.star?.era === 'family') ? familyFive(squad) : best;
   const result: string[] = [];
   for (let slot = 0; slot < 5; slot++) {
     const wanted = preference[slot];

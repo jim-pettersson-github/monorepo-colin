@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { expect, test } from '@playwright/test';
 import { BoxGeometry, Group, InstancedMesh, Matrix4, Mesh, MeshBasicMaterial, Vector3 } from 'three';
 import { matchCameraFrame } from '../src/game/camera';
@@ -1329,8 +1330,12 @@ test('fixed star squads are balanced with distinct identities, role coverage and
   expect(real).toHaveLength(200);
   for (const name of ['Pelé', 'Ronaldinho', 'Zlatan Ibrahimović', 'Lionel Messi', 'Cristiano Ronaldo', 'Lamine Yamal'])
     expect(real.filter((p) => p.name === name)).toHaveLength(1);
-  const totals = clubs.map((c) => real.filter((p) => p.origin === c.id).reduce((sum, p) => sum + p.overall, 0));
-  expect(Math.max(...totals) - Math.min(...totals)).toBeLessThanOrEqual(5);
+  // Ratings may change, but a saved purchase or lineup must still refer to exactly the same person.
+  expect(
+    createHash('sha256')
+      .update(JSON.stringify(footballers.map((p) => [p.id, p.name, p.origin, p.keeper])))
+      .digest('hex'),
+  ).toBe('eab855543fe74b019fcdcf2ba5a8ded0f4c5d4c85e9174f28b169c256b2dda0a');
   const save = createTransfers();
   expect(validTransfers(save)).toBe(true);
   for (const team of [...clubs, ...nations]) {
@@ -1360,6 +1365,27 @@ test('fixed star squads are balanced with distinct identities, role coverage and
     playerPrice(requiredTransfer(footballers.find((p) => p.overall < 70))),
   );
   expect(createTransfers()).toEqual(save);
+});
+
+test('professional and historic stars have lower ratings and no attribute above 96, while family squads default to family starters', () => {
+  const pros = footballers.filter((p) => p.star && p.star.era !== 'family');
+  expect(pros).toHaveLength(181);
+  expect(Math.min(...pros.map((p) => p.overall))).toBe(86);
+  expect(Math.max(...pros.map((p) => p.overall))).toBe(96);
+  for (const p of pros) {
+    expect(p.star?.overall).toBe(p.overall);
+    for (const stat of [p.overall, p.pace, p.shooting, p.passing, p.defending, p.goalkeeping]) expect(stat).toBeLessThanOrEqual(96);
+  }
+  const save = createTransfers();
+  const names = (club: 'katona' | 'petterssons' | 'danielsson') =>
+    lineupFor(save, club).map((id) => requiredTransfer(footballers.find((p) => p.id === id)).name);
+  expect(names('katona')).toEqual(['Jan Katona', 'Colin Katona', 'Alfred Katona', 'Charlie Katona', 'Jim Katona']);
+  expect(names('petterssons')).toEqual(expect.arrayContaining(['Jonas Pettersson', 'Jim Pettersson', 'Colin Pettersson']));
+  expect(names('danielsson').every((name) => name.endsWith(' Danielsson'))).toBe(true);
+  const custom = setLineup(save, 'katona', startingFive(squadFor(save, 'katona')));
+  expect(lineupFor(custom, 'katona')).toEqual(startingFive(squadFor(save, 'katona')));
+  expect(validTransfers(JSON.parse(JSON.stringify(custom)))).toBe(true);
+  expect(lineupFor(setLineup(custom, 'katona', null), 'katona')).toEqual(lineupFor(save, 'katona'));
 });
 
 test('buying, swapping and selling conserve money, preserve player identities and enforce squad limits', () => {

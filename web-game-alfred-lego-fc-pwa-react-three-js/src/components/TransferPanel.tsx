@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { clubs, getClub } from '../game/clubs';
-import { footballers, playerPrice } from '../game/players';
-import { starRoleNames, stars } from '../game/stars';
+import { clubFootballers, footballers, playerPrice } from '../game/players';
+import { starRoleNames } from '../game/stars';
 import { buyPlayer, type DomesticClub, domesticClub, lineupFor, sellPlayer, squadFor, type TransferSave } from '../game/transfers';
 import { LineupPicker } from './LineupPicker';
 import { PlayerPortrait, PlayerStats } from './PlayerProfile';
@@ -65,7 +65,7 @@ export function TransferPanel({ save, onChange, locked }: { save: TransferSave; 
       <header className='transfer-heading'>
         <div>
           <p className='eyebrow'>
-            {stars.length} STJÄRNOR · {clubs.length} KLUBBAR · PRIME
+            {clubFootballers.length} STJÄRNOR · {clubs.length} KLUBBAR · PRIME
           </p>
           <h1>Bygg ditt drömlag.</h1>
           <p>Moderna världsstjärnor och klassiska legender i sin storhetstid. Köp, sälj och byt mellan matcherna.</p>
@@ -114,10 +114,10 @@ export function TransferPanel({ save, onChange, locked }: { save: TransferSave; 
           Världscupen: 10 000 för seger. VM-pengarna går till den här klubben.
         </p>
         <p>
-          {stars.length} stjärnor och familjespelare fördelas likadant på varje enhet. Varje klubb börjar med tio spelare: två målvakter, två försvarare, tre
-          mittfältare och tre anfallare. En balanserad draft och positionsbyten jämnar ut lagens sammanlagda betyg. Familjespelarna börjar i sina egna klubbar.
-          Stjärnor och legender spelar i sin prime; betygen är våra egna spelvärden på skalan 0–100. Högre betyg ger högre pris. Landslagen behåller sina
-          separata, fasta trupper.
+          {clubFootballers.length} stjärnor och familjespelare fördelas likadant på varje enhet. Varje klubb börjar med tio spelare: två målvakter, två
+          försvarare, tre mittfältare och tre anfallare. En balanserad draft och positionsbyten jämnar ut lagens sammanlagda betyg. Familjespelarna börjar i
+          sina egna klubbar. Stjärnor och legender spelar i sin prime med totalbetyg 86–96 och högst 96 i varje egenskap. Familjens egna betyg är oförändrade.
+          Högre betyg ger högre pris. Landslagen behåller sina separata, fasta trupper.
         </p>
         <p>
           Urvalet bygger på världsstjärnor från 2016–2025 och äldre klassiker, inklusive Pelé, Ronaldinho och Zlatan. Prime-året visar vilken version du spelar

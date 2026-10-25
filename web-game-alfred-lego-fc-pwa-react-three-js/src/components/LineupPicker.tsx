@@ -1,6 +1,6 @@
 import { type ClubId, getClub } from '../game/clubs';
 import { familyFive, pickStarter } from '../game/lineups';
-import type { Footballer } from '../game/players';
+import { type Footballer, startingFive } from '../game/players';
 import { lineupFor, setLineup, squadFor, type TransferSave } from '../game/transfers';
 import './lineups.css';
 
@@ -67,7 +67,9 @@ export function LineupPicker({
       <p>
         {save.lineups?.[club]
           ? 'Din sparade startfemma används tills du ändrar den.'
-          : 'Automatiskt val efter betyg. Välj själv om du vill spela med familjen.'}{' '}
+          : squad.some((p) => p.star?.era === 'family')
+            ? 'Familjespelarna prioriteras i lagets standardfemma. Välj själv vilka som ska starta.'
+            : 'Automatiskt val efter betyg. Välj själv vilka som ska starta.'}{' '}
         En målvakt och fyra utespelare.
       </p>
       {locked && <p className='small-copy'>Startfemman kan ändras mellan matcherna. Gör byten i pausmenyn under en pågående match.</p>}
@@ -78,9 +80,14 @@ export function LineupPicker({
             Familjen först
           </button>
         )}
-        <button type='button' disabled={locked} onClick={() => onChange(setLineup(save, club, null))}>
+        <button type='button' disabled={locked} onClick={() => onChange(setLineup(save, club, startingFive(squad)))}>
           Välj automatiskt efter betyg
         </button>
+        {save.lineups?.[club] && (
+          <button type='button' disabled={locked} onClick={() => onChange(setLineup(save, club, null))}>
+            Återställ standardfemma
+          </button>
+        )}
       </div>
       <p className='lineup-bench'>
         Avbytare:{' '}
