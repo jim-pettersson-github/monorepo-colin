@@ -333,6 +333,7 @@ export function WifiLobby<T>({
         </button>
         <p className='eyebrow'>ONLINE · EN ENHET PER SPELARE</p>
         <h1>{title}</h1>
+        <p className='hint'>Version {__APP_VERSION__} · alla måste ha samma version för att spela ihop.</p>
       </header>
       {!supported && <p role='alert'>Öppna spelets HTTPS-adress i en webbläsare med WebRTC.</p>}
 

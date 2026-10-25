@@ -167,6 +167,17 @@ export async function decodeSignal(code: string): Promise<Signal> {
   }
 }
 
+const LABEL = 'charlie-speed-v1';
+// Race snapshots replace each other, so they travel unordered without retransmits: a lost one never holds up the next.
+const FAST_LABEL = `${LABEL}-fast`;
+
+// Which ways a device offered to be reached: its local address, its internet address (STUN) or a relay (TURN).
+function routes(sdp: string) {
+  const types = new Set(sdp.split(/\r?\n/).flatMap((line) => (line.startsWith('a=candidate:') ? [line.split(' ')[7]] : [])));
+  const names = [types.has('host') && 'lokalt nät', types.has('srflx') && 'via internet', types.has('relay') && 'relä'].filter(Boolean);
+  return names.length ? names.join(', ') : 'inga';
+}
+
 export class PeerLink {
   status: LinkStatus = 'new';
   code = '';
@@ -174,10 +185,14 @@ export class PeerLink {
   private id: string = crypto.randomUUID();
   private peer: RTCPeerConnection;
   private channel?: RTCDataChannel;
+  private fast?: RTCDataChannel;
   private listeners = new Set<() => void>();
   private messages = new Set<(message: unknown) => void>();
   private revision = 0;
   private timer?: ReturnType<typeof setTimeout>;
+  private grace?: ReturnType<typeof setTimeout>;
+  private localRoutes = '';
+  private remoteRoutes = '';
   private readonly online: boolean;
   private disposed = false;
   // Online pairing passes the room's STUN and relay servers.
@@ -189,13 +204,28 @@ export class PeerLink {
   ) {
     this.online = iceServers.length > 0;
     this.peer = new RTCPeerConnection({ iceServers });
+    // 'disconnected' is often a short network hiccup that recovers by itself, so it gets a grace period; 'failed' is final.
     this.peer.onconnectionstatechange = () => {
-      if (['failed', 'disconnected'].includes(this.peer.connectionState)) this.fail('Anslutningen bröts. Koppla ihop enheterna igen för en ny tävling.');
+      const state = this.peer.connectionState;
+      if (state === 'failed') this.fail('Anslutningen bröts. Koppla ihop enheterna igen för en ny tävling.');
+      else if (state === 'disconnected') {
+        clearTimeout(this.grace);
+        this.grace = setTimeout(() => {
+          if (this.peer.connectionState !== 'connected') this.fail('Anslutningen bröts. Koppla ihop enheterna igen för en ny tävling.');
+        }, 10_000);
+      } else if (state === 'connected') clearTimeout(this.grace);
     };
-    if (role === 'host') this.bind(this.peer.createDataChannel('charlie-speed-v1', { ordered: true }));
-    else
+    if (role === 'host') {
+      this.bind(this.peer.createDataChannel(LABEL, { ordered: true }));
+      this.fast = this.peer.createDataChannel(FAST_LABEL, { ordered: false, maxRetransmits: 0 });
+      this.listen(this.fast);
+    } else
       this.peer.ondatachannel = (event) => {
-        if (event.channel.label !== 'charlie-speed-v1' || this.channel) return event.channel.close();
+        if (event.channel.label === FAST_LABEL && !this.fast) {
+          this.fast = event.channel;
+          return this.listen(this.fast);
+        }
+        if (event.channel.label !== LABEL || this.channel) return event.channel.close();
         this.bind(event.channel);
       };
   }
@@ -228,6 +258,9 @@ export class PeerLink {
       if (!this.disposed) this.fail('Den andra spelaren kopplade från. Koppla ihop enheterna igen för en ny tävling.');
     };
     channel.onerror = () => this.fail('Det gick inte att överföra speldata. Skapa en ny anslutning.');
+    this.listen(channel);
+  }
+  private listen(channel: RTCDataChannel) {
     channel.onmessage = (event) => {
       if (typeof event.data !== 'string' || event.data.length > 64_000 || this.disposed) return;
       try {
@@ -237,6 +270,18 @@ export class PeerLink {
         /* Ignore incomplete or invalid peer messages. */
       }
     };
+  }
+  // For messages that the next one replaces, such as race snapshots; falls back to the ordered channel.
+  sendFast(message: unknown) {
+    if (this.status === 'connected' && this.fast?.readyState === 'open' && this.fast.bufferedAmount < 16_000) {
+      try {
+        this.fast.send(JSON.stringify(message));
+        return true;
+      } catch {
+        /* Fall through to the ordered channel. */
+      }
+    }
+    return this.send(message);
   }
   send(message: unknown) {
     if (this.status !== 'connected' || this.channel?.readyState !== 'open' || this.channel.bufferedAmount > 64_000) return false;
@@ -250,7 +295,8 @@ export class PeerLink {
   }
   private fail(message: string) {
     if (this.disposed) return;
-    this.error = message;
+    this.error =
+      this.status === 'connected' || !this.remoteRoutes ? message : `${message} (Den här enheten: ${this.localRoutes}. Den andra: ${this.remoteRoutes}.)`;
     this.close();
     this.status = 'error';
     this.publish();
@@ -286,6 +332,7 @@ export class PeerLink {
         check();
       });
     if (this.disposed || !this.peer.localDescription?.sdp) throw new Error('Anslutningen stängdes.');
+    this.localRoutes = routes(this.peer.localDescription.sdp);
     this.code = await encodeSignal({ v: 1, id: this.id, type: description.type as Signal['type'], sdp: this.peer.localDescription.sdp });
     if (!this.disposed && (this.status as LinkStatus) !== 'connected') this.status = 'waiting';
     this.publish();
@@ -298,6 +345,7 @@ export class PeerLink {
     const offer = await decodeSignal(code);
     if (this.role !== 'guest' || this.status !== 'new' || offer.type !== 'offer') throw new Error('Skanna värdens matchkod först.');
     this.id = offer.id;
+    this.remoteRoutes = routes(offer.sdp);
     await this.peer.setRemoteDescription({ type: 'offer', sdp: offer.sdp });
     await this.gather(await this.peer.createAnswer());
     this.startTimer();
@@ -306,6 +354,7 @@ export class PeerLink {
     const answer = await decodeSignal(code);
     if (this.role !== 'host' || answer.type !== 'answer') throw new Error('Värden ska läsa gästens svarskod.');
     if (answer.id !== this.id) throw new Error('Svaret hör till en annan match. Läs in den aktuella matchkoden på nytt.');
+    this.remoteRoutes = routes(answer.sdp);
     await this.peer.setRemoteDescription({ type: 'answer', sdp: answer.sdp });
     if (this.status !== 'connected') this.status = 'connecting';
     this.startTimer();
@@ -323,7 +372,9 @@ export class PeerLink {
     if (this.disposed) return;
     this.disposed = true;
     clearTimeout(this.timer);
+    clearTimeout(this.grace);
     this.channel?.close();
+    this.fast?.close();
     this.peer.close();
     this.status = 'closed';
     this.publish();

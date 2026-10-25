@@ -1,7 +1,7 @@
 import { applyUpgrades, arcadeSpec, carById, cars } from './cars';
 import { GRID, HUMAN_SLOTS, validUpgrades, type WireEntrant } from './multi-career';
-import { type Connection, NetworkPlay } from './network-play';
-import { type CarState, type Controls, shift } from './physics';
+import { type Connection, type InputAck, NetworkPlay } from './network-play';
+import { type CarState, type Controls, shift, stepCar } from './physics';
 import { createRace, type Race, type RaceSettings, resetRacer, STEP, stepRace } from './race';
 import { trackDefs } from './tracks';
 
@@ -12,7 +12,7 @@ export interface RaceConfig {
   // One car per player; player 1 is the host.
   cars: string[];
   seed: number;
-  // Wi-Fi career races send the whole grid: tuned cars, AI names and which player drives each place.
+  // Online career races send the whole grid: tuned cars, AI names and which player drives each place.
   entrants?: WireEntrant[];
   // Quick races: the lobby names, by player.
   names?: string[];
@@ -185,12 +185,46 @@ export function validRaceFrame(value: unknown, race: Race): value is RaceFrame {
     })
   );
 }
+// Guests draw the other cars this far in the past, so there is nearly always a newer snapshot to glide towards.
+const INTERPOLATION_DELAY = 0.09;
+// A late snapshot is bridged by carrying cars along their velocity for at most this long.
+const MAX_EXTRAPOLATION = 0.12;
+// Corrections bigger than this (a reset, a hard crash) snap instead of being blended in.
+const SNAP_DISTANCE = 6;
+
+const angleBetween = (from: number, to: number) => Math.atan2(Math.sin(to - from), Math.cos(to - from));
+
+// A car between two snapshots: continuous values blend, discrete ones come from the newer snapshot.
+function blend(a: CarState, b: CarState, t: number): CarState {
+  const mix = (x: number, y: number) => x + (y - x) * t;
+  return {
+    ...b,
+    x: mix(a.x, b.x),
+    y: mix(a.y, b.y),
+    z: mix(a.z, b.z),
+    yaw: a.yaw + angleBetween(a.yaw, b.yaw) * t,
+    vx: mix(a.vx, b.vx),
+    vz: mix(a.vz, b.vz),
+    steer: mix(a.steer, b.steer),
+    rpm: mix(a.rpm, b.rpm),
+    slip: mix(a.slip, b.slip),
+    pitch: mix(a.pitch, b.pitch),
+    wheelSpin: mix(a.wheelSpin, b.wheelSpin),
+  };
+}
+
 export class NetworkRace {
   readonly race: Race;
   readonly wire: NetworkPlay<RaceFrame, Command>;
   onChange?: () => void;
   private accumulator = 0;
   private pending = neutral();
+  // Guest only: recent snapshots for drawing the others, and a locally predicted own car with the inputs behind it.
+  private snapshots: { at: number; states: CarState[] }[] = [];
+  private predicted: CarState | undefined;
+  private inputs: { seq: number; controls: Controls }[] = [];
+  private correction = { x: 0, y: 0, z: 0, yaw: 0 };
+  private guestAccumulator = 0;
   constructor(
     public readonly config: RaceConfig,
     connections: Connection[],
@@ -204,7 +238,7 @@ export class NetworkRace {
       waitForViews: connections.length > 0,
       localSlot,
       snapshot: () => this.snapshot(),
-      apply: (frame) => this.apply(frame),
+      apply: (frame, ack) => this.apply(frame, ack),
       validState: (v): v is RaceFrame => validRaceFrame(v, this.race),
       validCommand,
       neutral,
@@ -213,6 +247,10 @@ export class NetworkRace {
       clear: () => {
         this.pending = neutral();
         this.accumulator = 0;
+        this.snapshots = [];
+        this.predicted = undefined;
+        this.inputs = [];
+        this.guestAccumulator = 0;
       },
       changed: () => this.onChange?.(),
     });
@@ -236,16 +274,101 @@ export class NetworkRace {
       })),
     };
   }
-  private apply(frame: RaceFrame) {
+  private apply(frame: RaceFrame, ack?: InputAck) {
     Object.assign(this.race, { phase: frame.phase, countdown: frame.countdown, time: frame.time, finishedAt: frame.finishedAt });
     frame.racers.forEach((r, i) => {
       const racer = this.race.racers[i];
-      for (const key of Object.keys(racer.state)) {
-        const k = key as keyof CarState;
-        Object.assign(racer.state, { [k]: r.state[k] });
-      }
       for (const key of ['lap', 'lapStart', 'lastLap', 'bestLap', 'finishTime', 'position'] as const) racer[key] = r[key];
     });
+    this.snapshots.push({ at: performance.now() / 1000, states: frame.racers.map((r) => ({ ...r.state })) });
+    if (this.snapshots.length > 12) this.snapshots.shift();
+    this.reconcile(frame, ack);
+    if (!this.predicted) this.present(0);
+  }
+
+  // Start again from the host's own-car state and replay the inputs it has not run yet; the visible jump fades out.
+  private reconcile(frame: RaceFrame, ack?: InputAck) {
+    const own = this.race.player;
+    if (!ack || this.race.phase !== 'racing' || own.finishTime > 0) {
+      this.predicted = undefined;
+      this.inputs = [];
+      return;
+    }
+    const state = { ...frame.racers[own.id].state };
+    this.inputs = this.inputs.filter((input) => input.seq >= ack.seq);
+    let used = ack.steps;
+    for (const input of this.inputs) {
+      if (input.seq === ack.seq && used > 0) {
+        used--;
+        continue;
+      }
+      stepCar(state, own.spec, input.controls, this.race.track, STEP, this.config.settings.transmission);
+    }
+    const shown = own.state;
+    const gap = Math.hypot(shown.x - state.x, shown.z - state.z);
+    this.correction =
+      this.predicted && gap < SNAP_DISTANCE
+        ? { x: shown.x - state.x, y: shown.y - state.y, z: shown.z - state.z, yaw: angleBetween(state.yaw, shown.yaw) }
+        : { x: 0, y: 0, z: 0, yaw: 0 };
+    this.predicted = state;
+  }
+
+  // Guest: move the own car with local input at once, and place everything for drawing.
+  private predict(elapsed: number, controls: Controls) {
+    const own = this.race.player;
+    const predicted = this.predicted;
+    if (predicted && !this.wire.paused) {
+      this.guestAccumulator += Math.min(0.1, elapsed);
+      while (this.guestAccumulator >= STEP) {
+        stepCar(predicted, own.spec, controls, this.race.track, STEP, this.config.settings.transmission);
+        this.inputs.push({ seq: this.wire.sentSeq, controls: { ...controls } });
+        this.guestAccumulator -= STEP;
+      }
+      if (this.inputs.length > 480) this.inputs.splice(0, this.inputs.length - 480);
+    }
+    this.present(elapsed);
+  }
+
+  private present(elapsed: number) {
+    const latest = this.snapshots.at(-1);
+    if (!latest) return;
+    const now = performance.now() / 1000;
+    const target = now - INTERPOLATION_DELAY;
+    let older = latest;
+    let newer = latest;
+    for (let i = this.snapshots.length - 1; i > 0; i--) {
+      if (this.snapshots[i - 1].at <= target) {
+        older = this.snapshots[i - 1];
+        newer = this.snapshots[i];
+        break;
+      }
+    }
+    const span = newer.at - older.at;
+    const t = span > 0 ? Math.max(0, Math.min(1, (target - older.at) / span)) : 1;
+    const ahead = Math.max(0, Math.min(MAX_EXTRAPOLATION, target - latest.at));
+    this.race.racers.forEach((racer, index) => {
+      if (racer === this.race.player && this.predicted) return;
+      const state = newer === older ? { ...latest.states[index] } : blend(older.states[index], newer.states[index], t);
+      if (ahead > 0 && newer === latest) {
+        state.x += state.vx * ahead;
+        state.z += state.vz * ahead;
+      }
+      Object.assign(racer.state, state);
+    });
+    if (this.predicted) {
+      const fade = Math.exp(-elapsed * 10);
+      const c = this.correction;
+      c.x *= fade;
+      c.y *= fade;
+      c.z *= fade;
+      c.yaw *= fade;
+      Object.assign(this.race.player.state, this.predicted, {
+        x: this.predicted.x + c.x,
+        y: this.predicted.y + c.y,
+        z: this.predicted.z + c.z,
+        yaw: this.predicted.yaw + c.yaw,
+      });
+    }
   }
   action(action: 'reset' | 'shiftUp' | 'shiftDown') {
     if (action === 'reset') this.pending.reset = true;
@@ -255,7 +378,8 @@ export class NetworkRace {
     const command = { ...this.pending, controls };
     this.pending = neutral();
     this.wire.tick(elapsed, command, available);
-    if (this.localSlot !== 0 || this.wire.paused || this.race.phase === 'finished') return;
+    if (this.localSlot !== 0) return this.predict(elapsed, controls);
+    if (this.wire.paused || this.race.phase === 'finished') return;
     this.accumulator += Math.min(0.1, elapsed);
     let first = true;
     while (this.accumulator >= STEP) {

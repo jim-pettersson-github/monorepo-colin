@@ -54,6 +54,9 @@ export function TitleScreen({ settings, onRace, onGarage, onCareer, onSettings, 
           Inställningar
         </button>
       </nav>
+      <p className='app-version' data-testid='app-version'>
+        Version {__APP_VERSION__}
+      </p>
     </main>
   );
 }

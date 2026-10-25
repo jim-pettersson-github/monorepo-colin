@@ -1058,3 +1058,14 @@ h3 {
   font: inherit;
   font-weight: 400;
 }
+
+.app-version {
+  position: absolute;
+  right: max(12px, env(safe-area-inset-right));
+  bottom: max(10px, env(safe-area-inset-bottom));
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 1px 1px 0 #000;
+}

@@ -10,7 +10,8 @@ interface Options<S, C> {
   keepLinks?: boolean;
   localSlot: number;
   snapshot: () => S;
-  apply: (state: S) => void;
+  // ack: the guest's latest input the host has seen and how many simulation steps it has run on it, for prediction.
+  apply: (state: S, ack?: InputAck) => void;
   validState: (value: unknown) => value is S;
   validCommand: (value: unknown) => value is C;
   neutral: () => C;
@@ -19,6 +20,14 @@ interface Options<S, C> {
   clear: () => void;
   changed: () => void;
 }
+export type InputAck = { seq: number; steps: number };
+
+const validAck = (value: unknown): value is [number, number] =>
+  Array.isArray(value) && value.length === 2 && value.every((n) => Number.isInteger(n) && n >= 0 && n < 1e9);
+
+// How long a device may go quiet before the others wait for it; phones on mobile data can pause for a few seconds.
+const SILENCE_LIMIT = 6000;
+
 export class NetworkPlay<S, C> {
   paused = false;
   reason = '';
@@ -31,6 +40,12 @@ export class NetworkPlay<S, C> {
   private remote = new Map<number, C>();
   private pending: C;
   private sendTime = 0;
+  private inputTime = 0;
+  // Guest: numbers each input. Host: the latest input number per guest and the steps run on it since it arrived.
+  sentSeq = 0;
+  private acks = new Map<number, InputAck>();
+  private frameSeq = 0;
+  private lastFrame = 0;
   private listeners: (() => void)[] = [];
   private pendingPause = false;
   private disposed = false;
@@ -63,7 +78,7 @@ export class NetworkPlay<S, C> {
       (!this.options.waitForViews || (this.viewReady && this.options.connections.every(({ slot }) => this.remoteViews.has(slot)))) &&
       this.available &&
       this.options.connections.every(
-        ({ slot, link }) => link.status === 'connected' && this.otherReady.get(slot) === true && performance.now() - (this.seen.get(slot) ?? 0) < 2500,
+        ({ slot, link }) => link.status === 'connected' && this.otherReady.get(slot) === true && performance.now() - (this.seen.get(slot) ?? 0) < SILENCE_LIMIT,
       )
     );
   }
@@ -73,14 +88,28 @@ export class NetworkPlay<S, C> {
   private send(value: unknown) {
     for (const { link } of this.options.connections) link.send(value);
   }
+  private sendFast(value: unknown) {
+    for (const { link } of this.options.connections) link.sendFast(value);
+  }
   private clear() {
     this.remote.clear();
     this.pending = this.options.neutral();
     this.options.clear();
   }
   private frame() {
-    if (this.host)
-      this.send({ kind: 'frame', epoch: this.epoch, state: this.options.snapshot(), paused: this.paused, reason: this.reason, ready: this.canResume });
+    if (!this.host) return;
+    const acks = Object.fromEntries([...this.acks].map(([slot, ack]) => [slot, [ack.seq, ack.steps]]));
+    this.frameSeq++;
+    this.sendFast({
+      kind: 'frame',
+      seq: this.frameSeq,
+      epoch: this.epoch,
+      state: this.options.snapshot(),
+      paused: this.paused,
+      reason: this.reason,
+      ready: this.canResume,
+      acks,
+    });
   }
   pause(reason = 'En spelare pausade. Tävlingen väntar på er.') {
     this.loading = false;
@@ -116,6 +145,8 @@ export class NetworkPlay<S, C> {
     this.options.changed();
   }
   consume(slot: number) {
+    const ack = this.acks.get(slot);
+    if (ack) ack.steps++;
     const command = this.remote.get(slot) ?? this.options.neutral();
     this.remote.set(slot, this.options.afterConsume(command));
     return command;
@@ -146,15 +177,19 @@ export class NetworkPlay<S, C> {
       this.options.changed();
     }
     if (!this.canResume && !this.paused) this.pause('Väntar på alla enheter. Återvänd till spelet eller koppla ihop igen.');
+    // Guests send their input every frame, so the host acts on it as soon as possible.
+    this.inputTime += Math.min(elapsed, 0.1);
+    if (!this.host && this.inputTime >= 1 / 90) {
+      this.inputTime = 0;
+      this.sentSeq++;
+      this.send({ kind: 'input', seq: this.sentSeq, epoch: this.epoch, command: this.paused ? this.options.neutral() : this.pending, ready: this.localReady });
+      this.pending = this.options.afterConsume(this.pending);
+    }
     this.sendTime += Math.min(elapsed, 0.1);
     if (this.sendTime < 0.04) return;
     this.sendTime = 0;
     if (this.options.waitForViews) this.send({ kind: 'view-ready', ready: this.localReady });
     if (this.host) this.frame();
-    else {
-      this.send({ kind: 'input', epoch: this.epoch, command: this.paused ? this.options.neutral() : this.pending, ready: this.localReady });
-      this.pending = this.options.afterConsume(this.pending);
-    }
   }
   private receive(slot: number, value: unknown) {
     if (!value || typeof value !== 'object' || this.disposed) return;
@@ -175,6 +210,7 @@ export class NetworkPlay<S, C> {
     if (this.host) {
       if (m.epoch !== this.epoch) return;
       if (m.kind === 'input' && typeof m.ready === 'boolean' && this.options.validCommand(m.command)) {
+        if (Number.isInteger(m.seq) && Number(m.seq) > (this.acks.get(slot)?.seq ?? 0)) this.acks.set(slot, { seq: Number(m.seq), steps: 0 });
         this.seen.set(slot, performance.now());
         this.otherReady.set(slot, m.ready);
         if (!m.ready && !this.paused) this.pause('En spelare är inte redo.');
@@ -193,6 +229,10 @@ export class NetworkPlay<S, C> {
       this.options.validState(m.state)
     ) {
       const newRound = m.epoch !== this.epoch;
+      // Snapshots may arrive out of order on the fast channel; an older one is simply dropped.
+      const seq = Number.isInteger(m.seq) ? Number(m.seq) : 0;
+      if (!newRound && seq && seq <= this.lastFrame) return;
+      this.lastFrame = seq;
       if (newRound || m.paused !== this.paused) this.clear();
       this.epoch = Number(m.epoch);
       this.seen.set(slot, performance.now());
@@ -201,7 +241,8 @@ export class NetworkPlay<S, C> {
       if (!m.paused) this.loading = false;
       this.paused = m.paused || this.pendingPause || !this.localReady;
       this.reason = m.reason;
-      this.options.apply(m.state);
+      const own = (m.acks as Record<string, unknown> | undefined)?.[this.options.localSlot];
+      this.options.apply(m.state, validAck(own) ? { seq: own[0], steps: own[1] } : undefined);
       this.options.changed();
     }
   }

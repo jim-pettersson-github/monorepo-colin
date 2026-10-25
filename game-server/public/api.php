@@ -51,7 +51,7 @@ function database(): PDO
     );
     // Open-game listing, added after the first release; older databases get the columns on first use.
     $columns = array_column($db->query('PRAGMA table_info(rooms)')->fetchAll(), 'name');
-    foreach (['listed INTEGER NOT NULL DEFAULT 0', 'title TEXT', 'info TEXT', 'players INTEGER NOT NULL DEFAULT 1', 'capacity INTEGER NOT NULL DEFAULT 2', 'seen INTEGER NOT NULL DEFAULT 0'] as $column) {
+    foreach (['listed INTEGER NOT NULL DEFAULT 0', 'title TEXT', 'info TEXT', 'players INTEGER NOT NULL DEFAULT 1', 'capacity INTEGER NOT NULL DEFAULT 2', 'seen INTEGER NOT NULL DEFAULT 0', 'version TEXT'] as $column) {
         if (!in_array(strtok($column, ' '), $columns, true)) $db->exec("ALTER TABLE rooms ADD COLUMN $column");
     }
     return $db;
@@ -144,12 +144,13 @@ try {
             $body = input();
             $game = text($body, 'game', '/^[a-z0-9-]{2,32}$/');
             $db->prepare('DELETE FROM rooms WHERE updated < ?')->execute([$now - ROOM_TTL]);
+            $version = is_string($body['version'] ?? null) ? substr($body['version'], 0, 40) : null;
             $host = token();
             for ($attempt = 0; $attempt < 20; $attempt++) {
                 $code = '';
                 for ($i = 0; $i < 4; $i++) $code .= CODE_ALPHABET[random_int(0, strlen(CODE_ALPHABET) - 1)];
-                $insert = $db->prepare('INSERT OR IGNORE INTO rooms (code, game, host, updated) VALUES (?, ?, ?, ?)');
-                $insert->execute([$code, $game, $host, $now]);
+                $insert = $db->prepare('INSERT OR IGNORE INTO rooms (code, game, host, updated, version) VALUES (?, ?, ?, ?, ?)');
+                $insert->execute([$code, $game, $host, $now, $version]);
                 if ($insert->rowCount() === 1) reply(['code' => $code, 'host' => $host]);
             }
             reply(['error' => 'Inga lediga rumskoder just nu.'], 503);
@@ -180,7 +181,7 @@ try {
             );
             $update->execute([$claim, $now, $now, $room['code'], $now - CLAIM_TTL]);
             if ($update->rowCount() !== 1) reply(['waiting' => true]);
-            reply(['offer' => $room['offer'], 'claim' => $claim, 'game' => $room['game']]);
+            reply(['offer' => $room['offer'], 'claim' => $claim, 'game' => $room['game'], 'version' => $room['version']]);
 
         case 'reply':
             $body = input();
@@ -215,9 +216,11 @@ try {
             if (!is_string($game) || !preg_match('/^[a-z0-9-]{2,32}$/', $game)) reply(['error' => 'Ogiltigt spel.'], 400);
             $statement = $db->prepare(
                 'SELECT code, title, info, players, capacity FROM rooms
-                 WHERE game = ? AND listed = 1 AND seen > ? AND players < capacity ORDER BY seen DESC LIMIT 30'
+                 WHERE game = ? AND listed = 1 AND seen > ? AND players < capacity AND (? IS NULL OR version = ?) ORDER BY seen DESC LIMIT 30'
             );
-            $statement->execute([$game, $now - LIST_STALE]);
+            // Only games on the same release can play together, so a versioned list hides the others.
+            $version = is_string($_GET['version'] ?? null) && $_GET['version'] !== '' ? substr($_GET['version'], 0, 40) : null;
+            $statement->execute([$game, $now - LIST_STALE, $version, $version]);
             reply(['games' => array_map(fn ($row) => [...$row, 'players' => (int) $row['players'], 'capacity' => (int) $row['capacity']], $statement->fetchAll())]);
 
         case 'close':

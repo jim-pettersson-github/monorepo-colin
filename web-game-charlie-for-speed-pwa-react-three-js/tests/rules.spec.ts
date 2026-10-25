@@ -222,6 +222,9 @@ test('network controls keep edge actions once, pause all peers and reject stale 
       for (const listener of this.other?.messages ?? []) listener(structuredClone(v));
       return true;
     }
+    sendFast(v: unknown) {
+      return this.send(v);
+    }
     onMessage(f: (v: unknown) => void) {
       this.messages.add(f);
       return () => {
@@ -536,4 +539,77 @@ test('AI cars drive forward from the grid instead of first backing up', () => {
     for (const racer of race.racers) if (!racer.isPlayer) expect(racer.state.gear).toBeGreaterThan(0);
   }
   for (const racer of race.racers) if (!racer.isPlayer) expect(raceDistance(race, racer) - (atGo.get(racer.id) ?? 0)).toBeGreaterThan(5);
+});
+
+test('an online guest drives its own car at once and sees the others glide, despite the delay to the host', () => {
+  // Links that hold every message for a few frames, like a real network.
+  class SlowLink {
+    status = 'connected';
+    error = '';
+    other?: SlowLink;
+    queue: { due: number; value: unknown }[] = [];
+    messages = new Set<(v: unknown) => void>();
+    frame = 0;
+    send(value: unknown) {
+      this.queue.push({ due: this.frame + 6, value: structuredClone(value) });
+      return true;
+    }
+    sendFast(value: unknown) {
+      return this.send(value);
+    }
+    deliver() {
+      this.frame++;
+      const due = this.queue.filter((m) => m.due <= this.frame);
+      this.queue = this.queue.filter((m) => m.due > this.frame);
+      for (const { value } of due) for (const listener of this.other?.messages ?? []) listener(value);
+    }
+    onMessage(f: (v: unknown) => void) {
+      this.messages.add(f);
+      return () => this.messages.delete(f);
+    }
+    subscribe() {
+      return () => {};
+    }
+    close() {}
+  }
+  const a = new SlowLink();
+  const b = new SlowLink();
+  a.other = b;
+  b.other = a;
+  const config = {
+    settings: { trackId: 'rheinland', carId: 'sting', laps: 3, difficulty: 'easy' as const, transmission: 'auto' as const },
+    cars: ['sting', 'nxr'],
+    seed: 5,
+  };
+  const host = new NetworkRace(structuredClone(config), [{ slot: 1, link: a as unknown as PeerLink }], 0);
+  const guest = new NetworkRace(structuredClone(config), [{ slot: 1, link: b as unknown as PeerLink }], 1);
+  const still = { throttle: 0, brake: 0, steer: 0, handbrake: false };
+  const step = (controls: typeof still) => {
+    host.advance(1 / 60, still, true);
+    guest.advance(1 / 60, controls, true);
+    a.deliver();
+    b.deliver();
+  };
+  for (let i = 0; i < 60 * 5 && guest.race.phase !== 'racing'; i++) step(still);
+  for (let i = 0; i < 30; i++) step(still);
+  expect(guest.race.phase).toBe('racing');
+
+  const mine = () => guest.race.player.state;
+  const onHost = () => host.race.racers[guest.race.player.id].state;
+  const hostCar = () => guest.race.racers[host.race.player.id].state;
+  let jump = 0;
+  let previous = { ...hostCar() };
+  for (let i = 0; i < 18; i++) {
+    step({ ...still, throttle: 1 });
+    jump = Math.max(jump, Math.hypot(hostCar().x - previous.x, hostCar().z - previous.z));
+    previous = { ...hostCar() };
+  }
+  // 0.3 s into the throttle the guest's own car has the full 0.3 s of it; the host, 100 ms behind, has run only 0.2 s.
+  expect(forwardSpeed(mine())).toBeGreaterThan(forwardSpeed(onHost()) * 1.35);
+  for (let i = 0; i < 90; i++) step(still);
+  // Once the input stops arriving, the guest's view and the host's agree within a couple of metres.
+  expect(Math.hypot(mine().x - onHost().x, mine().z - onHost().z)).toBeLessThan(2);
+  expect(jump).toBeLessThan(1);
+  host.dispose();
+  guest.dispose();
 });

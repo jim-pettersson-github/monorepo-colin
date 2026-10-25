@@ -83,7 +83,7 @@ const validGame = (value: unknown): value is OpenGame => {
 };
 
 export async function listGames() {
-  const result = await call<{ games?: unknown[] }>('list', undefined, { game: GAME });
+  const result = await call<{ games?: unknown[] }>('list', undefined, { game: GAME, version: __APP_BUILD__ });
   return Array.isArray(result.games) ? result.games.filter(validGame) : [];
 }
 
@@ -98,7 +98,7 @@ export class Room {
   ) {}
 
   static async open() {
-    const [{ code, host }, servers] = await Promise.all([call<{ code: string; host: string }>('create', { game: GAME }), onlineIce()]);
+    const [{ code, host }, servers] = await Promise.all([call<{ code: string; host: string }>('create', { game: GAME, version: __APP_BUILD__ }), onlineIce()]);
     return new Room(code, host, servers);
   }
 
@@ -134,13 +134,18 @@ export class Room {
 // Guest: waits for the host's open invitation in the room, answers it, and returns the link that will connect.
 export async function joinRoom(code: string, cancelled: () => boolean, onWaiting: () => void) {
   while (!cancelled()) {
-    const claim = await call<{ offer?: string; claim?: string; game?: string }>('claim', { code });
+    const claim = await call<{ offer?: string; claim?: string; game?: string; version?: string | null }>('claim', { code });
     if (claim.game && claim.game !== GAME) throw new Error('Rumskoden hör till ett annat spel.');
     if (!claim.offer || !claim.claim) {
       onWaiting();
       await wait(POLL_MS);
       continue;
     }
+    // Only a real invitation carries the host's version; a waiting answer has none.
+    if (claim.version !== __APP_BUILD__)
+      throw new Error(
+        `Värden har en annan version av spelet (${claim.version ?? 'äldre'}) än du (${__APP_BUILD__}). Uppdatera spelet på båda enheterna under Inställningar och försök igen.`,
+      );
     const signal = await decodeSignal(claim.offer);
     if (signal.type !== 'offer') throw new Error('Rummet har ingen giltig inbjudan.');
     const link = new PeerLink('guest', await onlineIce(), ONLINE_TIMEOUT);
