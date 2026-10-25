@@ -44,3 +44,23 @@ export function paceLiveryTexture() {
   map.colorSpace = THREE.SRGBColorSpace;
   return map;
 }
+
+export function svLiveryTexture() {
+  const element = document.createElement('canvas');
+  element.width = 1024;
+  element.height = 256;
+  const context = element.getContext('2d');
+  if (context) {
+    context.fillStyle = '#14161a';
+    context.font = 'italic 240px Georgia, serif';
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.translate(512, 132);
+    context.scale(2.1, 1);
+    context.fillText('SV', 0, 0);
+  }
+  const map = new THREE.CanvasTexture(element);
+  map.colorSpace = THREE.SRGBColorSpace;
+  map.anisotropy = 4;
+  return map;
+}

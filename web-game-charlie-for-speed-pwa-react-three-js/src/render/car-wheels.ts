@@ -21,6 +21,12 @@ function merge(parts: THREE.BufferGeometry[]) {
 export function wheelGeometry(style: RimStyle): WheelGeometry {
   const found = cache.get(style);
   if (found) return found;
+  if (style === 'countach' || style === 'diablo' || style === 'clkgtr') {
+    const shared = wheelGeometry('five');
+    const result = { rubber: shared.rubber, brake: shared.brake, metal: favoriteRim(style) };
+    cache.set(style, result);
+    return result;
+  }
   const radius = 0.245;
   const tyreProfile = [
     [radius, -0.12],
@@ -118,4 +124,94 @@ export function wheelGeometry(style: RimStyle): WheelGeometry {
   const result = { rubber, metal: merge(parts), brake };
   cache.set(style, result);
   return result;
+}
+
+// These three rims have their own dish, spoke pattern and finishes; the remaining styles stay unchanged.
+function favoriteRim(style: 'countach' | 'diablo' | 'clkgtr') {
+  const parts: THREE.BufferGeometry[] = [];
+  const tint = (geometry: THREE.BufferGeometry, hex: number) => {
+    const color = new THREE.Color(hex),
+      values = new Float32Array(geometry.getAttribute('position').count * 3);
+    for (let i = 0; i < values.length; i += 3) values.set([color.r, color.g, color.b], i);
+    geometry.setAttribute('color', new THREE.BufferAttribute(values, 3));
+    parts.push(geometry);
+  };
+  const rimRadius = style === 'clkgtr' ? 0.242 : 0.232;
+  const barrel = new THREE.LatheGeometry(
+    [
+      [rimRadius, -0.12],
+      [rimRadius, 0.116],
+      [rimRadius - 0.003, 0.142],
+      [rimRadius - 0.014, 0.147],
+      [rimRadius - 0.021, 0.13],
+      [rimRadius - 0.023, 0.061],
+    ]
+      .map(([r, x]) => new THREE.Vector2(r, -x))
+      .reverse(),
+    48,
+  );
+  barrel.rotateZ(Math.PI / 2);
+  tint(barrel, 0xdce0e5);
+  const extrude = (shape: THREE.Shape) => {
+    const geometry = new THREE.ExtrudeGeometry(shape, {
+      depth: 0.016,
+      bevelEnabled: true,
+      bevelSize: 0.003,
+      bevelThickness: 0.004,
+      bevelSegments: 2,
+      curveSegments: 4,
+    });
+    geometry.rotateY(Math.PI / 2);
+    const positions = geometry.getAttribute('position');
+    for (let i = 0; i < positions.count; i++) {
+      const r = Math.hypot(positions.getY(i), positions.getZ(i));
+      positions.setX(i, positions.getX(i) + 0.041 + 0.035 * (r / rimRadius) ** 2);
+    }
+    geometry.computeVertexNormals();
+    return geometry;
+  };
+  if (style !== 'clkgtr') {
+    const face = new THREE.Shape();
+    face.absarc(0, 0, rimRadius - 0.02, 0, Math.PI * 2, false);
+    for (let i = 0; i < 5; i++) {
+      const angle = (i * Math.PI * 2) / 5,
+        hole = new THREE.Path();
+      hole.absarc(Math.cos(angle) * 0.14, Math.sin(angle) * 0.14, style === 'countach' ? 0.059 : 0.054, 0, Math.PI * 2, true);
+      face.holes.push(hole);
+    }
+    tint(extrude(face), style === 'diablo' ? 0x33363d : 0xbcc2ca);
+  } else {
+    const spokeShape = new THREE.Shape();
+    spokeShape.moveTo(0.045, -0.008);
+    spokeShape.quadraticCurveTo(0.14, -0.015, 0.223, -0.007);
+    spokeShape.lineTo(0.226, 0.007);
+    spokeShape.quadraticCurveTo(0.14, 0.002, 0.045, 0.008);
+    spokeShape.closePath();
+    const spoke = extrude(spokeShape);
+    for (let i = 0; i < 24; i++) {
+      const part = spoke.clone();
+      part.rotateX((Math.floor(i / 2) * Math.PI * 2) / 12 + (i % 2 ? 0.032 : -0.032));
+      tint(part, 0xb9c1ca);
+    }
+    spoke.dispose();
+  }
+  const hub = new THREE.CylinderGeometry(0.048, 0.055, 0.027, 24);
+  hub.rotateZ(Math.PI / 2);
+  hub.translate(0.07, 0, 0);
+  tint(hub, style === 'diablo' ? 0x262a31 : 0xaab1ba);
+  for (let i = 0; i < 5; i++) {
+    const angle = (i * Math.PI * 2) / 5,
+      bolt = new THREE.CylinderGeometry(0.007, 0.008, 0.01, 6);
+    bolt.rotateZ(Math.PI / 2);
+    bolt.translate(0.087, Math.cos(angle) * 0.036, Math.sin(angle) * 0.036);
+    tint(bolt, 0xdce0e5);
+  }
+  for (let i = 0; i < 24; i++) {
+    const angle = (i * Math.PI * 2) / 24,
+      rivet = new THREE.CylinderGeometry(0.0035, 0.0035, 0.005, 5);
+    rivet.rotateZ(Math.PI / 2);
+    rivet.translate(0.145, Math.cos(angle) * (rimRadius - 0.014), Math.sin(angle) * (rimRadius - 0.014));
+    tint(rivet, 0xb8bec7);
+  }
+  return merge(parts);
 }

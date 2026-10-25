@@ -5,6 +5,7 @@ import type { CarState } from '../game/physics';
 import { batchStatic } from './batch';
 import { ARCH_RADIUS, axles, buildBodyShape, WHEEL_RADIUS } from './car-body';
 import { designs } from './car-designs';
+import { addFavoriteDetails } from './car-favorites';
 import { paceLiveryTexture, plateTexture } from './car-textures';
 import { wheelGeometry } from './car-wheels';
 import { glowTexture, shadowTexture } from './textures';
@@ -33,16 +34,25 @@ export function buildCarModel(spec: CarSpec, headlightsOn = false): CarModel {
   const body = new THREE.Group();
   group.add(body);
 
-  const paint = new THREE.MeshPhysicalMaterial({ color: spec.color, metalness: 0.45, roughness: 0.3, clearcoat: 0.9, clearcoatRoughness: 0.16 });
+  const paint = new THREE.MeshPhysicalMaterial({
+    color: spec.color,
+    metalness: design.paintMetalness ?? 0.45,
+    roughness: 0.3,
+    clearcoat: 0.9,
+    clearcoatRoughness: 0.16,
+  });
   const glass = new THREE.MeshPhysicalMaterial({
-    color: 0x070e16,
+    color: design.cockpit ? 0x112334 : 0x070e16,
     metalness: 0,
     roughness: 0.2,
     clearcoat: 0.1,
     clearcoatRoughness: 0.18,
     specularIntensity: 0.15,
     envMapIntensity: 0.32,
-    side: design.openTop ? THREE.DoubleSide : THREE.FrontSide,
+    side: design.openTop || design.cockpit ? THREE.DoubleSide : THREE.FrontSide,
+    transparent: !!design.cockpit,
+    opacity: design.cockpit ? 0.78 : 1,
+    depthWrite: !design.cockpit,
   });
   const black = new THREE.MeshStandardMaterial({ color: 0x0d0e10, roughness: 0.55, metalness: 0.15 });
   const trim = new THREE.MeshStandardMaterial({ color: spec.trim, roughness: 0.35, metalness: 0.4 });
@@ -83,6 +93,32 @@ export function buildCarModel(spec: CarSpec, headlightsOn = false): CarModel {
     });
   // A small conforming patch is a flush lens or panel inset, rather than a box stuck on the bonnet.
   const hoodPatch = (outline: [number, number][], material: THREE.Material, lift = 0.009, bulge = 0) => {
+    if (design.highDetail && !bulge) {
+      const contour = outline.map(([x, z]) => new THREE.Vector2(x, z)),
+        positions: number[] = [];
+      const triangle = (a: THREE.Vector2, b: THREE.Vector2, c: THREE.Vector2, depth: number) => {
+        if (depth) {
+          const ab = a.clone().lerp(b, 0.5),
+            bc = b.clone().lerp(c, 0.5),
+            ca = c.clone().lerp(a, 0.5);
+          triangle(a, ab, ca, depth - 1);
+          triangle(ab, b, bc, depth - 1);
+          triangle(ca, bc, c, depth - 1);
+          triangle(ab, bc, ca, depth - 1);
+          return;
+        }
+        const positive = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x) > 0;
+        for (const p of positive ? [a, c, b] : [a, b, c]) {
+          const y = surface(p.y, Math.abs(p.x) / shape.section(p.y).halfWidth);
+          positions.push(p.x, y + lift, shape.bodyZ(p.x, y, p.y));
+        }
+      };
+      for (const [a, b, c] of THREE.ShapeUtils.triangulateShape(contour, [])) triangle(contour[a], contour[b], contour[c], 3);
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geometry.computeVertexNormals();
+      return add(geometry, material);
+    }
     const cx = outline.reduce((sum, p) => sum + p[0], 0) / outline.length,
       cz = outline.reduce((sum, p) => sum + p[1], 0) / outline.length;
     const points = [[cx, cz], ...(bulge ? outline.map(([x, z]) => [THREE.MathUtils.lerp(cx, x, 0.55), THREE.MathUtils.lerp(cz, z, 0.55)]) : []), ...outline];
@@ -119,12 +155,30 @@ export function buildCarModel(spec: CarSpec, headlightsOn = false): CarModel {
         triangle(ab, bc, ca, depth - 1);
         return;
       }
+      if (design.highDetail) {
+        const z = (a.x + b.x + c.x) / 3,
+          y = (a.y + b.y + c.y) / 3,
+          section = shape.section(z);
+        if (y < section.bottom || y > section.shoulder + 0.01) return;
+      }
       for (const point of side > 0 ? [a, c, b] : [a, b, c]) positions.push(side * (shape.flank(point.x, point.y) + lift), point.y, point.x);
     };
     const contour = outline.map(([z, y]) => new THREE.Vector2(z, y));
-    for (const [a, b, c] of THREE.ShapeUtils.triangulateShape(contour, [])) triangle(contour[a], contour[b], contour[c], 2);
+    for (const [a, b, c] of THREE.ShapeUtils.triangulateShape(contour, [])) triangle(contour[a], contour[b], contour[c], design.highDetail ? 3 : 2);
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    if (material instanceof THREE.MeshStandardMaterial && material.map) {
+      const zs = outline.map(([z]) => z),
+        ys = outline.map(([, y]) => y),
+        z0 = Math.min(...zs),
+        z1 = Math.max(...zs),
+        y0 = Math.min(...ys),
+        y1 = Math.max(...ys);
+      const uv: number[] = [];
+      for (let i = 0; i < positions.length; i += 3)
+        uv.push(side > 0 ? (z1 - positions[i + 2]) / (z1 - z0) : (positions[i + 2] - z0) / (z1 - z0), (positions[i + 1] - y0) / (y1 - y0));
+      geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    }
     geometry.computeVertexNormals();
     return add(geometry, material);
   };
@@ -174,16 +228,17 @@ export function buildCarModel(spec: CarSpec, headlightsOn = false): CarModel {
       : paint;
   if (roofPaint !== paint) materials.push(roofPaint);
   add(shape.glass, [glass, roofPaint, paint]);
-  if (design.openTop) {
+  if (design.openTop || design.cockpit) {
     const seatZ = ((roofRear[0] + roofFront[0]) * length) / 2 - 0.13;
-    rounded(width * 0.68, 0.1, (roofFront[0] - roofRear[0]) * length, black, 0, 0.51, seatZ);
-    for (const side of [-1, 1]) {
-      rounded(0.43, 0.12, 0.48, black, side * width * 0.18, 0.6, seatZ);
-      rounded(0.43, 0.42, 0.14, black, side * width * 0.18, 0.8, seatZ - 0.19, -0.15);
-      rounded(0.24, 0.18, 0.13, black, side * width * 0.18, 1.07, seatZ - 0.21);
+    rounded(width * 0.68, 0.1, (roofFront[0] - roofRear[0]) * length, black, 0, 0.51 * (design.cockpit ? 0.78 : 1), seatZ);
+    const seatScale = design.cockpit ? 0.78 : 1;
+    for (const side of spec.id === 'clkgtr' ? [-1] : [-1, 1]) {
+      rounded(0.43, 0.12, 0.48, black, side * width * 0.18, 0.6 * seatScale, seatZ);
+      rounded(0.43, 0.42, 0.14, black, side * width * 0.18, 0.8 * seatScale, seatZ - 0.19, -0.15);
+      rounded(0.24, 0.18, 0.13, black, side * width * 0.18, 1.07 * seatScale, seatZ - 0.21);
     }
-    rounded(width * 0.64, 0.14, 0.22, black, 0, 0.92, roofFront[0] * length + 0.12);
-    const steering = add(new THREE.TorusGeometry(0.16, 0.024, 6, 16), black, -width * 0.18, 1.04, roofFront[0] * length - 0.03, -0.5);
+    rounded(width * 0.64, 0.14, 0.22, black, 0, design.cockpit ? 0.72 : 0.92, roofFront[0] * length + 0.12);
+    const steering = add(new THREE.TorusGeometry(0.16, 0.024, 6, 16), black, -width * 0.18, design.cockpit ? 0.8 : 1.04, roofFront[0] * length - 0.03, -0.5);
     steering.rotation.y = Math.PI;
   }
   let liveryMap: THREE.Texture | undefined;
@@ -239,9 +294,19 @@ export function buildCarModel(spec: CarSpec, headlightsOn = false): CarModel {
   };
   const fw = nosePart.halfWidth;
   const fy = nosePart.bottom + 0.12;
-  if (spec.id === 'clkgtr') {
-    intake(0, nosePart.crown - 0.115, fw * 0.88, 0.2, false, true);
-    intake(0, fy, fw * 1.25, 0.14, true);
+  if (spec.id === 'countach') {
+    for (const side of [-1, 1]) {
+      intake(side * fw * 0.61, nosePart.bottom + 0.065, fw * 0.49, 0.1, false);
+      const px = side * fw * 0.22,
+        py = nosePart.bottom + 0.1;
+      rounded(0.13, 0.09, 0.02, black, px, py, shape.bumperZ(px, py) + 0.013);
+      rounded(0.095, 0.073, 0.023, head, px, py, shape.bumperZ(px, py) + 0.023);
+    }
+  } else if (spec.id === 'diablo') {
+    for (const side of [-1, 1]) intake(side * fw * 0.48, nosePart.bottom + 0.08, fw * 0.79, 0.105, true);
+  } else if (spec.id === 'clkgtr') {
+    intake(0, nosePart.crown - 0.1, fw * 0.96, 0.2, false, true);
+    intake(0, fy - 0.025, fw * 1.55, 0.14, true);
     for (const side of [-1, 1]) intake(side * fw * 0.85, fy + 0.035, fw * 0.25, 0.14, false);
     rounded(0.018, 0.18, 0.024, chrome, 0, nosePart.crown - 0.115, noseZ + 0.024);
   } else if (spec.id === 'sl600') {
@@ -268,8 +333,8 @@ export function buildCarModel(spec: CarSpec, headlightsOn = false): CarModel {
     intake(0, fy, fw * 1.1, 0.13, false);
     for (const side of [-1, 1]) intake(side * fw * 0.83, fy, fw * 0.25, 0.14, false);
   } else intake(0, fy, fw * 1.65, 0.09, false);
-  if (design.face !== 'endurance') add(new THREE.PlaneGeometry(0.43, 0.095), plate, 0, fy - 0.005, noseZ + 0.038);
-  if (features.has('splitter')) rounded(width * 0.96, 0.035, 0.32, black, 0, nosePart.bottom - 0.035, nose - 0.04);
+  if (design.face !== 'endurance' && !design.highDetail) add(new THREE.PlaneGeometry(0.43, 0.095), plate, 0, fy - 0.005, noseZ + 0.038);
+  if (features.has('splitter') && !design.highDetail) rounded(width * 0.96, 0.035, 0.32, black, 0, nosePart.bottom - 0.035, nose - 0.04);
 
   // Lens outlines sit flush with the body and contain individual reflectors.
   const lampZ = nose - (design.lamps?.inset ?? (design.headlights === 'popup' ? 0.42 : 0.35));
@@ -302,12 +367,12 @@ export function buildCarModel(spec: CarSpec, headlightsOn = false): CarModel {
       ] as const) {
         const px = side * nosePart.halfWidth * offset,
           py = Math.min(nosePart.shoulder - 0.025, fy + 0.12);
-        rounded(0.2, 0.045, 0.024, material, px, py, shape.bumperZ(px, py) + 0.012);
+        rounded(design.highDetail ? 0.15 : 0.2, 0.045, 0.024, material, px, py, shape.bumperZ(px, py) + 0.012);
       }
     } else if (design.headlights === 'quad') {
       // The NFS III CLK-GTR has four separate, upright oval lenses, not two bonnet pods.
       for (const inner of [false, true]) {
-        const px = side * nosePart.halfWidth * (inner ? 0.48 : 0.81),
+        const px = side * nosePart.halfWidth * (inner ? 0.58 : 0.86),
           py = nosePart.shoulder - (inner ? 0.135 : 0.155),
           w = inner ? 0.145 : 0.225,
           h = inner ? 0.21 : 0.29,
@@ -317,8 +382,9 @@ export function buildCarModel(spec: CarSpec, headlightsOn = false): CarModel {
         add(surround, black, px, py, z + 0.013);
         const lens = new THREE.SphereGeometry(1, 16, 8);
         lens.scale(w / 2, h / 2, 0.026);
-        add(lens, reflector, px, py, z + 0.02);
-        disc(w * 0.24, 0.008, head, px, py + 0.015, z + 0.048);
+        add(lens, reflector, px, py, z + 0.014);
+        disc(w * 0.27, 0.006, chrome, px, py + 0.015, z + 0.041);
+        disc(w * 0.11, 0.007, head, px, py + 0.015, z + 0.046);
       }
     } else if (design.headlights === 'rect') {
       const y = nosePart.shoulder - 0.09,
@@ -380,27 +446,28 @@ export function buildCarModel(spec: CarSpec, headlightsOn = false): CarModel {
     tailX = tailPart.halfWidth * 0.67;
   const lampCentres: THREE.Vector3[] = [];
   if (design.taillights === 'grille' || spec.id === 'f355') rearPanel(0, tailY, tailPart.halfWidth * 1.75, 0.16, black, 0.008);
-  for (const side of [-1, 1]) {
-    const x = side * tailX;
-    if (design.taillights === 'round' || design.taillights === 'quad') {
-      for (const offset of [-0.105, 0.105]) {
-        const px = x + side * offset;
-        const z = shape.bumperZ(px, tailY, -1);
-        disc(0.079, 0.012, black, px, tailY, z - 0.01, 0, -1);
-        disc(0.069, 0.015, tail, px, tailY, z - 0.018, 0, -1);
-        lampCentres.push(new THREE.Vector3(px, tailY, z - 0.04));
+  if (spec.id !== 'clkgtr')
+    for (const side of [-1, 1]) {
+      const x = side * tailX;
+      if (design.taillights === 'round' || design.taillights === 'quad') {
+        for (const offset of [-0.105, 0.105]) {
+          const px = x + side * offset;
+          const z = shape.bumperZ(px, tailY, -1);
+          disc(0.079, 0.012, black, px, tailY, z - 0.01, 0, -1);
+          disc(0.069, 0.015, tail, px, tailY, z - 0.018, 0, -1);
+          lampCentres.push(new THREE.Vector3(px, tailY, z - 0.04));
+        }
+      } else {
+        const w = design.taillights === 'slim' ? tailPart.halfWidth * 0.66 : 0.39,
+          h = spec.id === 'sl600' ? 0.17 : 0.125;
+        rearPanel(x, tailY, w + 0.018, h + 0.016, black, 0.008);
+        rearPanel(x, tailY, w, h, tail);
+        rearPanel(x - side * w * 0.25, tailY - h * 0.18, w * 0.32, h * 0.2, head, 0.014);
+        if (design.taillights !== 'slim') rearPanel(x + side * w * 0.31, tailY + h * 0.17, w * 0.2, h * 0.34, amber, 0.014);
+        if (spec.id === 'sl600') for (const offset of [-0.035, 0.025]) rearPanel(x, tailY + offset, w * 0.94, 0.01, black, 0.015);
+        lampCentres.push(new THREE.Vector3(x, tailY, shape.bumperZ(x, tailY, -1) - 0.04));
       }
-    } else {
-      const w = design.taillights === 'slim' ? tailPart.halfWidth * 0.66 : 0.39,
-        h = spec.id === 'sl600' ? 0.17 : 0.125;
-      rearPanel(x, tailY, w + 0.018, h + 0.016, black, 0.008);
-      rearPanel(x, tailY, w, h, tail);
-      rearPanel(x - side * w * 0.25, tailY - h * 0.18, w * 0.32, h * 0.2, head, 0.014);
-      if (design.taillights !== 'slim') rearPanel(x + side * w * 0.31, tailY + h * 0.17, w * 0.2, h * 0.34, amber, 0.014);
-      if (spec.id === 'sl600') for (const offset of [-0.035, 0.025]) rearPanel(x, tailY + offset, w * 0.94, 0.01, black, 0.015);
-      lampCentres.push(new THREE.Vector3(x, tailY, shape.bumperZ(x, tailY, -1) - 0.04));
     }
-  }
   rounded(0.55, 0.143, 0.023, black, 0, tailY - 0.205, tailZ - 0.023, 0, 0, 0.025);
   add(new THREE.PlaneGeometry(0.5, 0.105), plate, 0, tailY - 0.205, tailZ - 0.037, 0, Math.PI);
   rearPanel(0, tailY - 0.31, tailPart.halfWidth * 1.85, 0.007, black, 0.009);
@@ -411,23 +478,33 @@ export function buildCarModel(spec: CarSpec, headlightsOn = false): CarModel {
       ? [-0.27, -0.13, 0.13, 0.27]
       : design.exhaust === 'left'
         ? [-0.65, -0.54]
-        : design.exhaust === 'quad'
-          ? [-0.72, -0.59, 0.59, 0.72]
-          : [-0.62, 0.62];
+        : spec.id === 'clkgtr'
+          ? [-0.5, 0.5]
+          : design.exhaust === 'quad'
+            ? [-0.72, -0.59, 0.59, 0.72]
+            : [-0.62, 0.62];
   for (const x of outlets) {
-    const pipe = new THREE.CylinderGeometry(0.036, 0.041, 0.14, 16, 1, true);
+    const pipe = new THREE.CylinderGeometry(spec.id === 'clkgtr' ? 0.059 : 0.036, spec.id === 'clkgtr' ? 0.065 : 0.041, 0.14, 16, 1, true);
     add(pipe, chrome, x, (design.rideHeight ?? 0.15) + 0.08, tailZ - 0.025, Math.PI / 2);
-    disc(0.03, 0.006, black, x, (design.rideHeight ?? 0.15) + 0.08, tailZ - 0.097, 0, -1);
+    disc(spec.id === 'clkgtr' ? 0.053 : 0.03, 0.006, black, x, (design.rideHeight ?? 0.15) + 0.08, tailZ - 0.097, 0, -1);
   }
 
   // Door mirrors and handles.
   const mirrorZ = screenBase[0] * length - 0.22;
   const mirrorBase = shape.section(mirrorZ);
-  const mirrorPaint = spec.id === 'clkgtr' ? new THREE.MeshPhysicalMaterial({ color: '#e9a12d', roughness: 0.35, clearcoat: 0.8 }) : paint;
+  const mirrorPaint = spec.id === 'clkgtr' ? new THREE.MeshPhysicalMaterial({ color: '#a51f2b', roughness: 0.35, clearcoat: 0.8 }) : paint;
   if (mirrorPaint !== paint) materials.push(mirrorPaint);
   for (const side of [-1, 1]) {
-    rounded(0.05, 0.03, 0.06, black, side * (mirrorBase.halfWidth * 0.85), mirrorBase.crown + 0.02, mirrorZ);
-    rounded(0.1, 0.075, 0.16, mirrorPaint, side * (mirrorBase.halfWidth * 0.85 + 0.08), mirrorBase.crown + 0.06, mirrorZ - 0.02, 0, 0, 0.03);
+    if (design.highDetail) {
+      const x = side * (mirrorBase.halfWidth + 0.035),
+        y = mirrorBase.shoulder + 0.06;
+      rounded(0.13, 0.025, 0.055, black, side * (mirrorBase.halfWidth - 0.015), y - 0.035, mirrorZ);
+      rounded(0.15, 0.085, 0.21, mirrorPaint, x, y, mirrorZ - 0.02, 0, 0, 0.025);
+      add(new THREE.PlaneGeometry(0.105, 0.052), chrome, x, y, mirrorZ - 0.128, 0, Math.PI);
+    } else {
+      rounded(0.05, 0.03, 0.06, black, side * (mirrorBase.halfWidth * 0.85), mirrorBase.crown + 0.02, mirrorZ);
+      rounded(0.1, 0.075, 0.16, mirrorPaint, side * (mirrorBase.halfWidth * 0.85 + 0.08), mirrorBase.crown + 0.06, mirrorZ - 0.02, 0, 0, 0.03);
+    }
     for (const handleZ of design.fourDoors ? [-length * 0.17, length * 0.035] : [rearBase[0] * length + 0.35]) {
       const handle = shape.section(handleZ);
       rounded(0.02, 0.025, 0.14, chrome, side * (shape.flank(handleZ, handle.shoulder - 0.12) + 0.003), handle.shoulder - 0.12, handleZ);
@@ -526,7 +603,21 @@ export function buildCarModel(spec: CarSpec, headlightsOn = false): CarModel {
   }
 
   // Model-specific details.
-  if (features.has('airboxes')) {
+  if (design.highDetail)
+    liveryMap = addFavoriteDetails({
+      spec,
+      design,
+      shape,
+      add,
+      rounded,
+      sidePatch,
+      hoodPatch,
+      rearPanel,
+      materials: { paint, black, chrome, head, trim, tail, amber },
+      lampCentres,
+      registerMaterial: (material) => materials.push(material),
+    });
+  if (features.has('airboxes') && !design.highDetail) {
     const z = -length * 0.25;
     for (const side of [-1, 1]) {
       const { halfWidth } = shape.section(z);
@@ -535,13 +626,13 @@ export function buildCarModel(spec: CarSpec, headlightsOn = false): CarModel {
       rounded(0.28, 0.1, 0.03, black, side * (halfWidth - 0.22), y + 0.08, z + 0.35);
     }
   }
-  if (features.has('naca')) {
+  if (features.has('naca') && !design.highDetail) {
     for (const side of [-1, 1]) {
       const { halfWidth, shoulder } = shape.section(0);
       rounded(0.02, 0.1, 0.8, black, side * (halfWidth * 0.97), shoulder - 0.12, length * 0.02, 0.18);
     }
   }
-  if (features.has('sideIntakes')) {
+  if (features.has('sideIntakes') && !design.highDetail) {
     const z = -length * 0.15,
       { shoulder, bottom } = shape.section(z);
     const top = shoulder - 0.12,
@@ -583,7 +674,7 @@ export function buildCarModel(spec: CarSpec, headlightsOn = false): CarModel {
         ]);
       }
     }
-  if (features.has('louvres')) {
+  if (features.has('louvres') && !design.highDetail) {
     for (let i = 0; i < 6; i++) {
       const z = -length * (0.44 - i * 0.028);
       rounded(width * 0.5, 0.015, 0.04, black, 0, surface(z, 0.3) + 0.012, z);
@@ -652,12 +743,14 @@ export function buildCarModel(spec: CarSpec, headlightsOn = false): CarModel {
     add(geometry, material, x, y, z, -0.06, Math.PI, roll);
   };
   if (design.wing === 'v') {
-    rounded(0.1, 0.16, 0.2, paint, 0, tailTop + 0.08, wingZ - 0.05);
-    for (const side of [-1, 1]) airfoil(width * 0.5, 0.42, paint, tailTop + 0.19, wingZ - 0.05, side * 0.12, side * width * 0.24);
+    for (const side of [-1, 1]) {
+      rounded(0.055, 0.23, 0.19, paint, side * width * 0.29, tailTop + 0.115, wingZ - 0.04, 0.18);
+      airfoil(width * 0.5, 0.34, paint, tailTop + 0.235, wingZ - 0.05, side * 0.045, side * width * 0.25);
+    }
   } else if (design.wing === 'gt') {
     airfoil(width - 0.06, 0.46, black, tailTop + wingHeight, wingZ - 0.06);
     for (const side of [-1, 1]) {
-      rounded(0.025, 0.28, 0.5, black, side * (width / 2 - 0.02), tailTop + wingHeight - 0.02, wingZ - 0.06);
+      rounded(0.025, design.highDetail ? 0.12 : 0.28, 0.5, black, side * (width / 2 - 0.02), tailTop + wingHeight - 0.02, wingZ - 0.06);
       rounded(0.045, wingHeight, 0.12, black, side * 0.48, tailTop + wingHeight / 2, wingZ);
     }
   } else if (design.wing === 'whale') {
@@ -666,8 +759,9 @@ export function buildCarModel(spec: CarSpec, headlightsOn = false): CarModel {
   } else if (design.wing === 'lip') {
     rounded(tailPart.halfWidth * 1.6, 0.04, 0.12, paint, 0, tailTop + 0.02, -nose + 0.1, -0.3);
   } else if (design.wing === 'low') {
-    airfoil(width - 0.22, 0.34, paint, tailTop + wingHeight, wingZ);
-    for (const side of [-1, 1]) rounded(0.04, wingHeight, 0.16, paint, side * (width / 2 - 0.45), tailTop + wingHeight / 2, wingZ);
+    const wingPaint = spec.id === 'diablo' ? black : paint;
+    airfoil(width - 0.22, 0.34, wingPaint, tailTop + wingHeight, wingZ);
+    for (const side of [-1, 1]) rounded(0.04, wingHeight, 0.16, wingPaint, side * (width / 2 - 0.45), tailTop + wingHeight / 2, wingZ);
   }
 
   // Additive glows for brake lights, and headlights on evening tracks.
@@ -712,7 +806,12 @@ export function buildCarModel(spec: CarSpec, headlightsOn = false): CarModel {
   // Wheels: rubber and metal meshes spin; front pivots steer.
   const wheels = wheelGeometry(design.rims ?? 'five');
   const rubber = new THREE.MeshStandardMaterial({ color: 0x141416, roughness: 0.85 });
-  const rim = new THREE.MeshStandardMaterial({ color: spec.id === 'indy98' || spec.id === 'spectre' ? 0xc4a851 : 0xc9cdd2, roughness: 0.27, metalness: 0.85 });
+  const rim = new THREE.MeshStandardMaterial({
+    color: design.highDetail ? 0xffffff : spec.id === 'indy98' || spec.id === 'spectre' ? 0xc4a851 : 0xc9cdd2,
+    vertexColors: !!wheels.metal.getAttribute('color'),
+    roughness: design.highDetail ? 0.22 : 0.27,
+    metalness: 0.85,
+  });
   const brake = new THREE.MeshStandardMaterial({ color: 0x454b53, roughness: 0.65, metalness: 0.55 });
   materials.push(rubber, rim, brake);
   const spinners: THREE.Group[] = [];
@@ -725,7 +824,7 @@ export function buildCarModel(spec: CarSpec, headlightsOn = false): CarModel {
   for (const z of [front, rear]) {
     for (const side of [-1, 1]) {
       const pivot = new THREE.Group();
-      const tyreWidth = z < 0 ? (design.rearTyreWidth ?? 1) : 1;
+      const tyreWidth = z < 0 ? (design.rearTyreWidth ?? 1) : (design.frontTyreWidth ?? 1);
       pivot.position.set(side * (shape.section(z).halfWidth - 0.13 * tyreWidth), wheelRadius, z);
       const spinner = new THREE.Group();
       spinner.scale.set(tyreWidth, wheelScale, wheelScale);
@@ -769,13 +868,21 @@ export function buildCarModel(spec: CarSpec, headlightsOn = false): CarModel {
   // Static body parts collapse into one mesh per material.
   batchStatic(body, Number.POSITIVE_INFINITY);
   group.traverse((child) => {
-    if (child instanceof THREE.Mesh && child !== shadow) child.castShadow = true;
+    if (child instanceof THREE.Mesh && child !== shadow)
+      child.castShadow = !(Array.isArray(child.material) ? child.material : [child.material]).some((material) => material.transparent);
   });
 
   // Distant rivals retain their individual silhouette, windows, wing and lights in a handful of draws.
   const distant = new THREE.Group();
   const simple = buildBodyShape(design, length, width, true);
-  distant.add(new THREE.Mesh(simple.body, paint), new THREE.Mesh(simple.glass, [glass, roofPaint, paint]));
+  const distantGlass = design.cockpit ? glass.clone() : glass;
+  if (distantGlass !== glass) {
+    distantGlass.transparent = false;
+    distantGlass.opacity = 1;
+    distantGlass.depthWrite = true;
+    materials.push(distantGlass);
+  }
+  distant.add(new THREE.Mesh(simple.body, paint), new THREE.Mesh(simple.glass, [distantGlass, roofPaint, paint]));
   const lowBox = (w: number, h: number, d: number, material: THREE.Material, x: number, y: number, z: number) => {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
     mesh.position.set(x, y, z);

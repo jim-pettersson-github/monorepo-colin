@@ -57,6 +57,7 @@ function loft(
   caps = true,
   capSurface?: (x: number, y: number, facing: number) => number,
   lowDetail = false,
+  smoothRings = false,
 ) {
   const ringSize = rings[0].length,
     positions: number[] = [],
@@ -130,6 +131,23 @@ function loft(
     start += group.length;
   });
   geometry.computeVertexNormals();
+  if (smoothRings) {
+    // Uneven arch/body station spacing must not produce ripples in polished fender highlights.
+    const normals = geometry.getAttribute('normal');
+    for (let i = 1; i < rings.length - 1; i++)
+      for (let j = 0; j < ringSize; j++) {
+        const point = rings[i][j],
+          before = point.clone().sub(rings[i - 1][j]),
+          after = rings[i + 1][j].clone().sub(point),
+          left = before.length(),
+          right = after.length();
+        if (Math.min(left, right) < 0.000001) continue;
+        const along = before.multiplyScalar(right / left).add(after.multiplyScalar(left / right));
+        const around = rings[i][(j + 1) % ringSize].clone().sub(rings[i][(j + ringSize - 1) % ringSize]);
+        const normal = around.cross(along).normalize();
+        normals.setXYZ(i * ringSize + j, normal.x, normal.y, normal.z);
+      }
+  }
   return geometry;
 }
 
@@ -149,7 +167,13 @@ export function buildBodyShape(design: CarDesign, length: number, width: number,
       const distance = Math.abs(z - axle),
         fender = wheelRadius + archRadius + 0.028;
       shoulder = Math.max(shoulder, THREE.MathUtils.lerp(fender, shoulder, THREE.MathUtils.smoothstep(distance, archRadius * 0.7, archRadius * 1.5)));
-      if (distance < archRadius) bottom = Math.max(bottom, Math.min(wheelRadius + Math.sqrt(archRadius ** 2 - distance ** 2), shoulder - 0.026));
+      if (distance < archRadius) {
+        const t = distance / archRadius;
+        const opening = design.angularArches
+          ? archRadius * (t < 0.45 ? 1 : t < 0.84 ? THREE.MathUtils.lerp(1, 0.5, (t - 0.45) / 0.39) : (0.5 * (1 - t)) / 0.16)
+          : Math.sqrt(archRadius ** 2 - distance ** 2);
+        bottom = Math.max(bottom, Math.min(wheelRadius + opening, shoulder - 0.026));
+      }
     }
     return { halfWidth, bottom, shoulder, crown };
   };
@@ -173,11 +197,12 @@ export function buildBodyShape(design: CarDesign, length: number, width: number,
     z + (bumperZ(x, y, Math.sign(z)) - (Math.sign(z) * length) / 2) * THREE.MathUtils.smoothstep(Math.abs(z / length), 0.385, 0.5);
 
   const stations = new Set<number>(design.body.map((station) => station[0] * length));
-  const count = lowDetail ? 14 : 46;
+  const count = lowDetail ? 14 : design.highDetail ? 72 : 46;
   for (let i = 0; i < count; i++) stations.add((-0.5 + i / (count - 1)) * length);
   // Extra samples follow the actual circular wheel openings rather than a coarse jagged cut.
-  const archSteps = lowDetail ? 4 : 16;
+  const archSteps = lowDetail ? 4 : design.highDetail ? 24 : 16;
   for (const axle of [front, rear]) for (let i = 0; i <= archSteps; i++) stations.add(axle + archRadius * Math.cos((i / archSteps) * Math.PI));
+  if (design.angularArches) for (const axle of [front, rear]) for (const t of [-0.84, -0.45, 0.45, 0.84]) stations.add(axle + archRadius * t);
   const sectionPoints = (z: number): [number, number][] => {
     const { bottom, shoulder } = section(z);
     const up = (t: number) => THREE.MathUtils.lerp(bottom, shoulder, t);
@@ -230,7 +255,7 @@ export function buildBodyShape(design: CarDesign, length: number, width: number,
     });
   const body = loft(
     bodyRings,
-    design.openTop
+    design.openTop || (design.cockpit && !lowDetail)
       ? (station, segment) => {
           const a = bodyRings[station][segment],
             b = bodyRings[station][(segment + 1) % bodyRings[station].length],
@@ -243,6 +268,7 @@ export function buildBodyShape(design: CarDesign, length: number, width: number,
     true,
     bumperZ,
     lowDetail,
+    !!design.highDetail && !lowDetail,
   );
 
   const [rearBase, roofRear, roofFront, screenBase] = design.cabin;
@@ -252,7 +278,15 @@ export function buildBodyShape(design: CarDesign, length: number, width: number,
       { halfWidth: w, crown, shoulder } = section(z),
       base = Math.max(crown, shoulder - 0.045) + 0.008;
     const dome = (design.roofDome ?? 0) * Math.sin(THREE.MathUtils.clamp((u - rearBase[0]) / (screenBase[0] - rearBase[0]), 0, 1) * Math.PI);
-    const roof = Math.max(base + 0.008, cabinProfile(u, 1) + dome);
+    let height = cabinProfile(u, 1);
+    if (design.angularCabin) {
+      let i = design.cabin.findIndex(([station]) => station >= u);
+      i = Math.max(1, i < 0 ? design.cabin.length - 1 : i);
+      const [a, b] = [design.cabin[i - 1], design.cabin[i]];
+      const straight = THREE.MathUtils.lerp(a[1], b[1], THREE.MathUtils.clamp((u - a[0]) / (b[0] - a[0]), 0, 1));
+      height = THREE.MathUtils.lerp(height, straight, 0.85);
+    }
+    const roof = Math.max(base + 0.008, height + dome);
     const spread =
       u < roofRear[0]
         ? THREE.MathUtils.smoothstep(roofRear[0] - u, 0, roofRear[0] - rearBase[0])

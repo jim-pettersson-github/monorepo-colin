@@ -375,7 +375,7 @@ test('both car detail levels have outward curved bumpers, finite geometry and cl
     const design = designs[car.id];
     const shape = buildBodyShape(design, car.length, car.width, lowDetail);
     const triangles = (shape.body.index?.count ?? 0) / 3 + (shape.glass.index?.count ?? 0) / 3;
-    expect(triangles, `${car.id}: body detail budget`).toBeLessThan(lowDetail ? 1800 : 7000);
+    expect(triangles, `${car.id}: body detail budget`).toBeLessThan(lowDetail ? (design.highDetail ? 2100 : 1800) : design.highDetail ? 11500 : 7000);
     for (const geometry of [shape.body, shape.glass]) {
       const positions = geometry.getAttribute('position'),
         normals = geometry.getAttribute('normal');
