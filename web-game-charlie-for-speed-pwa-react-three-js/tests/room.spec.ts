@@ -192,3 +192,24 @@ test('join progress: a guest sees each step and the time, and the list is hidden
     for (const p of [host, guest]) await p.context().close();
   }
 });
+
+test('room code: when the host leaves the lobby, the guest is told the host left', async ({ browser, baseURL }, info) => {
+  test.skip(info.project.name !== 'desktop', 'Pairing is the same on every layout.');
+  test.setTimeout(60000);
+  if (!baseURL) throw new Error('No preview URL');
+  const host = await device(browser, baseURL, false);
+  const guest = await device(browser, baseURL, true);
+  try {
+    await host.getByRole('button', { name: /^Spela online/ }).click();
+    await host.getByRole('button', { name: /^Jag är värd/ }).click();
+    const code = (await host.getByTestId('room-code').textContent()) ?? '';
+    await joinByCode(guest, code);
+    await expect(guest.getByText('Enheterna är anslutna!')).toBeVisible({ timeout: 30000 });
+
+    await host.getByRole('button', { name: /Byt roll/ }).click();
+    await expect(guest.getByRole('alert')).toContainText('Värden lämnade spelet', { timeout: 15000 });
+    await expect(guest.getByRole('alert')).not.toContainText('överföra speldata');
+  } finally {
+    for (const p of [host, guest]) await p.context().close();
+  }
+});

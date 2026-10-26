@@ -254,10 +254,17 @@ export class PeerLink {
       this.status = 'connected';
       this.publish();
     };
+    const left =
+      this.role === 'guest'
+        ? 'Värden lämnade spelet: stängde det, laddade om eller gick ur lobbyn.'
+        : 'Spelaren lämnade spelet: stängde det, laddade om eller gick ur lobbyn.';
     channel.onclose = () => {
-      if (!this.disposed) this.fail('Den andra spelaren kopplade från. Koppla ihop enheterna igen för en ny tävling.');
+      if (!this.disposed) this.fail(left);
     };
-    channel.onerror = () => this.fail('Det gick inte att överföra speldata. Skapa en ny anslutning.');
+    // A device that closes its page, reloads or leaves the lobby aborts the connection, which arrives here as an error
+    // (SCTP cause 12, user-initiated abort) rather than as a close.
+    channel.onerror = (event) =>
+      this.fail((event as RTCErrorEvent).error?.sctpCauseCode === 12 ? left : 'Det gick inte att överföra speldata. Skapa en ny anslutning.');
     this.listen(channel);
   }
   private listen(channel: RTCDataChannel) {
@@ -304,11 +311,31 @@ export class PeerLink {
   private async gather(description: RTCSessionDescriptionInit) {
     this.status = 'gathering';
     this.publish();
+    const started = Date.now();
     await this.peer.setLocalDescription(description);
     if (this.peer.iceGatheringState !== 'complete')
       await new Promise<void>((resolve, reject) => {
+        // Phones often never report gathering as complete, and used to wait the full ten seconds here. A relay
+        // address is the last kind to arrive, so once one has and nothing new follows, the code is ready.
+        let relay = false;
+        let internet = false;
+        let settle: ReturnType<typeof setTimeout> | undefined;
+        const found = (event: RTCPeerConnectionIceEvent) => {
+          if (event.candidate?.type === 'relay') relay = true;
+          if (event.candidate?.type === 'srflx') internet = true;
+          clearTimeout(settle);
+          if (relay) settle = setTimeout(finish, 400);
+          // Without a relay (no TURN server, or it is unreachable), an internet address is enough after a few seconds.
+          else if (internet) settle = setTimeout(finish, Math.max(400, 3000 - (Date.now() - started)));
+        };
+        const finish = () => {
+          done();
+          resolve();
+        };
         const done = () => {
           clearTimeout(timer);
+          clearTimeout(settle);
+          this.peer.removeEventListener('icecandidate', found);
           this.peer.removeEventListener('icegatheringstatechange', check);
           this.peer.removeEventListener('signalingstatechange', check);
         };
@@ -327,6 +354,7 @@ export class PeerLink {
           if (this.peer.localDescription?.sdp.includes('a=candidate:')) resolve();
           else reject(new Error('Nätverksadresserna kunde inte hämtas. Försök igen.'));
         }, 10_000);
+        this.peer.addEventListener('icecandidate', found);
         this.peer.addEventListener('icegatheringstatechange', check);
         this.peer.addEventListener('signalingstatechange', check);
         check();
