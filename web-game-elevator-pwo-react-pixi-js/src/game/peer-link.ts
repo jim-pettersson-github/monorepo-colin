@@ -178,6 +178,7 @@ export class PeerLink {
   private messages = new Set<(message: unknown) => void>();
   private revision = 0;
   private timer?: ReturnType<typeof setTimeout>;
+  private grace?: ReturnType<typeof setTimeout>;
   private readonly online: boolean;
   private disposed = false;
   // Internet pairing passes STUN servers; devices on the same network need none.
@@ -189,8 +190,16 @@ export class PeerLink {
   ) {
     this.online = iceServers.length > 0;
     this.peer = new RTCPeerConnection({ iceServers });
+    // 'disconnected' is often a short network hiccup that recovers by itself, so it gets a grace period; 'failed' is final.
     this.peer.onconnectionstatechange = () => {
-      if (['failed', 'disconnected'].includes(this.peer.connectionState)) this.fail('Kontakten bröts. Ni kan koppla ihop er igen med rumskoden.');
+      const state = this.peer.connectionState;
+      if (state === 'failed') this.fail('Kontakten bröts. Ni kan koppla ihop er igen med rumskoden.');
+      else if (state === 'disconnected') {
+        clearTimeout(this.grace);
+        this.grace = setTimeout(() => {
+          if (this.peer.connectionState !== 'connected') this.fail('Kontakten bröts. Ni kan koppla ihop er igen med rumskoden.');
+        }, 10_000);
+      } else if (state === 'connected') clearTimeout(this.grace);
     };
     if (role === 'host') this.bind(this.peer.createDataChannel('colin-elevator-v1', { ordered: true }));
     else
@@ -323,6 +332,7 @@ export class PeerLink {
     if (this.disposed) return;
     this.disposed = true;
     clearTimeout(this.timer);
+    clearTimeout(this.grace);
     this.channel?.close();
     this.peer.close();
     this.status = 'closed';

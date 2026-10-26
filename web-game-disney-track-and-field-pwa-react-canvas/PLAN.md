@@ -6,7 +6,7 @@ Sixteen individual events (five running, eight jumping/throwing, archery, diving
 
 Quick events and a mixed six-event individual championship. Distinct aiming, diving and lifting mechanics, with separate scenes and event-specific controls. Old event/championship saves retain their original programme. Three-attempt field events, separate hold/rhythm personal bests, validated saves with backup, keyboard/touch/gamepad controls with mapping, pause on background/disconnect, fullscreen, procedural sound and offline PWA updates.
 
-Two to four devices can compete through direct WebRTC connections with two-way QR pairing. The host advances the event/championship. Local saves and records are preserved.
+Two to four devices can compete online through the shared room server (open-game list or room code), with WebRTC between the devices. The host advances the event/championship. Local saves and records are preserved.
 
 ## Verification
 

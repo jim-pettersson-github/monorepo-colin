@@ -1,9 +1,8 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import type { Connection } from '../game/network-play';
-import { decodeSignal, PeerLink } from '../game/peer-link';
-import { Room, roomServer } from '../game/room-server';
-import { CodeRead, CodeShow, InviteSteps } from './QrExchange';
-import { RoomCodeCard, RoomInvite, RoomJoin } from './RoomPairing';
+import type { PeerLink } from '../game/peer-link';
+import { Room } from '../game/room-server';
+import { GameList, RoomCodeCard, RoomInvite, RoomJoin } from './RoomPairing';
 import './wifi.css';
 
 // What every device shows in the lobby's player list; the host sends it with the settings.
@@ -27,22 +26,14 @@ function validRoster(value: unknown, maxPlayers: number): value is RosterEntry[]
   );
 }
 
-const rosterText = { host: 'värd', ready: 'Redo ✓', waiting: 'väntar på Redo', joining: 'ansluter…' };
+// "Charlies spel", "Klaus spel": Swedish genitive for the open-game list.
+const gameTitle = (name: string) => (name ? `${name}${/[sxz]$/i.test(name) ? '' : 's'} spel` : 'Öppet spel');
 
-// With a room code, QR pairing on the same Wi-Fi is the second option, folded away.
-function FoldedQr({ folded, summary, children }: { folded: boolean; summary: string; children: ReactNode }) {
-  if (!folded) return children;
-  return (
-    <details className='code-details'>
-      <summary>{summary}</summary>
-      {children}
-    </details>
-  );
-}
+const rosterText = { host: 'värd', ready: 'Redo ✓', waiting: 'väntar på Redo', joining: 'ansluter…' };
 
 export function WifiLobby<T>({
   name,
-  title = roomServer() ? 'Spela online' : 'Spela via Wi-Fi',
+  title = 'Spela online',
   maxPlayers,
   config: baseConfig,
   configure,
@@ -54,9 +45,10 @@ export function WifiLobby<T>({
   available,
   hostSettings,
   guestPick,
-  startLabel = 'Starta Wi-Fi-tävling',
+  startLabel = 'Starta spelet',
   playerName = '',
   onPlayerName,
+  listing,
   onBack,
   onLaunch,
 }: {
@@ -80,6 +72,8 @@ export function WifiLobby<T>({
   // This device's player name in the lobby list; with onPlayerName the lobby lets the player change it.
   playerName?: string;
   onPlayerName?: (name: string) => void;
+  // One line about the game for the open-game list, such as the track and laps.
+  listing?: (config: T) => string;
   onBack: () => void;
   // The host's room moves with the connections, so the next screen can invite more players or close it.
   onLaunch: (connections: Connection[], config: T, state?: unknown, room?: Room) => void;
@@ -112,15 +106,16 @@ export function WifiLobby<T>({
   const [error, setError] = useState('');
   const [room, setRoom] = useState<Room | null>(null);
   const [opening, setOpening] = useState(false);
-  const [viaRoom, setViaRoom] = useState(false);
   const [names, setNames] = useState<Record<number, string>>({});
   const [roster, setRoster] = useState<RosterEntry[]>([]);
   const [notice, setNotice] = useState('');
   const [lastCode, setLastCode] = useState('');
+  const [listed, setListed] = useState(true);
+  const [pick, setPick] = useState<{ code: string; at: number }>();
+  const kicked = useRef(false);
   const [, refresh] = useState(0);
   const owned = useRef<PeerLink[]>([]);
   const ownedRoom = useRef<Room | null>(null);
-  const online = !!roomServer();
   const transferred = useRef(false);
   const launch = useRef(onLaunch);
   launch.current = onLaunch;
@@ -170,6 +165,10 @@ export function WifiLobby<T>({
           setGuestConfig(m.config);
           setSlot(Number(m.slot));
           if (validRoster(m.roster, maxPlayers)) setRoster(m.roster);
+        }
+        if (role === 'guest' && m.kind === 'lobby-kick') {
+          kicked.current = true;
+          link.close();
         }
         if (
           role === 'guest' &&
@@ -229,7 +228,6 @@ export function WifiLobby<T>({
     ownedRoom.current = null;
     setRoom(null);
     setOpening(false);
-    setViaRoom(false);
   };
   // Removing a player renumbers the rest, so player numbers always run 2, 3, 4…; everyone else keeps their name, pick and Redo.
   const removeLink = (target: PeerLink) => {
@@ -244,10 +242,10 @@ export function WifiLobby<T>({
     setPicks(renumber);
     setNames(renumber);
   };
-  const addGuest = async (open = room) => {
+  const addGuest = async (open: Room) => {
     setError('');
     try {
-      const link = open ? open.link() : new PeerLink('host');
+      const link = open.link();
       owned.current.push(link);
       setLinks((old) => [...old, { slot: old.length + 1, link }]);
       setInvite(link);
@@ -258,21 +256,18 @@ export function WifiLobby<T>({
   };
   const startHosting = async () => {
     setRole('host');
-    let open: Room | null = null;
-    let problem = '';
-    if (online) {
-      setOpening(true);
-      try {
-        open = await Room.open();
-        ownedRoom.current = open;
-        setRoom(open);
-      } catch (e) {
-        problem = `${e instanceof Error ? e.message : 'Spelservern svarar inte.'} Para ihop med QR-koden istället.`;
-      }
+    setError('');
+    setOpening(true);
+    try {
+      const open = await Room.open();
+      ownedRoom.current = open;
+      setRoom(open);
       setOpening(false);
+      await addGuest(open);
+    } catch (e) {
+      setOpening(false);
+      setError(`${e instanceof Error ? e.message : 'Spelservern svarar inte.'} Kolla internet och försök igen.`);
     }
-    await addGuest(open);
-    if (problem) setError(problem);
   };
   const pending = invite && invite.status !== 'connected' ? invite : null;
   const inviteConnected = invite?.status === 'connected';
@@ -292,37 +287,43 @@ export function WifiLobby<T>({
     void addGuest(room);
   }, [failedInvite]);
   // A guest whose room connection fails goes back to the code, ready to try again.
-  const failedJoin = role === 'guest' && viaRoom && invite && (invite.status === 'error' || invite.status === 'closed') ? invite : null;
+  const failedJoin = role === 'guest' && invite && (invite.status === 'error' || invite.status === 'closed') ? invite : null;
   useEffect(() => {
     if (!failedJoin) return;
-    setNotice(failedJoin.error || 'Anslutningen till värden bröts.');
+    setNotice(kicked.current ? 'Värden tog bort dig från spelet.' : failedJoin.error || 'Anslutningen till värden bröts.');
+    kicked.current = false;
     owned.current = [];
     setLinks([]);
     setInvite(null);
-    setViaRoom(false);
     setGuestConfig(null);
     setRoster([]);
     setReady('');
   }, [failedJoin]);
-  const pendingSlot = pending ? (links.find(({ link }) => link === pending)?.slot ?? links.length) : 0;
+  const players = joined.length + 1;
+  const listingTitle = gameTitle(cleanLabel(playerName));
+  const info = listing ? listing(config) : '';
+  useEffect(() => {
+    if (role !== 'host' || !room) return;
+    const announce = () => room.announce({ listed, title: listingTitle, info, players, capacity: maxPlayers }).catch(() => {});
+    void announce();
+    const timer = window.setInterval(announce, 5000);
+    return () => clearInterval(timer);
+  }, [role, room, listed, listingTitle, info, players, maxPlayers]);
+  // The host can send someone away; the message goes first so their screen can say why.
+  const removeRef = useRef(removeLink);
+  removeRef.current = removeLink;
+  const kick = (target: PeerLink) => {
+    target.send({ kind: 'lobby-kick' });
+    window.setTimeout(() => removeRef.current(target), 300);
+  };
   const allReady = joined.length > 0 && joined.every(({ slot, link }) => link.status === 'connected' && guestReady[slot] === token);
   const guestStep = connected ? 3 : invite ? 2 : 1;
   const linkState = (link: PeerLink, player: number) => {
     if (link.status === 'connected') return guestReady[player] === token ? 'Ansluten · Redo ✓' : 'Ansluten · väntar på Redo';
     if (link.status === 'error' || link.status === 'closed') return 'Anslutningen bröts';
     if (link.status === 'connecting') return 'Ansluter…';
-    return room ? 'Väntar på att någon skriver rumskoden…' : 'Bjuds in…';
+    return 'Väntar på att någon går med…';
   };
-  const qrInvite = pending && (
-    <InviteSteps
-      code={pending.code}
-      player={pendingSlot + 1}
-      onAnswer={async (value) => {
-        if (!pending.code) throw new Error('Vänta tills koden är klar.');
-        await pending.acceptAnswer(value);
-      }}
-    />
-  );
 
   return (
     <main className='wifi-shell'>
@@ -330,10 +331,10 @@ export function WifiLobby<T>({
         <button type='button' onClick={role ? reset : onBack}>
           ← {role ? 'Byt roll' : 'Tillbaka'}
         </button>
-        <p className='eyebrow'>{online ? 'WI-FI ELLER INTERNET' : 'SAMMA WI-FI'} · EN ENHET PER SPELARE</p>
+        <p className='eyebrow'>ONLINE · EN ENHET PER SPELARE</p>
         <h1>{title}</h1>
       </header>
-      {!supported && <p role='alert'>Öppna spelets HTTPS-adress i en webbläsare med WebRTC. Kamera kräver HTTPS eller localhost.</p>}
+      {!supported && <p role='alert'>Öppna spelets HTTPS-adress i en webbläsare med WebRTC.</p>}
 
       {onPlayerName && (
         <label className='lobby-name'>
@@ -347,11 +348,11 @@ export function WifiLobby<T>({
           <div className='wifi-role-options'>
             <button type='button' className='role-card primary' disabled={!supported} onClick={() => void startHosting()}>
               <strong>Jag är värd</strong>
-              <span>Du väljer inställningarna och bjuder in kompisarna, en i taget.</span>
+              <span>Du väljer inställningarna. Spelet syns i listan, och kompisar går med därifrån eller med rumskoden.</span>
             </button>
             <button type='button' className='role-card' disabled={!supported} onClick={() => setRole('guest')}>
               <strong>Jag går med</strong>
-              <span>{online ? 'Du skriver värdens rumskod, eller läser in QR-koden.' : 'Du läser in värdens kod och skickar ditt svar tillbaka.'}</span>
+              <span>Du väljer ett öppet spel i listan, eller skriver värdens rumskod.</span>
             </button>
           </div>
           <p className='hint'>Öppna {name} på varje telefon eller dator. En av er är värd.</p>
@@ -363,7 +364,21 @@ export function WifiLobby<T>({
           <section className='wifi-panel'>
             <h2>Spelare</h2>
             {opening && <p role='status'>Öppnar ett rum…</p>}
+            {!room && !opening && (
+              <button type='button' className='primary' onClick={() => void startHosting()}>
+                Försök igen
+              </button>
+            )}
             {room && <RoomCodeCard room={room} />}
+            {room && (
+              <label className='toggle list-toggle'>
+                <input type='checkbox' checked={listed} onChange={(event) => setListed(event.target.checked)} />
+                <span>
+                  Visa i listan över öppna spel
+                  <small>Alla som öppnar spelet kan se och gå med. Utan listan går det bara med rumskoden.</small>
+                </span>
+              </label>
+            )}
             <ul className='player-list'>
               <li className='done'>✓ Spelare 1{cleanLabel(playerName) ? ` (${cleanLabel(playerName)})` : ''} – du (värd)</li>
               {links.map(({ slot: player, link }) => (
@@ -376,31 +391,27 @@ export function WifiLobby<T>({
                       Ta bort
                     </button>
                   )}
+                  {link.status === 'connected' && (
+                    <button type='button' className='kick' onClick={() => kick(link)}>
+                      Sparka
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>
             {notice && <p role='status'>{notice}</p>}
-            {pending && pending.status !== 'error' && pending.status !== 'closed' ? (
+            {room && pending && pending.status !== 'error' && pending.status !== 'closed' ? (
               <>
-                {room ? (
-                  <>
-                    <RoomInvite room={room} link={pending} onError={setError} />
-                    <FoldedQr folded summary='Samma Wi-Fi utan internet? Para ihop med QR-kod'>
-                      {qrInvite}
-                    </FoldedQr>
-                  </>
-                ) : (
-                  qrInvite
-                )}
+                <RoomInvite room={room} link={pending} onError={setError} />
                 <button type='button' onClick={() => removeLink(pending)}>
-                  Avbryt inbjudan
+                  Stäng den lediga platsen
                 </button>
               </>
             ) : (
-              links.length + 1 < maxPlayers &&
-              !opening && (
-                <button type='button' className={joined.length ? undefined : 'primary'} onClick={() => void addGuest()}>
-                  Bjud in spelare {links.length + 2}
+              room &&
+              links.length + 1 < maxPlayers && (
+                <button type='button' className={joined.length ? undefined : 'primary'} onClick={() => void addGuest(room)}>
+                  Öppna en plats för spelare {links.length + 2}
                 </button>
               )
             )}
@@ -416,7 +427,11 @@ export function WifiLobby<T>({
           <section className='wifi-panel wifi-start'>
             {summary(config)}
             <p role='status'>
-              {allReady ? 'Alla är redo!' : joined.length ? 'Väntar på att alla anslutna spelare trycker Redo.' : 'Bjud in minst en spelare för att starta.'}
+              {allReady
+                ? 'Alla är redo!'
+                : joined.length
+                  ? 'Väntar på att alla anslutna spelare trycker Redo.'
+                  : 'Minst en spelare till behöver gå med för att starta.'}
             </p>
             <button
               type='button'
@@ -438,72 +453,44 @@ export function WifiLobby<T>({
       {role === 'guest' && (
         <>
           <ol className='wifi-progress' aria-label='Steg'>
-            {[online ? 'Skriv rumskoden' : 'Läs in värdens kod', viaRoom ? 'Anslut' : 'Skicka ditt svar', 'Redo'].map((label, index) => (
+            {['Välj spel', 'Anslut', 'Redo'].map((label, index) => (
               <li key={label} className={index + 1 < guestStep ? 'done' : index + 1 === guestStep ? 'current' : undefined}>
                 <span className='step-number'>{index + 1 < guestStep ? '✓' : index + 1}</span> {label}
               </li>
             ))}
           </ol>
-          {guestStep === 1 && online && (
+          {guestStep === 1 && (
             <section className='wifi-step'>
-              <h2>Skriv värdens rumskod</h2>
-              <p>Koden står överst på värdens skärm. Ni kan vara på samma Wi-Fi eller på olika ställen.</p>
+              <h2>Öppna spel</h2>
+              <GameList onPick={(code) => setPick({ code, at: Date.now() })} />
+            </section>
+          )}
+          {guestStep === 1 && (
+            <section className='wifi-step'>
+              <h2>Eller skriv värdens rumskod</h2>
+              <p>Koden står överst på värdens skärm. Ni kan vara på samma ställe eller långt ifrån varandra.</p>
               {notice && <p role='alert'>{notice} Tryck Gå med i rummet för att försöka igen.</p>}
               <RoomJoin
                 initialCode={lastCode}
+                pick={pick}
                 onLink={(link, code) => {
                   for (const old of owned.current) old.close();
                   owned.current = [link];
                   setLinks([{ slot: 1, link }]);
                   setInvite(link);
-                  setViaRoom(true);
                   setLastCode(code);
                   setNotice('');
                 }}
               />
             </section>
           )}
-          {guestStep === 1 && (
-            <FoldedQr folded={online} summary='Samma Wi-Fi utan internet? Läs in värdens QR-kod'>
-              <section className='wifi-step'>
-                <h2>Läs in värdens kod</h2>
-                <p>Skanna QR-bilden på värdens skärm, eller klistra in koden om värden skickade den i ett meddelande.</p>
-                <CodeRead
-                  placeholder='Klistra in värdens kod här'
-                  onCode={async (value) => {
-                    const signal = await decodeSignal(value);
-                    if (signal.type !== 'offer') throw new Error('Det här är en svarskod. Läs in värdens kod istället.');
-                    for (const link of owned.current) link.close();
-                    const link = new PeerLink('guest');
-                    owned.current = [link];
-                    setLinks([{ slot: 1, link }]);
-                    setInvite(link);
-                    try {
-                      await link.createAnswer(value);
-                    } catch (e) {
-                      link.close();
-                      setInvite(null);
-                      setLinks([]);
-                      throw e;
-                    }
-                  }}
-                />
-              </section>
-            </FoldedQr>
-          )}
           {guestStep === 2 && invite && (
             <section className='wifi-step'>
-              <h2>{viaRoom ? 'Ansluter till värden' : 'Visa ditt svar för värden'}</h2>
+              <h2>Ansluter till värden</h2>
               {invite.status === 'error' || invite.status === 'closed' ? (
                 <p role='alert'>{invite.error || 'Anslutningen bröts.'}</p>
-              ) : viaRoom ? (
-                <p role='status'>Rummet är hittat. Enheterna kopplar upp sig mot varandra…</p>
               ) : (
-                <>
-                  <p>Låt värden skanna bilden, eller dela svarskoden tillbaka via SMS eller chatt.</p>
-                  <CodeShow code={invite.code} label='Din svarskod' alt='QR-kod med svar till värden' />
-                  <p role='status'>Väntar på att värden läser in ditt svar…</p>
-                </>
+                <p role='status'>Rummet är hittat. Enheterna kopplar upp sig mot varandra…</p>
               )}
               <button type='button' onClick={reset}>
                 Börja om
@@ -552,10 +539,9 @@ export function WifiLobby<T>({
       <details>
         <summary>Hur kopplingen fungerar</summary>
         <p>
-          {online
-            ? 'Med rumskoden hittar enheterna varandra via spelservern, på samma Wi-Fi eller via internet. Själva tävlingen går direkt mellan enheterna. Vissa mobilnät och skolnät blockerar direktkontakt; testa då ett annat nät. Med QR-koden behövs ingen server, men alla måste vara på samma vanliga Wi-Fi.'
-            : 'Alla behöver vara på samma vanliga Wi-Fi; gästnätverk kan blockera kontakt mellan enheter. Ingen spelserver används, och när spelet har laddats behövs inte internet.'}{' '}
-          Om någon lämnar spelet eller tappar anslutningen pausas tävlingen för alla.
+          Spelservern hjälper enheterna att hitta varandra, oavsett om ni är på samma Wi-Fi eller på olika ställen. Själva tävlingen går direkt mellan
+          enheterna. Vissa mobilnät och skolnät blockerar direktkontakt; byt då nät, till exempel från mobildata till Wi-Fi. Om någon lämnar spelet eller tappar
+          anslutningen pausas tävlingen för alla.
         </p>
       </details>
     </main>

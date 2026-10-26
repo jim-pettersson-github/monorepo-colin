@@ -8,7 +8,7 @@ React, TypeScript, Three.js, Vite and vite-plugin-pwa. Fixed-step simulation is 
 
 ## Controls and layout
 
-Solo versus AI, two local players on one device, and two devices on the same reachable LAN using WebRTC with two-way QR signaling. The host owns simulation and results; the guest sends its local controls. No STUN, TURN or signaling service. Preserve local saves during network matches. Pause both peers on backgrounding, input loss or connection loss. Keyboard, touch and two browser-visible USB/Bluetooth gamepads. Stable controller slots, dead zones, mapping settings and pause on controller disconnect. Do not promise universal controller compatibility.
+Solo versus AI, two local players on one device, and two devices online using WebRTC paired by a four-character room code through the PHP room server (`src/game/room-server.ts`, default https://games.charliecare.se/api.php, `VITE_ROOM_SERVER` or the `alfred-fc:room-server` localStorage override for tests). There is no QR or offline pairing mode. The server only swaps pairing codes; the match runs peer-to-peer. The host owns simulation and results; the guest sends its local controls. Preserve local saves during network matches. Pause both peers on backgrounding, input loss or connection loss. Keyboard, touch and two browser-visible USB/Bluetooth gamepads. Stable controller slots, dead zones, mapping settings and pause on controller disconnect. Do not promise universal controller compatibility.
 
 Swedish UI, semantic colors, accessible menus and 48-pixel touch targets. Desktop landscape; phones portrait and landscape with no orientation lock. Movement follows camera orientation. Pause when hidden or focus is lost, without time catch-up.
 
@@ -22,7 +22,7 @@ Keep VITE_BASE_PATH support, offline precaching and user-requested updates witho
 
 The Pages root now hosts Spelhörnan, the game selector. The elevator lives under `/monorepo-colin/colin-elevator/`; existing same-origin saves retain their original keys.
 
-Cupspel includes Alfredcupen (20-club knockout with twelve drawn byes) and Mästarpokalen (two ten-team groups, semifinals and final). Preserve saved 12-club formats and fixture identities. Cups have separate validated saves and backups; the season remains independent. Drawn knockout matches use untimed golden goal. Cup matches support solo, local versus, QR peers, viewing and simulation; only the Wi-Fi host records results.
+Cupspel includes Alfredcupen (20-club knockout with twelve drawn byes) and Mästarpokalen (two ten-team groups, semifinals and final). Preserve saved 12-club formats and fixture identities. Cups have separate validated saves and backups; the season remains independent. Drawn knockout matches use untimed golden goal. Cup matches support solo, local versus, online peers, viewing and simulation; only the network host records results.
 
 Världscupen adds a separate 24-nation cup: six groups of four, top two plus four best third-place sides into a seeded round of 16 without group rematches, then quarterfinals through final. The selection is from the men's FIFA ranking of 22 December 2025 (top 18, Iran, all five Nordic countries); keep its source and selection explanation in the menu and README. National teams have flags and alternative kits. The national roster must stay out of the 20-club league and club cups; preserve their saves and schedules.
 

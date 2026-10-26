@@ -139,7 +139,7 @@ test('goal, restart and final-whistle audio do not mutate the match or replay re
   expect(tracker.update(state, false)).toEqual([]);
 });
 
-test('Wi-Fi codes round-trip compact local SDP and reject foreign, truncated and oversized payloads', async () => {
+test('pairing codes round-trip compact local SDP and reject foreign, truncated and oversized payloads', async () => {
   const signal = { v: 1 as const, id: '12345678-1234-1234-1234-123456789abc', type: 'offer' as const, sdp: 'v=0\r\na=ice-ufrag:local\r\n' };
   const code = await encodeSignal(signal);
   expect(await decodeSignal(code)).toEqual(signal);
@@ -234,7 +234,7 @@ test('the host rejects forged scores and invalid controls, synchronizes decision
   mirror.dispose();
 });
 
-test('only the Wi-Fi host records a completed league fixture and league fixtures cannot rematch', () => {
+test('only the network host records a completed league fixture and league fixtures cannot rematch', () => {
   let season = createSeason('alfred', 'easy', 60);
   const state = createLeagueMatch(season);
   if (!state) throw new Error('Missing fixture');
@@ -1201,7 +1201,7 @@ test('golden goal keeps AI reaction timing active and preserves its elapsed cloc
   expect(validMatch(restored)).toBe(false);
 });
 
-test('only the Wi-Fi host commits a cup result and cup fixtures cannot rematch', () => {
+test('only the network host commits a cup result and cup fixtures cannot rematch', () => {
   let cup = createCup('alfred', 'alfred', 'easy', 60, 5);
   const state = createCupMatch(cup);
   if (!state) throw new Error('No cup fixture');

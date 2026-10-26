@@ -28,7 +28,6 @@ import {
   verticalEvent,
 } from './game/model';
 import { NetworkSession, validNetworkSettings, validNetworkState } from './game/network-session';
-import { roomServer } from './game/room-server';
 import { Session } from './game/session';
 import { clearGame, loadGame, loadRecords, loadSettings, recordKey, saveSettings } from './game/storage';
 import './styles.css';
@@ -112,6 +111,86 @@ function CharacterPicker({ player, settings, onChange }: { player: number; setti
     </section>
   );
 }
+// "Vad vill du spela?": one event or the six-event championship. The online lobby shows the same choice to its host.
+function EventPicker({ settings, onChange }: { settings: Settings; onChange: (s: Settings) => void }) {
+  const event = eventInfo(settings.event);
+  const records = loadRecords();
+  const best = records[recordKey(settings.event, settings.assist)];
+  const [category, setCategory] = useState<'all' | 'run' | 'jump' | 'throw' | 'skill'>('all');
+  const visibleEvents = events.filter(
+    (e) =>
+      category === 'all' ||
+      (category === 'run' ? e.type === 'run' : category === 'jump' ? e.icon === 'jump' : category === 'throw' ? e.icon === 'throw' : e.type === 'skill'),
+  );
+  return (
+    <section className='play-section' aria-label='Välj tävling'>
+      <div className='section-title'>
+        <div>
+          <p className='eyebrow'>DITT NÄSTA PERSONBÄSTA</p>
+          <h2>Vad vill du spela?</h2>
+        </div>
+        <fieldset className='segmented' aria-label='Tävlingsform'>
+          <button type='button' aria-pressed={!settings.championship} onClick={() => onChange({ ...settings, championship: false })}>
+            En gren
+          </button>
+          <button type='button' aria-pressed={settings.championship} onClick={() => onChange({ ...settings, championship: true })}>
+            Sexkamp <span>★</span>
+          </button>
+        </fieldset>
+      </div>
+      <fieldset className='event-filters' aria-label='Grentyp'>
+        {(['all', 'run', 'jump', 'throw', 'skill'] as const).map((c) => (
+          <button type='button' key={c} aria-pressed={category === c} onClick={() => setCategory(c)}>
+            {
+              {
+                run: `Löpning · ${events.filter((e) => e.type === 'run').length}`,
+                jump: 'Hopp · 4',
+                throw: 'Kast · 4',
+                skill: 'Andra sporter · 3',
+                all: `Alla · ${events.length}`,
+              }[c]
+            }
+          </button>
+        ))}
+      </fieldset>
+      <div className='event-grid'>
+        {visibleEvents.map((e, index) => (
+          <button
+            type='button'
+            key={e.id}
+            className={`event-card event-${index}`}
+            aria-label={`Välj ${e.name}`}
+            aria-pressed={settings.event === e.id && !settings.championship}
+            onClick={() => onChange({ ...settings, event: e.id, championship: false })}
+          >
+            <span className='event-number'>{String(events.findIndex((event) => event.id === e.id) + 1).padStart(2, '0')}</span>
+            <SportIcon kind={e.icon} />
+            <strong>{e.name}</strong>
+            <small>
+              {e.type === 'run' ? 'LÖPNING' : e.id === 'archery' ? 'TRE PILAR · TOTALPOÄNG' : e.id === 'weightlifting' ? 'LYFT & BALANS' : 'BÄST AV TRE'}
+            </small>
+          </button>
+        ))}
+      </div>
+      <div className='event-description'>
+        <div>
+          <span className='eyebrow'>{settings.championship ? 'SEX GRENAR · EN POKAL' : event.label}</span>
+          <h3>{settings.championship ? 'Hela arenan är din.' : event.name}</h3>
+          <p>
+            {settings.championship
+              ? '100 m, bågskytte, längdhopp, tyngdlyftning, simhopp och spjut. Sex olika utmaningar. Flest poäng vinner!'
+              : event.description}
+          </p>
+        </div>
+        <span className='record-badge'>
+          <SportIcon kind='star' />
+          <small>DITT REKORD · {skillEvent(settings.event) ? 'SPORT' : settings.assist ? 'HÅLL' : 'RYTM'}</small>
+          <strong>{best ? formatResult(best.value, settings.event) : 'Ditt första väntar'}</strong>
+        </span>
+      </div>
+    </section>
+  );
+}
 function Menu({
   input,
   settings,
@@ -131,14 +210,6 @@ function Menu({
 }) {
   useSyncExternalStore(input.subscribe, input.getSnapshot);
   const event = eventInfo(settings.event);
-  const records = loadRecords();
-  const best = records[recordKey(settings.event, settings.assist)];
-  const [category, setCategory] = useState<'all' | 'run' | 'jump' | 'throw' | 'skill'>('all');
-  const visibleEvents = events.filter(
-    (e) =>
-      category === 'all' ||
-      (category === 'run' ? e.type === 'run' : category === 'jump' ? e.icon === 'jump' : category === 'throw' ? e.icon === 'throw' : e.type === 'skill'),
-  );
   const preview = useRef<CharacterId[]>(['mickey', 'stitch', 'elsa']);
   return (
     <main className='menu-shell'>
@@ -184,72 +255,17 @@ function Menu({
           </span>
         </div>
       </div>
-      <section className='play-section' aria-label='Välj tävling'>
-        <div className='section-title'>
-          <div>
-            <p className='eyebrow'>DITT NÄSTA PERSONBÄSTA</p>
-            <h2>Vad vill du spela?</h2>
-          </div>
-          <fieldset className='segmented' aria-label='Tävlingsform'>
-            <button type='button' aria-pressed={!settings.championship} onClick={() => onChange({ ...settings, championship: false })}>
-              En gren
-            </button>
-            <button type='button' aria-pressed={settings.championship} onClick={() => onChange({ ...settings, championship: true })}>
-              Sexkamp <span>★</span>
-            </button>
-          </fieldset>
+      <section className='online-banner' aria-label='Spela online'>
+        <div>
+          <p className='eyebrow'>SPELA MED KOMPISAR · 2–4 ENHETER</p>
+          <h2>Tävla online</h2>
+          <p>Var och en på sin egen telefon eller dator, var ni än är. Öppna spel syns i en lista, och alla väljer sin egen figur.</p>
         </div>
-        <fieldset className='event-filters' aria-label='Grentyp'>
-          {(['all', 'run', 'jump', 'throw', 'skill'] as const).map((c) => (
-            <button type='button' key={c} aria-pressed={category === c} onClick={() => setCategory(c)}>
-              {
-                {
-                  run: `Löpning · ${events.filter((e) => e.type === 'run').length}`,
-                  jump: 'Hopp · 4',
-                  throw: 'Kast · 4',
-                  skill: 'Andra sporter · 3',
-                  all: `Alla · ${events.length}`,
-                }[c]
-              }
-            </button>
-          ))}
-        </fieldset>
-        <div className='event-grid'>
-          {visibleEvents.map((e, index) => (
-            <button
-              type='button'
-              key={e.id}
-              className={`event-card event-${index}`}
-              aria-label={`Välj ${e.name}`}
-              aria-pressed={settings.event === e.id && !settings.championship}
-              onClick={() => onChange({ ...settings, event: e.id, championship: false })}
-            >
-              <span className='event-number'>{String(events.findIndex((event) => event.id === e.id) + 1).padStart(2, '0')}</span>
-              <SportIcon kind={e.icon} />
-              <strong>{e.name}</strong>
-              <small>
-                {e.type === 'run' ? 'LÖPNING' : e.id === 'archery' ? 'TRE PILAR · TOTALPOÄNG' : e.id === 'weightlifting' ? 'LYFT & BALANS' : 'BÄST AV TRE'}
-              </small>
-            </button>
-          ))}
-        </div>
-        <div className='event-description'>
-          <div>
-            <span className='eyebrow'>{settings.championship ? 'SEX GRENAR · EN POKAL' : event.label}</span>
-            <h3>{settings.championship ? 'Hela arenan är din.' : event.name}</h3>
-            <p>
-              {settings.championship
-                ? '100 m, bågskytte, längdhopp, tyngdlyftning, simhopp och spjut. Sex olika utmaningar. Flest poäng vinner!'
-                : event.description}
-            </p>
-          </div>
-          <span className='record-badge'>
-            <SportIcon kind='star' />
-            <small>DITT REKORD · {skillEvent(settings.event) ? 'SPORT' : settings.assist ? 'HÅLL' : 'RYTM'}</small>
-            <strong>{best ? formatResult(best.value, settings.event) : 'Ditt första väntar'}</strong>
-          </span>
-        </div>
+        <button type='button' className='primary' onClick={onWifi}>
+          Spela online <span>↗</span>
+        </button>
       </section>
+      <EventPicker settings={settings} onChange={onChange} />
       <section className='start-section' aria-label='Starta tävlingen'>
         <div>
           <span className='eyebrow'>KLAR PÅ STARTLINJEN?</span>
@@ -275,9 +291,6 @@ function Menu({
         </div>
       </section>
       <section className='setup-section'>
-        <button type='button' className='wifi-entry' onClick={onWifi}>
-          {roomServer() ? 'Spela online · 2–4 enheter' : 'Spela via Wi-Fi · 2–4 enheter'}
-        </button>
         <div className='section-title'>
           <h2>Vilka är med?</h2>
           <fieldset className='segmented' aria-label='Antal spelare'>
@@ -350,6 +363,34 @@ function EventHint({ state }: { state: GameState }) {
     </>
   );
 }
+// The online host picks the next event or the championship, and the same players go again without pairing anew.
+function NextOnline({ session }: { session: NetworkSession }) {
+  const current = session.state.settings;
+  const [choice, setChoice] = useState(current.championship ? 'championship' : current.event);
+  const name = choice === 'championship' ? 'sexkamp' : eventInfo(choice as Settings['event']).name;
+  return (
+    <div className='next-online'>
+      <label>
+        Nästa tävling
+        <select value={choice} onChange={(event) => setChoice(event.target.value)}>
+          <option value='championship'>Sexkamp · sex grenar</option>
+          {events.map((event) => (
+            <option key={event.id} value={event.id}>
+              {event.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <button
+        type='button'
+        className='primary'
+        onClick={() => session.rematch(choice === 'championship' ? { championship: true } : { championship: false, event: choice as Settings['event'] })}
+      >
+        Spela {name} ↗
+      </button>
+    </div>
+  );
+}
 function Match({ session, onMenu, onReplay }: { session: Session; onMenu: () => void; onReplay: () => void }) {
   useSyncExternalStore(session.subscribe, session.getSnapshot);
   useSyncExternalStore(session.input.subscribe, session.input.getSnapshot);
@@ -373,7 +414,7 @@ function Match({ session, onMenu, onReplay }: { session: Session; onMenu: () => 
     <main className={`game-shell ${skillEvent(s.event) ? 'skill-game' : ''}`}>
       <header className='race-header'>
         <Logo />
-        {session.networkRole && <span className='network-player'>WI-FI · DU ÄR P{session.localSlot + 1}</span>}
+        {session.networkRole && <span className='network-player'>ONLINE · DU ÄR P{session.localSlot + 1}</span>}
         <div className='event-heading'>
           <span>
             {s.settings.championship ? `SEXKAMP · GREN ${s.round + 1}/6` : 'SNABB GREN'}
@@ -486,11 +527,11 @@ function Match({ session, onMenu, onReplay }: { session: Session; onMenu: () => 
             <h2 id='dialog-title'>Pausa här och gå tillbaka?</h2>
             <p>
               {session.networkRole
-                ? 'Wi-Fi-kopplingen avslutas för alla. Dina lokala sparade tävlingar behålls.'
+                ? 'Onlinekopplingen avslutas för alla. Dina lokala sparade tävlingar behålls.'
                 : 'Din gren och sexkamp sparas. Du kan fortsätta från startmenyn.'}
             </p>
             <button type='button' className='primary' onClick={onMenu}>
-              {session.networkRole ? 'Lämna Wi-Fi-tävlingen' : 'Spara och gå till menyn'}
+              {session.networkRole ? 'Lämna onlinetävlingen' : 'Spara och gå till menyn'}
             </button>
             <button type='button' onClick={() => setExit(false)}>
               Stanna här
@@ -547,6 +588,8 @@ function Match({ session, onMenu, onReplay }: { session: Session; onMenu: () => 
               <button type='button' className='primary' onClick={session.next}>
                 {s.phase === 'attempt-result' ? 'Nästa försök' : `Nästa gren · ${eventInfo(programme(s)[s.round + 1]).name}`} →
               </button>
+            ) : session instanceof NetworkSession ? (
+              <NextOnline session={session} />
             ) : (
               <button type='button' className='primary' onClick={onReplay}>
                 Spela igen ↗
@@ -657,44 +700,49 @@ export function App() {
         name='Sagospelen'
         maxPlayers={4}
         config={wifiSettings}
-        configure={(c, count) => ({ ...c, players: count as Settings['players'] })}
-        readyKey={(c) => JSON.stringify({ ...c, players: 0 })}
+        configure={(c, count, picks) => {
+          // Each guest picks their own figure; whoever had a figure first keeps it.
+          const ids = [...c.characters];
+          for (let slot = 1; slot < count; slot++) {
+            const pick = characters.find((option) => option.id === picks[slot])?.id;
+            if (!pick) continue;
+            const owner = ids.indexOf(pick);
+            if (owner >= 0 && owner < slot) continue;
+            if (owner >= 0) ids[owner] = ids[slot];
+            ids[slot] = pick;
+          }
+          return { ...c, players: count as Settings['players'], characters: ids };
+        }}
+        // Picking a figure does not ask everyone to press Redo again; the event and its rules do.
+        readyKey={(c) => JSON.stringify({ ...c, players: 0, characters: [] })}
+        listing={(c) => (c.championship ? 'Sexkamp' : eventInfo(c.event).name)}
         validConfig={validNetworkSettings}
         validStart={validNetworkState}
         summary={(c) => (
-          <p>
-            {c.championship ? 'Sexkamp' : eventInfo(c.event).name} · {c.players} spelare ·{' '}
-            {c.characters
-              .slice(0, c.players)
-              .map((id) => character(id).name)
-              .join(' / ')}
-          </p>
+          <>
+            <p>
+              {c.championship ? 'Sexkamp · sex grenar' : eventInfo(c.event).name} · {c.players} spelare
+              {c.players < 4 ? ` och ${4 - c.players} datorfigurer` : ''}
+            </p>
+            <ol className='lobby-cast' aria-label='Figurer'>
+              {c.characters.slice(0, c.players).map((id, player) => (
+                <li key={id}>
+                  <Portrait id={id} />
+                  <span className='cast-name'>
+                    <small className='cast-player'>Spelare {player + 1}</small>
+                    {character(id).name}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </>
         )}
+        guestPick={(c, slot, pick) => <CharacterPicker player={slot} settings={c} onChange={(next) => pick(next.characters[slot])} />}
         available={controlsReady(local, input)}
         controls={<ControlSetup input={input} settings={local} onChange={(s) => setWifiSource(s.sources[0])} />}
         hostSettings={
           <>
-            <label>
-              Tävling
-              <select
-                aria-label='Tävling'
-                value={wifiSettings.championship ? 'championship' : wifiSettings.event}
-                onChange={(e) =>
-                  setWifiSettings({
-                    ...wifiSettings,
-                    championship: e.target.value === 'championship',
-                    event: e.target.value === 'championship' ? wifiSettings.event : (e.target.value as Settings['event']),
-                  })
-                }
-              >
-                <option value='championship'>Sexkamp</option>
-                {events.map((event) => (
-                  <option key={event.id} value={event.id}>
-                    {event.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <EventPicker settings={wifiSettings} onChange={setWifiSettings} />
             <label>
               Löpstil
               <select value={wifiSettings.assist ? 'hold' : 'rhythm'} onChange={(e) => setWifiSettings({ ...wifiSettings, assist: e.target.value === 'hold' })}>
@@ -702,28 +750,8 @@ export function App() {
                 <option value='rhythm'>Arkad · snabbare tryck ger mer fart</option>
               </select>
             </label>
-            {([0, 1, 2, 3] as const).map((player) => (
-              <label key={player}>
-                Figur spelare {player + 1}
-                <select
-                  value={wifiSettings.characters[player]}
-                  onChange={(e) => {
-                    const ids = [...wifiSettings.characters];
-                    const id = e.target.value as CharacterId;
-                    const other = ids.indexOf(id);
-                    if (other >= 0) ids[other] = ids[player];
-                    ids[player] = id;
-                    setWifiSettings({ ...wifiSettings, characters: ids });
-                  }}
-                >
-                  {characters.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ))}
+            <CharacterPicker player={0} settings={wifiSettings} onChange={setWifiSettings} />
+            <p className='hint'>Gästerna väljer sina egna figurer på sina enheter.</p>
           </>
         }
         onBack={() => setWifi(false)}

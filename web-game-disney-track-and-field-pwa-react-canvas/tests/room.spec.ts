@@ -32,7 +32,7 @@ test('room code: three devices join at once and start the event', async ({ brows
   for (const p of [host, ...guests]) p.on('pageerror', (e) => errors.push(e.message));
   try {
     await host.getByRole('button', { name: /^Spela online/ }).click();
-    await expect(host.getByText('WI-FI ELLER INTERNET · EN ENHET PER SPELARE')).toBeVisible();
+    await expect(host.getByText('ONLINE · EN ENHET PER SPELARE')).toBeVisible();
     await host.getByRole('button', { name: /^Jag är värd/ }).click();
     const code = (await host.getByTestId('room-code').textContent()) ?? '';
     expect(code).toMatch(/^[A-Z0-9]{4}$/);
@@ -44,18 +44,18 @@ test('room code: three devices join at once and start the event', async ({ brows
       await guest.getByRole('button', { name: 'Jag är redo', exact: true }).click();
     }
     await expect(host.getByText(/Spelare 3 – Ansluten · Redo/)).toBeVisible();
-    await expect(host.getByText(/Spelare 4 – Väntar på att någon skriver rumskoden/)).toBeVisible();
+    await expect(host.getByText(/Spelare 4 – Väntar på att någon går med/)).toBeVisible();
 
-    await host.getByRole('button', { name: 'Starta Wi-Fi-tävling', exact: true }).click();
+    await host.getByRole('button', { name: 'Starta spelet', exact: true }).click();
     for (const p of [host, ...guests]) await expect(p.locator('.game-canvas')).toHaveAttribute('data-rendered', 'true');
-    await expect(guests[1].getByText(/WI-FI · DU ÄR P\d/)).toBeVisible();
+    await expect(guests[1].getByText(/ONLINE · DU ÄR P\d/)).toBeVisible();
     expect(errors).toEqual([]);
   } finally {
     for (const p of [host, ...guests]) await p.context().close();
   }
 });
 
-test('room code: a wrong code says so, and a missing server falls back to QR', async ({ browser, baseURL }, info) => {
+test('room code: a wrong code says so, and a missing server offers to try again', async ({ browser, baseURL }, info) => {
   test.skip(info.project.name !== 'desktop', 'Pairing is the same on every layout.');
   if (!baseURL) throw new Error('No preview URL');
   const guest = await device(browser, baseURL, true);
@@ -66,8 +66,8 @@ test('room code: a wrong code says so, and a missing server falls back to QR', a
 
     await offline.getByRole('button', { name: /^Spela online/ }).click();
     await offline.getByRole('button', { name: /^Jag är värd/ }).click();
-    await expect(offline.getByText(/Spelservern svarar inte.*Para ihop med QR-koden istället/)).toBeVisible({ timeout: 15000 });
-    await expect(offline.locator('.connection-qr')).toBeVisible();
+    await expect(offline.getByText(/Spelservern svarar inte.*försök igen/)).toBeVisible({ timeout: 15000 });
+    await expect(offline.getByRole('button', { name: 'Försök igen', exact: true })).toBeVisible();
   } finally {
     for (const p of [guest, offline]) await p.context().close();
   }

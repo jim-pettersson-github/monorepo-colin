@@ -8,7 +8,6 @@ import type { LeagueAction, Season } from '../game/league';
 import { initialDivisions, nextFixture, opponentClub, seasonRounds } from '../game/league';
 import type { CupKind, Difficulty, MatchMode, MatchState, PlaybackSpeed, Team } from '../game/model';
 import { difficultyNames } from '../game/model';
-import { roomServer } from '../game/room-server';
 import { ControlSetup, controlsReady } from './ControlSetup';
 import { CupPanel } from './CupPanel';
 import { FullscreenButton } from './FullscreenButton';
@@ -92,7 +91,7 @@ export function StartMenu(props: Props) {
           : leagueAction === 'simulate'
             ? 'Simulera nästa ligamatch'
             : leagueAction === 'wifi'
-              ? 'Koppla upp ligamatch via Wi-Fi'
+              ? 'Koppla upp ligamatch online'
               : 'Spela nästa ligamatch'
       : 'Säsongen är klar'
     : league
@@ -181,7 +180,7 @@ export function StartMenu(props: Props) {
               <small>
                 {hub
                   ? next
-                    ? `Omgång ${next.round + 1} av ${seasonRounds(season)} · ${leagueAction === 'local' ? 'Två på samma skärm' : leagueAction === 'wifi' ? 'Två via Wi-Fi' : leagueAction === 'play' ? 'Mot datorn' : leagueAction === 'watch' ? 'Matchvisning' : 'Simulering'}`
+                    ? `Omgång ${next.round + 1} av ${seasonRounds(season)} · ${leagueAction === 'local' ? 'Två på samma skärm' : leagueAction === 'wifi' ? 'Två online' : leagueAction === 'play' ? 'Mot datorn' : leagueAction === 'watch' ? 'Matchvisning' : 'Simulering'}`
                     : 'Alla matcher är spelade'
                   : `${league ? 'Divisionsspel' : mode === 'solo' ? 'Mot datorn' : 'Två spelare'} · ${duration / 60} min${activeMode === 'solo' ? ` · ${difficultyNames[difficulty]}` : ''}`}
               </small>
@@ -215,8 +214,8 @@ export function StartMenu(props: Props) {
             {needsControls && !controlsReady(input, activeMode) && <p className='control-warning'>Välj olika, anslutna kontroller under Spelkontroller.</p>}
           </section>
           <button type='button' className='wifi-entry' disabled={simulating} onClick={props.onWifi}>
-            <strong>{roomServer() ? 'Spela online' : 'Spela via Wi-Fi'}</strong>
-            <span>{roomServer() ? 'Två enheter · rumskod, eller QR på samma Wi-Fi ↗' : 'Två enheter · Koppla ihop med QR-koder ↗'}</span>
+            <strong>Spela online</strong>
+            <span>Två enheter · Koppla ihop med en rumskod ↗</span>
           </button>
           {hub ? (
             <>
@@ -263,7 +262,7 @@ export function StartMenu(props: Props) {
                         Två på samma skärm
                       </button>
                       <button type='button' aria-pressed={leagueAction === 'wifi'} onClick={() => setLeagueAction('wifi')}>
-                        Två via Wi-Fi
+                        Två online
                       </button>
                       <button type='button' aria-pressed={leagueAction === 'watch'} onClick={() => setLeagueAction('watch')}>
                         Se matchen
@@ -278,7 +277,7 @@ export function StartMenu(props: Props) {
                         : leagueAction === 'local'
                           ? 'Spela mot varandra på samma skärm. Välj varsin kontroll nedan. Resultatet räknas i din liga.'
                           : leagueAction === 'wifi'
-                            ? 'Du är värd för nästa ligamatch. Kompisen ansluter från Spela via Wi-Fi och styr motståndarlaget. Säsongen sparas på din enhet.'
+                            ? 'Du är värd för nästa ligamatch. Kompisen ansluter från Spela online med din rumskod och styr motståndarlaget. Säsongen sparas på din enhet.'
                             : leagueAction === 'watch'
                               ? 'Datorn styr båda lagen. Välj hastighet och följ hela matchen.'
                               : 'Samma match räknas ut utan bild. Resultatet och tabellen sparas direkt.'}

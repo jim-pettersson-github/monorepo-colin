@@ -19,8 +19,6 @@
     "icons": "node scripts/generate-icons.mjs"
   },
   "dependencies": {
-    "qr-scanner": "1.4.2",
-    "qrcode": "1.5.4",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "three": "0.186.1"
@@ -29,7 +27,6 @@
     "@biomejs/biome": "2.5.13",
     "@playwright/test": "1.63.0",
     "@types/node": "22.20.2",
-    "@types/qrcode": "1.5.6",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@types/three": "0.186.0",

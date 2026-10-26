@@ -1,7 +1,9 @@
 import { decodeSignal, PeerLink } from './peer-link';
 
 // The room server only swaps pairing codes; matches still run directly between the devices.
-// Tests point a page at a local server through localStorage.
+// Tests point a page at a local server through localStorage; builds may set VITE_ROOM_SERVER.
+const DEFAULT_ROOM_SERVER = 'https://games.charliecare.se/api.php';
+
 export function roomServer() {
   try {
     const local = localStorage.getItem('alfred-fc:room-server');
@@ -9,7 +11,7 @@ export function roomServer() {
   } catch {
     /* Storage can be blocked; fall back to the built-in address. */
   }
-  return (import.meta.env.VITE_ROOM_SERVER as string | undefined) ?? '';
+  return (import.meta.env.VITE_ROOM_SERVER as string | undefined) || DEFAULT_ROOM_SERVER;
 }
 
 // STUN lets devices on different networks find each other's public address. Strict mobile networks may still need a relay.
@@ -31,7 +33,6 @@ class ServerError extends Error {
 
 async function call<T>(action: string, body?: unknown, query: Record<string, string | number> = {}): Promise<T> {
   const base = roomServer();
-  if (!base) throw new Error('Ingen spelserver är inställd.');
   const params = new URLSearchParams({ a: action, ...Object.fromEntries(Object.entries(query).map(([key, value]) => [key, String(value)])) });
   let response: Response;
   try {
@@ -43,7 +44,7 @@ async function call<T>(action: string, body?: unknown, query: Record<string, str
       signal: AbortSignal.timeout(8000),
     });
   } catch {
-    throw new Error('Spelservern svarar inte. Kolla internet, eller använd QR-koden.');
+    throw new Error('Spelservern svarar inte. Kolla att enheten är ansluten till internet.');
   }
   const value = (await response.json().catch(() => ({}))) as T & { error?: string };
   if (!response.ok) throw new ServerError(value.error || 'Spelservern kunde inte svara.', response.status);

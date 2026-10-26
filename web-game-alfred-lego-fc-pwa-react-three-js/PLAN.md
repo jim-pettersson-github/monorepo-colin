@@ -5,7 +5,7 @@
 - Quick match and two-division entry, with inline start/resume actions near the top and visible update controls and a focused match-exit confirmation modal.
 - Twenty clubs in two ten-team divisions: 18 home/away rounds and 180 fixtures, both tables, automatic round results and two promotions/relegations between completed seasons. Season numbers and division membership persist; original 12-club seasons finish unchanged.
 - League results record once at full time. Unfinished fixtures can resume; abandoning one preserves past rounds and lets the player retry. A replacement season requires confirmation.
-- League fixtures support solo, shared-screen and Wi-Fi opponents. Player 2 controls the scheduled opponent; only the Wi-Fi host records the season result. Reconnect per fixture; abandoned games do not count.
+- League fixtures support solo, shared-screen and online opponents. Player 2 controls the scheduled opponent; only the network host records the season result. Reconnect per fixture; abandoned games do not count.
 - League-only options to play, watch AI versus AI at 1×/2×/5×, or simulate directly without a pitch view. All use the same fixed-step rules, auto-take penalties, save progress and record each round once.
 - A 96 x 60 pitch, twice the original length and width, with scaled goals, markings, formations and AI positioning. Character sizes and tackle/contact distances remain unchanged.
 - A smooth shared follow camera with limited automatic zoom, pitch-edge bounds and a live overview. The menu preview still shows the whole stadium.
@@ -13,7 +13,7 @@
 - Twenty selectable clubs with distinct shirt colors, trim and crests; team selections persist through saves and rematches.
 - Procedural LEGO-style characters, animated limbs, selection rings, a patterned ball and brick-built stadium.
 - Solo versus AI or two local human players on one screen, with AI teammates.
-- Two-device LAN play via WebRTC and two-way compressed QR codes, camera/image scanning and copy/paste. The host runs the match; the guest controls player 2. Separate device input/orientation, shared pause, lost-peer handling, host rematches and local-save isolation. No external signaling, STUN or TURN.
+- Two-device online play via WebRTC, paired with a four-character room code through the PHP room server (games.charliecare.se by default). The server only swaps compact pairing codes; STUN, and TURN when the server supplies it, help devices connect. The host runs the match; the guest controls player 2. Separate device input/orientation, shared pause, lost-peer handling, room reopening after a failed join, host rematches and local-save isolation. QR pairing has been removed.
 - Fixed-step movement, possession, directional passes, open-corner assisted shots and automatic/manual player switching.
 - Moving slide tackles with ball contact, possession transfer, opponent knockdowns and timed recovery.
 - Feet-first slides use small swept contact areas relative to both players' motion. Empty slides have no decision; any ball contact makes the tackle clean. Contact without a ball win has equal chances of a yellow card, free kick or play-on. Announcements identify the offender.
@@ -27,9 +27,9 @@
 - Landscape/portrait cameras with matching input directions and unrestricted PWA rotation.
 - Pause on focus loss/backgrounding, explicit resume and validated local saves with backup recovery and one-time position migration from the smaller pitch.
 - Offline production PWA and save-before-update behavior. No accounts or backend.
-- Locally synthesized kick/pass, slide/contact, save/rebound, goal and referee/finish sound effects. Saved mute/volume controls, user-gesture audio unlocking, pause/background silence and event deduplication for restored matches and Wi-Fi snapshots.
+- Locally synthesized kick/pass, slide/contact, save/rebound, goal and referee/finish sound effects. Saved mute/volume controls, user-gesture audio unlocking, pause/background silence and event deduplication for restored matches and network snapshots.
 
-- Two independently saved twenty-club cups: Alfredcupen (twelve drawn byes into the round of 16) and Mästarpokalen (two ten-team groups, cross-group semifinals and final). Original 12-club cup saves retain their format. Group tables, brackets, champions, golden-goal knockout ties, solo/local/QR play, watching and direct simulation.
+- Two independently saved twenty-club cups: Alfredcupen (twelve drawn byes into the round of 16) and Mästarpokalen (two ten-team groups, cross-group semifinals and final). Original 12-club cup saves retain their format. Group tables, brackets, champions, golden-goal knockout ties, solo/local/online play, watching and direct simulation.
 - Världscupen: 24 national teams selected from the December 2025 FIFA men's ranking plus all five Nordic countries, flags and alternative kits. Six four-team groups, best-third-place table, round of 16 through final, a separate save and the same cup play modes. This is an arcade format; the ranking selects the roster and does not change AI strength.
 
 - Persistent transfers and wallets: 200 players (129 modern stars, 52 classics, 19 family players), balanced ten-player squads with two GK/two DEF/three MID/three FWD, era/position filters, estimated prime-year stats (professional overall ratings 86–96 and all professional attributes at most 96) and exact requested family ratings. Rebalancing retains the original IDs, names, roles and club assignments. IF Danielsson has a full ten-player Danielsson squad; IFK Katona and Petterssons FC have the other family players. Purchases, sales, swaps, protected new signings and infrequent AI moves respect money and squad minima. Match and trophy rewards are deduplicated; national squads remain fixed and earnings go to a domestic club. Old domestic slots keep IDs, keeper roles and purchased ownership when upgraded.
@@ -52,7 +52,7 @@ Desktop, portrait-phone and landscape-phone browser checks cover star search and
 
 - Play with two real controllers and verify assignment, mappings, reconnect and simultaneous actions.
 - Test Android browser/PWA portrait, landscape, multi-touch and Bluetooth/USB hardware.
-- Review QR scanning with real cameras and LAN discovery between physical devices on home routers; verify background, disconnect and rematch behavior.
+- Review room-code pairing between physical devices on home, mobile and strict school/guest networks; verify background, disconnect and rematch behavior.
 - Tune AI difficulty, movement, tackle range, shot assistance and match pace through playtesting.
 - Review minifigure detail and camera scale on physical phones.
 - Review sound levels and comfort on real speakers/headphones; consider additional team customization if wanted.
@@ -60,4 +60,4 @@ Desktop, portrait-phone and landscape-phone browser checks cover star search and
 
 ## Scope
 
-Local single-device quick matches, two-device LAN matches and two-division play with promotion/relegation and optional human opponents are implemented. Automatic internet matchmaking/relay, full football rules, music and replays are not implemented. Controller compatibility depends on the OS, browser and device. Universal compatibility is not promised.
+Local single-device quick matches, two-device online matches and two-division play with promotion/relegation and optional human opponents are implemented. Automatic matchmaking without a room code, full football rules, music and replays are not implemented. Controller compatibility depends on the OS, browser and device. Universal compatibility is not promised.

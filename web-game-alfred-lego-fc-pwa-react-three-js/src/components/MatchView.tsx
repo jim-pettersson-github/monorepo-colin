@@ -118,7 +118,7 @@ export function MatchView({
         <div className='match-ribbon'>
           <span>{state.cup?.extraTime ? 'GYLLENE MÅL · Nästa mål avgör' : state.cup ? cupName(state.cup.kind) : 'ALFRED ARENA'}</span>
           <span>
-            5 MOT 5 · {network ? `WI-FI · DU ÄR P${localTeam + 1}` : state.watching ? 'MATCHVISNING' : state.mode === 'solo' ? 'MOT DATORN' : 'TVÅ SPELARE'}
+            5 MOT 5 · {network ? `ONLINE · DU ÄR P${localTeam + 1}` : state.watching ? 'MATCHVISNING' : state.mode === 'solo' ? 'MOT DATORN' : 'TVÅ SPELARE'}
           </span>
         </div>
         {(state.phase === 'kickoff' || state.phase === 'goal') && !session.paused && (
@@ -191,7 +191,7 @@ export function MatchView({
           <div className='exit-confirm'>
             <p>
               {network
-                ? 'Wi-Fi-matchen avslutas för båda. Ni behöver koppla ihop enheterna igen för en ny match.'
+                ? 'Onlinematchen avslutas för båda. Ni behöver koppla ihop enheterna igen för en ny match.'
                 : state.cup
                   ? 'Matchen avbryts. Du kan spela om den från cupen. Tidigare cupresultat sparas.'
                   : state.league
@@ -289,7 +289,7 @@ export function MatchView({
             )}
             {network && !session.canResume && (
               <p className='control-warning' role='status'>
-                Båda behöver vara kvar i spelet med anslutna kontroller och fungerande Wi-Fi. Vid bruten anslutning: avsluta och koppla ihop igen.
+                Båda behöver vara kvar i spelet med anslutna kontroller och fungerande internet. Vid bruten anslutning: avsluta och koppla ihop igen.
               </p>
             )}
             {!state.watching && (

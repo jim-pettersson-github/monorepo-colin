@@ -81,9 +81,10 @@ export class NetworkSession extends Session {
     this.foreground = value;
     this.wire.setForeground(value);
   }
-  rematch() {
+  // Play again with the same players, optionally a different event or the championship.
+  rematch(change: Partial<Settings> = {}) {
     if (this.networkRole !== 'host' || !this.wire.canResume) return;
-    this.state = createGame(this.state.settings);
+    this.state = createGame({ ...this.state.settings, ...change });
     this.wire.nextRound();
     this.startInput();
   }

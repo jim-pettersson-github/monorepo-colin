@@ -230,7 +230,7 @@ export function CupPanel({ transfers, onTransfers, input, cups, kind, onKind, sa
                     [
                       ['play', 'Spela själv'],
                       ['local', 'Två på samma skärm'],
-                      ['wifi', 'Två via Wi-Fi'],
+                      ['wifi', 'Två online'],
                       ['watch', 'Se matchen'],
                       ['simulate', 'Simulera direkt'],
                     ] as const
@@ -261,7 +261,7 @@ export function CupPanel({ transfers, onTransfers, input, cups, kind, onKind, sa
                         : action === 'watch'
                           ? 'Se cupmatchen'
                           : action === 'wifi'
-                            ? 'Koppla upp cupmatch via Wi-Fi'
+                            ? 'Koppla upp cupmatch online'
                             : 'Spela cupmatch'}
                   </button>
                   {resumed && (

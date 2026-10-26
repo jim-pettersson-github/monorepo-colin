@@ -33,7 +33,7 @@ async function transform(bytes: Uint8Array, decompress: boolean) {
 }
 
 // Compact codes carry only what differs between connections (keys, fingerprint, candidates) and rebuild the
-// data-channel SDP from a template, so the QR image stays coarse enough to scan from another phone's screen.
+// data-channel SDP from a template, so the room server stores short codes.
 type Compact = { t: 'o' | 'a'; i: string; u: string; p: string; f: string; s: string; m: string; c: string[] };
 
 const lineValue = (sdp: string, prefix: string) =>
@@ -143,7 +143,7 @@ export async function decodeSignal(code: string): Promise<Signal> {
       if (!validCompact(value)) throw new Error();
       return expandSignal(value);
     } catch {
-      throw new Error('Koden kunde inte läsas. Kopiera hela koden eller skanna QR-bilden igen.');
+      throw new Error('Anslutningskoden kunde inte läsas. Börja om kopplingen.');
     }
   }
   if (text.length > 6000 || !/^AFC1\.[ZP]\.[A-Za-z0-9_-]+$/.test(text)) throw new Error('Det här är ingen anslutningskod från Alfred FC.');
@@ -163,7 +163,7 @@ export async function decodeSignal(code: string): Promise<Signal> {
       throw new Error();
     return value;
   } catch {
-    throw new Error('Koden kunde inte läsas. Kopiera hela koden eller skanna QR-bilden igen.');
+    throw new Error('Anslutningskoden kunde inte läsas. Börja om kopplingen.');
   }
 }
 
@@ -178,19 +178,25 @@ export class PeerLink {
   private messages = new Set<(message: unknown) => void>();
   private revision = 0;
   private timer?: ReturnType<typeof setTimeout>;
-  private readonly online: boolean;
+  private grace?: ReturnType<typeof setTimeout>;
   private disposed = false;
-  // Wi-Fi pairing needs no ICE servers; internet pairing passes STUN servers.
+  // Room pairing passes STUN (and relay) servers and a short timeout, so a blocked network gets a clear message instead of a long wait.
   constructor(
     public readonly role: PeerRole,
-    iceServers: RTCIceServer[] = [],
-    // Online pairing gives up sooner, so a blocked network gets a clear message instead of a long wait.
-    private readonly timeout = 120_000,
+    iceServers: RTCIceServer[],
+    private readonly timeout: number,
   ) {
-    this.online = iceServers.length > 0;
     this.peer = new RTCPeerConnection({ iceServers });
+    // 'disconnected' is often a short network hiccup that recovers by itself, so it gets a grace period; 'failed' is final.
     this.peer.onconnectionstatechange = () => {
-      if (['failed', 'disconnected'].includes(this.peer.connectionState)) this.fail('Anslutningen bröts. Koppla ihop enheterna igen för en ny match.');
+      const state = this.peer.connectionState;
+      if (state === 'failed') this.fail('Anslutningen bröts. Koppla ihop enheterna igen för en ny match.');
+      else if (state === 'disconnected') {
+        clearTimeout(this.grace);
+        this.grace = setTimeout(() => {
+          if (this.peer.connectionState !== 'connected') this.fail('Anslutningen bröts. Koppla ihop enheterna igen för en ny match.');
+        }, 10_000);
+      } else if (state === 'connected') clearTimeout(this.grace);
     };
     if (role === 'host') this.bind(this.peer.createDataChannel('alfred-fc-v1', { ordered: true }));
     else
@@ -296,7 +302,7 @@ export class PeerLink {
   }
   async createAnswer(code: string) {
     const offer = await decodeSignal(code);
-    if (this.role !== 'guest' || this.status !== 'new' || offer.type !== 'offer') throw new Error('Skanna värdens matchkod först.');
+    if (this.role !== 'guest' || this.status !== 'new' || offer.type !== 'offer') throw new Error('Rummet har ingen giltig inbjudan.');
     this.id = offer.id;
     await this.peer.setRemoteDescription({ type: 'offer', sdp: offer.sdp });
     await this.gather(await this.peer.createAnswer());
@@ -304,8 +310,8 @@ export class PeerLink {
   }
   async acceptAnswer(code: string) {
     const answer = await decodeSignal(code);
-    if (this.role !== 'host' || answer.type !== 'answer') throw new Error('Värden ska läsa gästens svarskod.');
-    if (answer.id !== this.id) throw new Error('Svaret hör till en annan match. Läs in den aktuella matchkoden på nytt.');
+    if (this.role !== 'host' || answer.type !== 'answer') throw new Error('Svaret från kompisen kunde inte användas.');
+    if (answer.id !== this.id) throw new Error('Svaret hör till en tidigare inbjudan. Försök igen.');
     await this.peer.setRemoteDescription({ type: 'answer', sdp: answer.sdp });
     if (this.status !== 'connected') this.status = 'connecting';
     this.startTimer();
@@ -314,15 +320,14 @@ export class PeerLink {
   private startTimer() {
     clearTimeout(this.timer);
     if (this.status === 'connected') return;
-    const message = this.online
-      ? 'Enheterna fick ingen kontakt via internet. Försök igen, eller byt nät, till exempel från mobildata till Wi-Fi.'
-      : 'Enheterna fick ingen kontakt. Använd samma vanliga Wi-Fi, undvik gästnätverk och skapa nya koder.';
+    const message = 'Enheterna fick ingen kontakt via internet. Försök igen, eller byt nät, till exempel från mobildata till Wi-Fi.';
     this.timer = setTimeout(() => this.fail(message), this.timeout);
   }
   close() {
     if (this.disposed) return;
     this.disposed = true;
     clearTimeout(this.timer);
+    clearTimeout(this.grace);
     this.channel?.close();
     this.peer.close();
     this.status = 'closed';

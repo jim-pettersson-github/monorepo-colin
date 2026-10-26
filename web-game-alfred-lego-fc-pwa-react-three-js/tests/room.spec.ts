@@ -24,11 +24,11 @@ test('room code: the guest types the host code and both start the match', async 
   for (const p of [host, guest]) p.on('pageerror', (e) => errors.push(e.message));
   try {
     for (const p of [host, guest]) await p.getByRole('button', { name: /^Spela online/ }).click();
-    await expect(host.getByText('TVÅ ENHETER · WI-FI ELLER INTERNET')).toBeVisible();
+    await expect(host.getByText('TVÅ ENHETER · ONLINE')).toBeVisible();
     await host.getByRole('button', { name: 'Skapa match', exact: false }).click();
     await expect(host.getByTestId('room-code')).toHaveText(/^[A-Z0-9]{4}$/);
     const code = (await host.getByTestId('room-code').textContent()) ?? '';
-    await expect(host.getByText('Samma Wi-Fi utan internet? Para ihop med QR-kod')).toBeVisible();
+    await expect(host.getByText(/QR/)).toHaveCount(0);
 
     await guest.getByRole('button', { name: 'Anslut', exact: false }).click();
     await guest.getByRole('textbox', { name: 'Rumskod', exact: true }).fill(code);
@@ -36,10 +36,33 @@ test('room code: the guest types the host code and both start the match', async 
     for (const p of [host, guest]) await expect(p.getByText('Enheterna är anslutna!', { exact: true })).toBeVisible({ timeout: 30000 });
 
     await guest.getByRole('button', { name: 'Jag är redo', exact: true }).click();
-    await host.getByRole('button', { name: 'Starta Wi-Fi-match', exact: true }).click();
+    await host.getByRole('button', { name: 'Starta onlinematch', exact: true }).click();
     for (const p of [host, guest]) await expect(p.locator('canvas').first()).toBeVisible();
     expect(errors).toEqual([]);
   } finally {
     for (const p of [host, guest]) await p.context().close();
   }
+});
+
+test('without an override the host uses the hosted room server and can retry calmly when it cannot be reached', async ({ page }) => {
+  const requests: string[] = [];
+  await page.route('https://games.charliecare.se/**', (route) => {
+    requests.push(route.request().url());
+    return route.abort();
+  });
+  await page.goto('./');
+  await page.getByRole('button', { name: /^Spela online/ }).click();
+  await page.getByRole('button', { name: 'Skapa match', exact: false }).click();
+  await expect(page.getByText('Det gick inte att skapa ett rum just nu.', { exact: true })).toBeVisible();
+  await expect(page.getByRole('alert')).toContainText('Spelservern svarar inte');
+  expect(requests.some((url) => url.startsWith('https://games.charliecare.se/api.php?a=create'))).toBe(true);
+  await expect(page.getByTestId('room-code')).toHaveCount(0);
+  await expect(page.getByText(/QR/)).toHaveCount(0);
+
+  // Once the server answers again, Försök igen opens a room.
+  await page.unroute('https://games.charliecare.se/**');
+  await page.evaluate((server) => localStorage.setItem('alfred-fc:room-server', server), roomServer);
+  await page.getByRole('button', { name: 'Försök igen', exact: true }).click();
+  await expect(page.getByTestId('room-code')).toHaveText(/^[A-Z0-9]{4}$/);
+  await expect(page.getByText('Det gick inte att skapa ett rum just nu.', { exact: true })).toHaveCount(0);
 });

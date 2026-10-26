@@ -1,8 +1,8 @@
 import { expect, test } from '@playwright/test';
 import { createGame, defaultSettings } from '../src/game/model';
-import { connect, paste, peers } from './wifi-helpers';
+import { connect, onlyRoomServer, peers } from './wifi-helpers';
 
-test('QR peers run separate athletes, synchronize pause and keep local saves', async ({ browser, baseURL }, info) => {
+test('online peers run separate athletes, synchronize pause and keep local saves', async ({ browser, baseURL }, info) => {
   test.setTimeout(60000);
   const group = await peers(browser, baseURL);
   const { host, guest } = group;
@@ -15,17 +15,20 @@ test('QR peers run separate athletes, synchronize pause and keep local saves', a
       await p.evaluate(() => navigator.serviceWorker.ready.then(() => undefined));
       await p.reload();
       await expect.poll(() => p.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
-      await p.context().route('**/*', (route) => route.abort());
+      await onlyRoomServer(p);
     }
-    await host.getByRole('button', { name: /^Spela via Wi-Fi/ }).click();
+    await host.getByRole('button', { name: /^Spela online/ }).click();
     await host.getByRole('button', { name: /^Jag är värd/ }).click();
     await host.getByRole('combobox', { name: 'Löpstil', exact: true }).selectOption('hold');
     await connect(host, guest);
-    await host.getByRole('combobox', { name: 'Figur spelare 1', exact: true }).selectOption('buzz');
-    await host.getByRole('combobox', { name: 'Figur spelare 2', exact: true }).selectOption('baymax');
+    // The host picks their own figure; the guest picks theirs on their own device.
+    await host.getByRole('button', { name: 'Spelare 1: Buzz Lightyear', exact: true }).click();
+    await guest.getByRole('button', { name: 'Spelare 2: Baymax', exact: true }).click();
+    await expect(host.getByRole('list', { name: 'Figurer' })).toContainText('Baymax');
+    await expect(guest.getByRole('list', { name: 'Figurer' })).toContainText('Buzz Lightyear');
     await guest.getByRole('combobox', { name: 'Kontroll spelare 1', exact: true }).selectOption('touch');
     await guest.getByRole('button', { name: 'Jag är redo', exact: true }).click();
-    await host.getByRole('button', { name: 'Starta Wi-Fi-tävling', exact: true }).click();
+    await host.getByRole('button', { name: 'Starta spelet', exact: true }).click();
     for (const p of [host, guest]) await expect(p.locator('.game-canvas')).toHaveAttribute('data-rendered', 'true');
     await expect(guest.getByRole('region', { name: 'Pekkontroller spelare 2' })).toBeVisible();
     await expect(guest.getByRole('status').filter({ hasText: 'PÅ ERA PLATSER' })).toHaveCount(0, { timeout: 5000 });
@@ -54,25 +57,24 @@ test('QR peers run separate athletes, synchronize pause and keep local saves', a
   }
 });
 
-test('four devices use separate QR exchanges and all receive the same championship', async ({ browser, baseURL }) => {
+test('four devices join one room and all receive the same championship', async ({ browser, baseURL }) => {
   test.setTimeout(90000);
   const group = await peers(browser, baseURL);
   const { host } = group;
   try {
-    await host.getByRole('button', { name: /^Spela via Wi-Fi/ }).click();
+    await host.getByRole('button', { name: /^Spela online/ }).click();
     await host.getByRole('button', { name: /^Jag är värd/ }).click();
     await host.getByRole('combobox', { name: 'Löpstil', exact: true }).selectOption('hold');
-    await host.getByLabel('Tävling', { exact: true }).selectOption('championship');
+    await host.getByRole('button', { name: /^Sexkamp/ }).click();
     const guests = [group.guest, await group.open(true), await group.open(false)];
-    for (const [i, guest] of guests.entries()) {
-      if (i > 0) await host.getByRole('button', { name: `Bjud in spelare ${i + 2}`, exact: true }).click();
-      await connect(host, guest, true);
+    for (const guest of guests) {
+      await connect(host, guest);
       await guest.getByRole('button', { name: 'Jag är redo', exact: true }).click();
     }
-    await host.getByRole('button', { name: 'Starta Wi-Fi-tävling', exact: true }).click();
+    await host.getByRole('button', { name: 'Starta spelet', exact: true }).click();
     for (const [i, p] of [host, ...guests].entries()) {
       await expect(p.locator('.game-canvas')).toHaveAttribute('data-rendered', 'true');
-      await expect(p.getByText(`WI-FI · DU ÄR P${i + 1}`, { exact: true })).toBeVisible();
+      await expect(p.getByText(`ONLINE · DU ÄR P${i + 1}`, { exact: true })).toBeVisible();
       await expect(p.locator('.runner-status small').filter({ hasText: 'SPELARE' })).toHaveCount(4);
     }
     await expect(host.locator('.countdown')).toHaveCount(0, { timeout: 6000 });
@@ -87,35 +89,18 @@ test('four devices use separate QR exchanges and all receive the same championsh
   }
 });
 
-test('wrong-game codes and camera denial leave pairing retryable', async ({ page }) => {
-  await page.addInitScript(() => {
-    navigator.mediaDevices.getUserMedia = async () => {
-      throw new DOMException('Denied', 'NotAllowedError');
-    };
-  });
-  await page.goto('./');
-  await page.getByRole('button', { name: /^Spela via Wi-Fi/ }).click();
-  await page.getByRole('button', { name: /^Jag är värd/ }).click();
-  await expect(page.locator('.connection-qr')).toBeVisible();
-  await paste(page, 'AFC1.P.abc');
-  await expect(page.getByRole('alert')).toContainText('ingen anslutningskod');
-  await page.getByRole('button', { name: 'Skanna med kameran', exact: true }).click();
-  await expect(page.getByRole('alert')).toContainText('Kameran kunde inte öppnas');
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-});
-
-test('archery forwards held aim and the shot to the host over QR multiplayer', async ({ browser, baseURL }, info) => {
+test('archery forwards held aim and the shot to the host over online multiplayer', async ({ browser, baseURL }, info) => {
   test.setTimeout(60000);
   const group = await peers(browser, baseURL);
   const { host, guest } = group;
   try {
-    await host.getByRole('button', { name: /^Spela via Wi-Fi/ }).click();
+    await host.getByRole('button', { name: /^Spela online/ }).click();
     await host.getByRole('button', { name: /^Jag är värd/ }).click();
-    await host.getByRole('combobox', { name: 'Tävling', exact: true }).selectOption('archery');
-    await connect(host, guest, true);
+    await host.getByRole('button', { name: 'Välj Bågskytte', exact: true }).click();
+    await connect(host, guest);
     await guest.getByRole('combobox', { name: 'Kontroll spelare 1', exact: true }).selectOption('keyboard1');
     await guest.getByRole('button', { name: 'Jag är redo', exact: true }).click();
-    await host.getByRole('button', { name: 'Starta Wi-Fi-tävling', exact: true }).click();
+    await host.getByRole('button', { name: 'Starta spelet', exact: true }).click();
     await expect(guest.locator('.countdown')).toHaveCount(0, { timeout: 6000 });
     await guest.keyboard.down('d');
     await new Promise((resolve) => setTimeout(resolve, 650));
@@ -128,6 +113,37 @@ test('archery forwards held aim and the shot to the host over QR multiplayer', a
     await guest.screenshot({ path: info.outputPath('archery-wifi.png') });
     await guest.getByRole('button', { name: 'Pausa tävlingen' }).click();
     await expect(host.getByRole('dialog', { name: 'Vi tar en paus.' })).toBeVisible();
+  } finally {
+    await group.close();
+  }
+});
+
+test('after the last result the online host starts a sexkamp with the same players', async ({ browser, baseURL }, info) => {
+  test.skip(info.project.name !== 'desktop', 'The flow is the same on every layout.');
+  test.setTimeout(120000);
+  const group = await peers(browser, baseURL);
+  const { host, guest } = group;
+  try {
+    await host.getByRole('button', { name: /^Spela online/ }).click();
+    await host.getByRole('button', { name: /^Jag är värd/ }).click();
+    await host.getByRole('button', { name: 'Välj 100 meter', exact: true }).click();
+    await host.getByRole('combobox', { name: 'Löpstil', exact: true }).selectOption('hold');
+    await connect(host, guest);
+    await guest.getByRole('combobox', { name: 'Kontroll spelare 1', exact: true }).selectOption('keyboard1');
+    await guest.getByRole('button', { name: 'Jag är redo', exact: true }).click();
+    await host.getByRole('button', { name: 'Starta spelet', exact: true }).click();
+    for (const p of [host, guest]) await expect(p.locator('.countdown')).toHaveCount(0, { timeout: 8000 });
+    for (const p of [host, guest]) await p.keyboard.down('a');
+    const next = host.getByRole('button', { name: /^Spela .* ↗$/ });
+    await expect(next).toBeVisible({ timeout: 60000 });
+    for (const p of [host, guest]) await p.keyboard.up('a');
+    await expect(guest.getByText('Väntar på att värden fortsätter tävlingen.')).toBeVisible();
+    await host.getByRole('combobox', { name: 'Nästa tävling', exact: true }).selectOption('championship');
+    await host.getByRole('button', { name: 'Spela sexkamp ↗', exact: true }).click();
+    // Both devices are back on the start line of the championship's first event, still connected.
+    for (const p of [host, guest]) await expect(p.getByRole('dialog')).toBeHidden({ timeout: 10000 });
+    await expect(guest.getByText(/ONLINE · DU ÄR P2/)).toBeVisible();
+    await expect(host.getByText(/Gren 1 av 6|1 \/ 6|100 m/).first()).toBeVisible();
   } finally {
     await group.close();
   }

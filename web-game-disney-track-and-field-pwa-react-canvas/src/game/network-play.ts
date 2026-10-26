@@ -17,6 +17,9 @@ interface Options<S, C> {
   clear: () => void;
   changed: () => void;
 }
+// How long a device may go quiet before the others wait for it; phones on mobile data can pause for a few seconds.
+const SILENCE_LIMIT = 6000;
+
 export class NetworkPlay<S, C> {
   paused = false;
   reason = '';
@@ -61,7 +64,7 @@ export class NetworkPlay<S, C> {
       (!this.options.waitForViews || (this.viewReady && this.options.connections.every(({ slot }) => this.remoteViews.has(slot)))) &&
       this.available &&
       this.options.connections.every(
-        ({ slot, link }) => link.status === 'connected' && this.otherReady.get(slot) === true && performance.now() - (this.seen.get(slot) ?? 0) < 2500,
+        ({ slot, link }) => link.status === 'connected' && this.otherReady.get(slot) === true && performance.now() - (this.seen.get(slot) ?? 0) < SILENCE_LIMIT,
       )
     );
   }
