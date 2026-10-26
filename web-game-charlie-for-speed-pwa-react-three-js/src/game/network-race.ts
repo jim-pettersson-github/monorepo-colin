@@ -318,7 +318,7 @@ export class NetworkRace {
     const own = this.race.player;
     const predicted = this.predicted;
     if (predicted && !this.wire.paused) {
-      this.guestAccumulator += Math.min(0.1, elapsed);
+      this.guestAccumulator += Math.min(0.25, elapsed);
       while (this.guestAccumulator >= STEP) {
         stepCar(predicted, own.spec, controls, this.race.track, STEP, this.config.settings.transmission);
         this.inputs.push({ seq: this.wire.sentSeq, controls: { ...controls } });
@@ -380,7 +380,8 @@ export class NetworkRace {
     this.wire.tick(elapsed, command, available);
     if (this.localSlot !== 0) return this.predict(elapsed, controls);
     if (this.wire.paused || this.race.phase === 'finished') return;
-    this.accumulator += Math.min(0.1, elapsed);
+    // A slow host still runs the race in real time: below 10 fps it takes more steps per frame instead of falling behind.
+    this.accumulator += Math.min(0.25, elapsed);
     let first = true;
     while (this.accumulator >= STEP) {
       const local = first ? command : { ...command, reset: false, shift: 0 };

@@ -27,6 +27,7 @@ Every call is `api.php?a=<action>`. POST bodies are JSON sent as `text/plain`, w
 | `announce` | host | `{ code, host, listed, title, info, players, capacity }` | `{ ok }`; a heartbeat every few seconds keeps the game on the list |
 | `list` | anyone | GET `game` | `{ games: [{ code, title, info, players, capacity }] }`: listed, not full, announced in the last 20 seconds |
 | `close` | host | `{ code, host }` | `{ ok }` |
+| `stats` | any player | `{ game, version, room, role, device, fps, updates, players, resolution, speed }` | `{ ok }`; online races report every 10 s. Kept: the newest 5000, no addresses or names. They live in `/data/games.sqlite` in the container |
 
 Each room holds one open invitation at a time. A guest's claim reserves it for 30 seconds. Rooms expire 12 hours after their last use.
 

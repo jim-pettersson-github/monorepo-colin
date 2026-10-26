@@ -67,6 +67,13 @@ export function onlineIce() {
   return ice.servers;
 }
 
+// Every 10 s of an online race, each device reports how it keeps up, so lag can be traced to a device afterwards.
+export function reportStats(stats: { role: 'host' | 'guest'; fps: number; updates: number; players: number; resolution: number; speed: number }) {
+  const agent = navigator.userAgent;
+  const device = /Android/i.test(agent) ? 'android' : /iPhone|iPad|iPod/i.test(agent) ? 'ios' : 'desktop';
+  void call('stats', { game: GAME, version: __APP_BUILD__, device, ...stats }).catch(() => {});
+}
+
 // A hosted game as the open-game list shows it.
 export type OpenGame = { code: string; title: string; info: string; players: number; capacity: number };
 

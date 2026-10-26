@@ -4,8 +4,9 @@ import { POINTS } from '../game/career';
 import { carName } from '../game/cars';
 import { DriverInput, type InputAction, type TouchState } from '../game/input';
 import type { NetworkRace } from '../game/network-race';
-import { shift } from '../game/physics';
+import { forwardSpeed, shift } from '../game/physics';
 import { createRace, type Entrant, formatTime, type Race, type ResultRow, raceResults, resetRacer, STEP, stepRace } from '../game/race';
+import { reportStats } from '../game/room-server';
 import { type Settings, saveLapRecord } from '../game/storage';
 import { cameraModes, RaceRenderer } from '../render/race-renderer';
 import { FullscreenButton } from './FullscreenButton';
@@ -122,14 +123,52 @@ export function RaceView({ settings, onSettings, onExit, career, network }: Prop
     let accumulator = 0;
     let lastBeep = 4;
     let finishSeen = false;
+    // A host whose drawing is slow (a weak phone) draws every other frame. The frames in between still run the race
+    // and send updates, so guests get about twice as many while the host's own picture keeps its frame rate.
+    let renderCost = 0;
+    let undrawn = 0;
+    const draw = (delta: number) => {
+      const slowHost = network?.localSlot === 0 && renderCost > 0.03;
+      undrawn += delta;
+      if (slowHost && undrawn === delta) return;
+      const started = performance.now();
+      renderer.render(Math.min(0.1, undrawn));
+      renderCost += ((performance.now() - started) / 1000 - renderCost) * 0.1;
+      undrawn = 0;
+      report.frames++;
+      hud.current?.update(race);
+      canvas.dataset.rendered = 'true';
+    };
     let finishTimer: ReturnType<typeof setTimeout> | undefined;
 
+    // Performance report for online races: frames drawn and race updates moved, every 10 s.
+    let report = { at: performance.now(), frames: 0, updates: 0 };
+    const sendReport = (now: number) => {
+      if (!network || now - report.at < 10_000) return;
+      const seconds = (now - report.at) / 1000;
+      const host = network.localSlot === 0;
+      const updates = host ? network.wire.framesSent : network.wire.framesReceived;
+      if (race.phase === 'racing' && !pausedRef.current)
+        reportStats({
+          role: host ? 'host' : 'guest',
+          fps: Math.round((report.frames / seconds) * 10) / 10,
+          updates: Math.round(((updates - report.updates) / seconds) * 10) / 10,
+          players: race.racers.filter((racer) => racer.isPlayer).length,
+          resolution: Math.round(renderer.resolution * 100) / 100,
+          speed: Math.round(Math.abs(forwardSpeed(race.player.state)) * 3.6),
+        });
+      report = { at: now, frames: 0, updates };
+    };
+
     const loop = (now: number) => {
-      const delta = Math.min(0.1, (now - last) / 1000);
+      const raw = (now - last) / 1000;
+      const delta = Math.min(0.1, raw);
       last = now;
       const controls = input.read();
+      sendReport(now);
 
-      if (network) network.advance(delta, controls, input.available);
+      // The online race keeps real time on a slow device; drawing and sound still take capped steps.
+      if (network) network.advance(Math.min(0.25, raw), controls, input.available);
       if (!pausedRef.current) {
         if (!network) accumulator += delta;
         while (accumulator >= STEP) {
@@ -147,9 +186,7 @@ export function RaceView({ settings, onSettings, onExit, career, network }: Prop
         }
         const inside = Math.min(race.player.state.s - race.track.tunnel.start, race.track.tunnel.end - race.player.state.s);
         audio.update(race.player.state, race.player.finishTime ? 0.3 : controls.throttle, Math.max(0, Math.min(1, inside / 16)));
-        renderer.render(delta);
-        hud.current?.update(race);
-        canvas.dataset.rendered = 'true';
+        draw(delta);
       }
 
       if (race.phase === 'finished' && !finishSeen) {
@@ -166,11 +203,7 @@ export function RaceView({ settings, onSettings, onExit, career, network }: Prop
           3500,
         );
       }
-      if (network && pausedRef.current) {
-        renderer.render(delta);
-        hud.current?.update(race);
-        canvas.dataset.rendered = 'true';
-      }
+      if (network && pausedRef.current) draw(delta);
       frame = requestAnimationFrame(loop);
     };
     let epoch = network?.wire.epoch;

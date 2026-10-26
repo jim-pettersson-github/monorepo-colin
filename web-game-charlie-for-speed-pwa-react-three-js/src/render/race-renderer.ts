@@ -95,19 +95,27 @@ export class RaceRenderer {
     this.camera.updateProjectionMatrix();
   }
 
-  // Lowers the render resolution when frames run long and raises it again once there is headroom.
+  // Lowers the render resolution when frames run long and raises it again once there is headroom. Slow frames count
+  // too (capped), so a phone below 10 fps steps down instead of staying at full resolution; only a pause-length gap,
+  // such as a hidden tab, is skipped.
   private adaptQuality(frameTime: number) {
-    if (frameTime <= 0 || frameTime >= 0.1) return;
-    this.frameAverage += (frameTime - this.frameAverage) * 0.05;
+    if (frameTime <= 0 || frameTime >= 1) return;
+    this.frameAverage += (Math.min(frameTime, 0.25) - this.frameAverage) * 0.05;
     this.qualityTimer += frameTime;
     if (this.qualityTimer < 1.5) return;
     this.qualityTimer = 0;
     let next = this.pixelRatio;
-    if (this.frameAverage > 1 / 45) next = Math.max(0.6, this.pixelRatio - 0.15);
+    if (this.frameAverage > 1 / 20) next = Math.max(0.5, this.pixelRatio - 0.3);
+    else if (this.frameAverage > 1 / 45) next = Math.max(0.5, this.pixelRatio - 0.15);
     else if (this.frameAverage < 1 / 57) next = Math.min(this.maxPixelRatio, this.pixelRatio + 0.1);
     if (Math.abs(next - this.pixelRatio) < 0.01) return;
     this.pixelRatio = next;
     this.resize(this.size.width, this.size.height);
+  }
+
+  // The current render resolution, for the online performance report.
+  get resolution() {
+    return this.pixelRatio;
   }
 
   render(frameTime: number) {

@@ -43,6 +43,9 @@ export class NetworkPlay<S, C> {
   private inputTime = 0;
   // Guest: numbers each input. Host: the latest input number per guest and the steps run on it since it arrived.
   sentSeq = 0;
+  // Race updates sent (host) and accepted (guest), for the performance report.
+  framesSent = 0;
+  framesReceived = 0;
   private acks = new Map<number, InputAck>();
   private frameSeq = 0;
   private lastFrame = 0;
@@ -100,6 +103,7 @@ export class NetworkPlay<S, C> {
     if (!this.host) return;
     const acks = Object.fromEntries([...this.acks].map(([slot, ack]) => [slot, [ack.seq, ack.steps]]));
     this.frameSeq++;
+    this.framesSent++;
     this.sendFast({
       kind: 'frame',
       seq: this.frameSeq,
@@ -233,6 +237,7 @@ export class NetworkPlay<S, C> {
       const seq = Number.isInteger(m.seq) ? Number(m.seq) : 0;
       if (!newRound && seq && seq <= this.lastFrame) return;
       this.lastFrame = seq;
+      this.framesReceived++;
       if (newRound || m.paused !== this.paused) this.clear();
       this.epoch = Number(m.epoch);
       this.seen.set(slot, performance.now());

@@ -245,6 +245,28 @@ try {
             $statement->execute([$game, $now - LIST_STALE, $version, $version]);
             reply(['games' => array_map(fn ($row) => [...$row, 'players' => (int) $row['players'], 'capacity' => (int) $row['capacity']], $statement->fetchAll())]);
 
+        // Performance reports from online races (frame rate, update rate, device kind), so lag can be traced to a device.
+        // No addresses or names: only what the game measured. The newest 5000 reports are kept.
+        case 'stats':
+            $body = input();
+            $number = fn (string $key, float $max) => is_numeric($body[$key] ?? null) ? max(0, min($max, (float) $body[$key])) : null;
+            $db->exec('CREATE TABLE IF NOT EXISTS stats (id INTEGER PRIMARY KEY, at INTEGER NOT NULL, game TEXT, version TEXT, room TEXT, role TEXT, device TEXT, fps REAL, updates REAL, players INTEGER, resolution REAL, speed REAL)');
+            $db->prepare('INSERT INTO stats (at, game, version, room, role, device, fps, updates, players, resolution, speed) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')->execute([
+                $now,
+                text($body, 'game', '/^[a-z0-9-]{2,32}$/'),
+                is_string($body['version'] ?? null) ? substr($body['version'], 0, 40) : null,
+                is_string($body['room'] ?? null) && preg_match('/^[A-Z0-9]{4}$/', $body['room']) ? $body['room'] : null,
+                in_array($body['role'] ?? null, ['host', 'guest'], true) ? $body['role'] : null,
+                in_array($body['device'] ?? null, ['android', 'ios', 'desktop'], true) ? $body['device'] : null,
+                $number('fps', 240),
+                $number('updates', 240),
+                (int) $number('players', 8),
+                $number('resolution', 4),
+                $number('speed', 500),
+            ]);
+            $db->exec('DELETE FROM stats WHERE id <= (SELECT MAX(id) FROM stats) - 5000');
+            reply(['ok' => true]);
+
         case 'close':
             $room = hostRoom($db, input());
             $db->prepare('DELETE FROM rooms WHERE code = ?')->execute([$room['code']]);
