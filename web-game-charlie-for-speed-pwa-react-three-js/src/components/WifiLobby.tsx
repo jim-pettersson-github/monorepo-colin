@@ -2,7 +2,7 @@ import { type ReactNode, useEffect, useRef, useState } from 'react';
 import type { Connection } from '../game/network-play';
 import type { PeerLink } from '../game/peer-link';
 import { Room } from '../game/room-server';
-import { GameList, RoomCodeCard, RoomInvite, RoomJoin } from './RoomPairing';
+import { GameList, JoinProgress, RoomCodeCard, RoomInvite, RoomJoin } from './RoomPairing';
 import './wifi.css';
 
 // What every device shows in the lobby's player list; the host sends it with the settings.
@@ -112,6 +112,8 @@ export function WifiLobby<T>({
   const [lastCode, setLastCode] = useState('');
   const [listed, setListed] = useState(true);
   const [pick, setPick] = useState<{ code: string; at: number }>();
+  // When the guest's current join attempt started; the progress steps count from it until the devices connect.
+  const [joinSince, setJoinSince] = useState<number | null>(null);
   const kicked = useRef(false);
   const [, refresh] = useState(0);
   const owned = useRef<PeerLink[]>([]);
@@ -211,6 +213,7 @@ export function WifiLobby<T>({
     }
   }, [role, ready, localAvailable, receivedToken, links]);
   const reset = () => {
+    setJoinSince(null);
     for (const link of owned.current) link.close();
     owned.current = [];
     setLinks([]);
@@ -292,6 +295,7 @@ export function WifiLobby<T>({
     if (!failedJoin) return;
     setNotice(kicked.current ? 'Värden tog bort dig från spelet.' : failedJoin.error || 'Anslutningen till värden bröts.');
     kicked.current = false;
+    setJoinSince(null);
     owned.current = [];
     setLinks([]);
     setInvite(null);
@@ -460,7 +464,7 @@ export function WifiLobby<T>({
               </li>
             ))}
           </ol>
-          {guestStep === 1 && (
+          {guestStep === 1 && joinSince === null && (
             <section className='wifi-step'>
               <h2>Öppna spel</h2>
               <GameList onPick={(code) => setPick({ code, at: Date.now() })} />
@@ -468,13 +472,17 @@ export function WifiLobby<T>({
           )}
           {guestStep === 1 && (
             <section className='wifi-step'>
-              <h2>Eller skriv värdens rumskod</h2>
-              <p>Koden står överst på värdens skärm. Ni kan vara på samma ställe eller långt ifrån varandra.</p>
-              {notice && <p role='alert'>{notice} Tryck Gå med i rummet för att försöka igen.</p>}
+              <h2>{joinSince === null ? 'Eller skriv värdens rumskod' : 'Går med i rummet'}</h2>
+              {joinSince === null && <p>Koden står överst på värdens skärm. Ni kan vara på samma ställe eller långt ifrån varandra.</p>}
+              {notice && joinSince === null && <p role='alert'>{notice} Tryck Gå med i rummet för att försöka igen.</p>}
               <RoomJoin
                 initialCode={lastCode}
                 pick={pick}
-                onLink={(link, code) => {
+                onBusy={setJoinSince}
+                onLink={(link, code, since) => {
+                  setJoinSince(since);
+                  // A pick joins once: when this connection ends (a kick, a dropped line), the form must not rejoin by itself.
+                  setPick(undefined);
                   for (const old of owned.current) old.close();
                   owned.current = [link];
                   setLinks([{ slot: 1, link }]);
@@ -491,7 +499,7 @@ export function WifiLobby<T>({
               {invite.status === 'error' || invite.status === 'closed' ? (
                 <p role='alert'>{invite.error || 'Anslutningen bröts.'}</p>
               ) : (
-                <p role='status'>Rummet är hittat. Enheterna kopplar upp sig mot varandra…</p>
+                <JoinProgress step='connecting' since={joinSince ?? Date.now()} />
               )}
               <button type='button' onClick={reset}>
                 Börja om

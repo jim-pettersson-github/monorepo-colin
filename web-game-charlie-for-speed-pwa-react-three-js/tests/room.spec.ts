@@ -147,3 +147,48 @@ test('game list: a hosted game is listed, a guest joins with one tap and the hos
     for (const p of [host, guest]) await p.context().close();
   }
 });
+
+test('join progress: a guest sees each step and the time, and the list is hidden meanwhile', async ({ browser, baseURL }, info) => {
+  test.skip(info.project.name !== 'desktop', 'Pairing is the same on every layout.');
+  test.setTimeout(90000);
+  if (!baseURL) throw new Error('No preview URL');
+  const host = await device(browser, baseURL, false);
+  const guest = await device(browser, baseURL, true);
+  try {
+    // Slow answers on both sides, so each step stays on screen long enough to see.
+    await guest.route('**/api.php?a=reply*', async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      await route.continue();
+    });
+    await host.route('**/api.php?a=answer*', async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 2500));
+      await route.continue();
+    });
+    await host.getByRole('button', { name: /^Spela online/ }).click();
+    await host.getByRole('textbox', { name: 'Ditt namn', exact: true }).fill('Stega');
+    await host.getByRole('button', { name: /^Jag är värd/ }).click();
+    await expect(host.getByTestId('room-code')).toHaveText(/^[A-Z0-9]{4}$/);
+
+    await guest.getByRole('button', { name: /^Spela online/ }).click();
+    await guest.getByRole('button', { name: /^Jag går med/ }).click();
+    const listed = guest.getByRole('list', { name: 'Öppna spel' }).getByRole('listitem').filter({ hasText: 'Stegas spel' });
+    await listed.getByRole('button', { name: /^Gå med/ }).click({ timeout: 10000 });
+
+    const progress = guest.getByTestId('join-progress');
+    const steps = progress.getByRole('list', { name: 'Går med' });
+    await expect(steps.locator('[aria-current="step"]')).toHaveText('Svarar värden');
+    await expect(guest.getByRole('heading', { name: 'Öppna spel' })).toHaveCount(0);
+    await expect(guest.getByRole('heading', { name: 'Går med i rummet' })).toBeVisible();
+    await expect(progress).toContainText(/\d+ s/);
+    await guest.screenshot({ path: info.outputPath('join-answering.png') });
+
+    await expect(steps.locator('[aria-current="step"]')).toHaveText('Kopplar upp mot värden', { timeout: 10000 });
+    await expect(steps.getByRole('listitem').first()).toHaveClass(/done/);
+    await guest.screenshot({ path: info.outputPath('join-connecting.png') });
+
+    await expect(guest.getByText('Enheterna är anslutna!')).toBeVisible({ timeout: 30000 });
+    await expect(progress).toHaveCount(0);
+  } finally {
+    for (const p of [host, guest]) await p.context().close();
+  }
+});

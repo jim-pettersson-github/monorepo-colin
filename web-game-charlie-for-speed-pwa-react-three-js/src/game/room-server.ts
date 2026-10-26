@@ -17,7 +17,8 @@ export const ONLINE_ICE: RTCIceServer[] = [{ urls: ['stun:stun.l.google.com:1930
 export const ONLINE_TIMEOUT = 30_000;
 
 const GAME = 'charlie-fs';
-const POLL_MS = 1500;
+// The host checks for an answer, and a waiting guest for a free place, this often; joins wait about half of it.
+const POLL_MS = 750;
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 class ServerError extends Error {
@@ -131,13 +132,16 @@ export class Room {
   }
 }
 
+// Where a guest's join is, for its progress steps: finding the room, waiting for a free place, answering the host.
+export type JoinPhase = 'finding' | 'waiting' | 'answering';
+
 // Guest: waits for the host's open invitation in the room, answers it, and returns the link that will connect.
-export async function joinRoom(code: string, cancelled: () => boolean, onWaiting: () => void) {
+export async function joinRoom(code: string, cancelled: () => boolean, onPhase: (phase: JoinPhase) => void) {
   while (!cancelled()) {
     const claim = await call<{ offer?: string; claim?: string; game?: string; version?: string | null }>('claim', { code });
     if (claim.game && claim.game !== GAME) throw new Error('Rumskoden hör till ett annat spel.');
     if (!claim.offer || !claim.claim) {
-      onWaiting();
+      onPhase('waiting');
       await wait(POLL_MS);
       continue;
     }
@@ -146,6 +150,7 @@ export async function joinRoom(code: string, cancelled: () => boolean, onWaiting
       throw new Error(
         `Värden har en annan version av spelet (${claim.version ?? 'äldre'}) än du (${__APP_BUILD__}). Uppdatera spelet på båda enheterna under Inställningar och försök igen.`,
       );
+    onPhase('answering');
     const signal = await decodeSignal(claim.offer);
     if (signal.type !== 'offer') throw new Error('Rummet har ingen giltig inbjudan.');
     const link = new PeerLink('guest', await onlineIce(), ONLINE_TIMEOUT);
