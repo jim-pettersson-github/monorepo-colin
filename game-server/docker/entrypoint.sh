@@ -24,8 +24,7 @@ no-dtls
 no-cli
 no-multicast-peers
 no-software-attribute
-total-quota=200
-user-quota=20
+user-quota=40
 proc-user=turnserver
 proc-group=turnserver
 log-file=stdout

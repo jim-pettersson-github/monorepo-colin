@@ -113,8 +113,9 @@ function ownRelay(): bool
 function iceServers(PDO $db): array
 {
     // Our own coturn, which shares the secret: the standard TURN REST scheme, expiry:name signed with HMAC-SHA1.
+    // coturn counts its per-user quota on the name, so each device gets its own instead of sharing one.
     if (ownRelay()) {
-        $username = (time() + ICE_TTL) . ':game';
+        $username = (time() + ICE_TTL) . ':' . bin2hex(random_bytes(6));
         $urls = array_values(array_filter(array_map('trim', explode(',', setting('turn_urls')))));
         return [...STUN, ['urls' => $urls, 'username' => $username, 'credential' => base64_encode(hash_hmac('sha1', $username, setting('turn_secret'), true))]];
     }
