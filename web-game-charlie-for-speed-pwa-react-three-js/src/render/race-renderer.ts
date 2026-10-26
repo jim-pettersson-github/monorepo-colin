@@ -1,9 +1,11 @@
 import * as THREE from 'three';
 import type { Race } from '../game/race';
+import { loadQuality, saveQuality } from '../game/storage';
 import { buildCarModel, type CarModel } from './car-model';
 import { DrivingEffects } from './driving-effects';
 import { Particles, skyEnvironment } from './effects';
 import { NameTags } from './name-tags';
+import { QualityGovernor, qualityLadder } from './quality';
 import { buildTrackWorld, type TrackWorld } from './track-world';
 
 export type CameraMode = 'chase' | 'far' | 'bumper';
@@ -33,10 +35,8 @@ export class RaceRenderer {
   private drawingSize = new THREE.Vector2();
   private size = { width: 1, height: 1 };
   private environment: THREE.WebGLRenderTarget;
-  private maxPixelRatio: number;
-  private pixelRatio: number;
-  private frameAverage = 1 / 60;
-  private qualityTimer = 0;
+  private quality: QualityGovernor;
+  private lastFrame = 0;
   private drivingEffects: DrivingEffects;
   private nameTags: NameTags;
   mode: CameraMode = 'chase';
@@ -45,20 +45,18 @@ export class RaceRenderer {
     this.race = race;
     // High-density phone screens hide jaggies anyway, so they skip the costly multisampling.
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: window.devicePixelRatio < 1.5, powerPreference: 'high-performance' });
-    this.maxPixelRatio = Math.min(window.devicePixelRatio, 1.5);
-    this.pixelRatio = this.maxPixelRatio;
+    const phone = matchMedia('(pointer: coarse)').matches;
+    this.quality = new QualityGovernor(qualityLadder(Math.min(window.devicePixelRatio, 1.5), !phone), loadQuality());
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.world = buildTrackWorld(race.track);
     const { look } = this.world;
 
     // Filmic tone mapping, sky reflections and a sun shadow that follows the player.
-    const phone = matchMedia('(pointer: coarse)').matches;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.25;
     this.renderer.shadowMap.enabled = !phone;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     const sun = this.world.sunLight;
-    sun.castShadow = !phone;
     sun.shadow.mapSize.setScalar(window.devicePixelRatio >= 2 ? 1024 : 2048);
     Object.assign(sun.shadow.camera, { left: -40, right: 40, top: 40, bottom: -40, near: 1, far: 320 });
     sun.shadow.camera.updateProjectionMatrix();
@@ -85,43 +83,43 @@ export class RaceRenderer {
     this.world.scene.add(this.drivingEffects.marks, this.drivingEffects.lights);
     this.world.scene.add(this.smoke.points, this.sparks.points);
     this.cameraYaw = race.player.state.yaw;
+    this.applyQuality();
   }
 
   resize(width: number, height: number) {
     this.size = { width, height };
-    this.renderer.setPixelRatio(this.pixelRatio);
+    this.renderer.setPixelRatio(this.quality.level.ratio);
     this.renderer.setSize(width, height, false);
     this.camera.aspect = width / Math.max(height, 1);
     this.camera.updateProjectionMatrix();
   }
 
-  // Lowers the render resolution when frames run long and raises it again once there is headroom. Slow frames count
-  // too (capped), so a phone below 10 fps steps down instead of staying at full resolution; only a pause-length gap,
-  // such as a hidden tab, is skipped.
-  private adaptQuality(frameTime: number) {
-    if (frameTime <= 0 || frameTime >= 1) return;
-    this.frameAverage += (Math.min(frameTime, 0.25) - this.frameAverage) * 0.05;
-    this.qualityTimer += frameTime;
-    if (this.qualityTimer < 1.5) return;
-    this.qualityTimer = 0;
-    let next = this.pixelRatio;
-    if (this.frameAverage > 1 / 20) next = Math.max(0.5, this.pixelRatio - 0.3);
-    else if (this.frameAverage > 1 / 45) next = Math.max(0.5, this.pixelRatio - 0.15);
-    else if (this.frameAverage < 1 / 57) next = Math.min(this.maxPixelRatio, this.pixelRatio + 0.1);
-    if (Math.abs(next - this.pixelRatio) < 0.01) return;
-    this.pixelRatio = next;
-    this.resize(this.size.width, this.size.height);
+  // Steps graphics down while frames come slower than 30 a second, and back up once there is room (see quality.ts).
+  // Measured between drawn frames in real time, so a phone below 10 fps counts as slow as it really is.
+  private adaptQuality() {
+    const now = performance.now();
+    const seconds = this.lastFrame ? (now - this.lastFrame) / 1000 : 0;
+    this.lastFrame = now;
+    if (this.quality.frame(seconds)) this.applyQuality();
+  }
+
+  private applyQuality() {
+    const { level } = this.quality;
+    this.renderer.domElement.dataset.quality = String(this.quality.index);
+    this.world.sunLight.castShadow = level.shadows;
+    this.world.setViewDistance(level.view);
+    if (this.renderer.getPixelRatio() !== level.ratio) this.resize(this.size.width, this.size.height);
   }
 
   // The current render resolution, for the online performance report.
   get resolution() {
-    return this.pixelRatio;
+    return this.quality.level.ratio;
   }
 
   render(frameTime: number) {
     const { race } = this;
     this.elapsed += frameTime;
-    this.adaptQuality(frameTime);
+    this.adaptQuality();
     const { samples } = race.track.path;
 
     race.racers.forEach((racer, index) => {
@@ -133,7 +131,8 @@ export class RaceRenderer {
     const lit = race.phase === 'countdown' ? Math.min(5, Math.floor((3.4 - race.countdown) / 0.6)) : 0;
     this.world.setStartLights(lit, race.phase !== 'countdown' && race.time < 3);
     this.updateCamera(frameTime);
-    for (const model of this.models) model.setDistance(model.group.position.distanceTo(this.camera.position));
+    const { detail } = this.quality.level;
+    for (const model of this.models) model.setDistance(model.group.position.distanceTo(this.camera.position) / detail);
     this.nameTags.update(race, this.camera);
     const car = race.player.state;
     const sun = this.world.sunLight;
@@ -155,8 +154,9 @@ export class RaceRenderer {
   // Tyre smoke when sliding, dust on the grass and sparks along the barriers.
   private emitEffects(frameTime: number) {
     const { race, camera } = this;
-    if (race.phase === 'countdown') return;
-    const rate = frameTime * 60;
+    const { effects } = this.quality.level;
+    if (race.phase === 'countdown' || effects === 0) return;
+    const rate = frameTime * 60 * effects;
     for (const racer of race.racers) {
       const car = racer.state;
       if ((car.x - camera.position.x) ** 2 + (car.z - camera.position.z) ** 2 > 160 ** 2) continue;
@@ -243,6 +243,7 @@ export class RaceRenderer {
   }
 
   dispose() {
+    saveQuality(this.quality.index);
     this.drivingEffects.dispose();
     for (const model of this.models) model.dispose();
     this.nameTags.dispose();

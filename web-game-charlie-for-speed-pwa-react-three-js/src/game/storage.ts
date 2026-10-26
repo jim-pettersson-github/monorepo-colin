@@ -12,6 +12,7 @@ export type LapRecord = { time: number; carId: string };
 
 const SETTINGS_KEY = 'charlie-for-speed:settings';
 const RECORDS_KEY = 'charlie-for-speed:records';
+const QUALITY_KEY = 'charlie-for-speed:quality';
 
 export const defaultSettings: Settings = {
   trackId: 'vaxjo',
@@ -53,6 +54,16 @@ export function loadSettings(): Settings {
 
 export function saveSettings(settings: Settings) {
   write(SETTINGS_KEY, settings);
+}
+
+// The graphics step the last race ended on, so a slow phone starts the next race where it settled.
+export function loadQuality() {
+  const { level } = read(QUALITY_KEY, { level: 0 });
+  return Number.isInteger(level) && level >= 0 ? level : 0;
+}
+
+export function saveQuality(level: number) {
+  write(QUALITY_KEY, { level });
 }
 
 export function loadRecords(): Record<string, LapRecord> {

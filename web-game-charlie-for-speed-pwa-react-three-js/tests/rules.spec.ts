@@ -19,6 +19,7 @@ import { createRace, formatTime, raceDistance, raceResults, STEP, stepRace } fro
 import { migrateCareer, migrateSession } from '../src/game/roster-migration';
 import { trackById, trackDefs } from '../src/game/tracks';
 import { batchStatic } from '../src/render/batch';
+import { QualityGovernor, qualityLadder } from '../src/render/quality';
 
 const idle = { throttle: 0, brake: 0, steer: 0, handbrake: false };
 
@@ -675,4 +676,29 @@ test('an online guest drives its own car at once and sees the others glide, desp
   expect(jump).toBeLessThan(1);
   host.dispose();
   guest.dispose();
+});
+
+test('graphics step down on a 10 fps phone until it nears 30 fps, and back up when there is room', () => {
+  const levels = qualityLadder(1.5, false);
+  expect(levels.every((level) => !level.shadows)).toBe(true);
+  expect(qualityLadder(1, true)[0]).toMatchObject({ ratio: 1, shadows: true });
+  const quality = new QualityGovernor(levels, 0);
+  // Drawing cost follows the pixels: 10 fps at full resolution.
+  const frame = () => (0.1 * quality.level.ratio ** 2) / 1.5 ** 2;
+  let seconds = 0;
+  while (seconds < 20) {
+    seconds += frame();
+    quality.frame(frame());
+  }
+  expect(quality.index).toBeGreaterThan(2);
+  expect(1 / frame()).toBeGreaterThanOrEqual(30);
+  const settled = quality.index;
+
+  // One long stutter is not a slow phone.
+  for (let i = 0; i < 120; i++) quality.frame(i === 60 ? 0.4 : 1 / 60);
+  expect(quality.index).toBeLessThanOrEqual(settled);
+
+  // A fast device climbs back to the top.
+  for (let i = 0; i < 60 * 60; i++) quality.frame(1 / 60);
+  expect(quality.index).toBe(0);
 });

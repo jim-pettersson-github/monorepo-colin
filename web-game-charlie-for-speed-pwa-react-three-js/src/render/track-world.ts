@@ -187,6 +187,8 @@ export type TrackWorld = {
   // 0 in daylight, 1 deep inside a tunnel.
   setShade: (amount: number) => void;
   sunLight: THREE.DirectionalLight;
+  // Pulls the fog in and stops drawing what lies past it; 1 is the normal distance.
+  setViewDistance: (scale: number) => void;
   update: (camera: THREE.Camera, time: number) => void;
   dispose: () => void;
 };
@@ -401,7 +403,8 @@ export function buildTrackWorld(track: Track): TrackWorld {
   const { path, halfWidth, wall } = track;
 
   scene.background = new THREE.Color(look.fog);
-  scene.fog = new THREE.Fog(look.fog, look.fogNear, look.fogFar);
+  const fog = new THREE.Fog(look.fog, look.fogNear, look.fogFar);
+  scene.fog = fog;
   const skyLight = new THREE.HemisphereLight(look.hemiSky, look.hemiGround, 1.6);
   scene.add(skyLight);
   const sunLight = new THREE.DirectionalLight(look.sunColor, 2.2);
@@ -475,9 +478,19 @@ export function buildTrackWorld(track: Track): TrackWorld {
   scene.traverse((object) => {
     if (object instanceof THREE.Mesh && !object.userData.dynamic) object.receiveShadow = true;
   });
-  const forestCells: THREE.InstancedMesh[] = [];
+  // Forest cells and batched map cells are hidden once they lie wholly inside the fog.
+  const cells: { mesh: THREE.Mesh; center: THREE.Vector3; radius: number }[] = [];
+  scene.updateMatrixWorld(true);
   scene.traverse((object) => {
-    if (object instanceof THREE.InstancedMesh && object.userData.foliage) forestCells.push(object);
+    if (object instanceof THREE.InstancedMesh && object.userData.foliage) {
+      if (!object.boundingSphere) object.computeBoundingSphere();
+      const bounds = object.boundingSphere;
+      if (bounds) cells.push({ mesh: object, center: bounds.center.clone().applyMatrix4(object.matrixWorld), radius: bounds.radius });
+    } else if (object instanceof THREE.Mesh && object.userData.batched) {
+      if (!object.geometry.boundingSphere) object.geometry.computeBoundingSphere();
+      const bounds = object.geometry.boundingSphere;
+      if (bounds) cells.push({ mesh: object, center: bounds.center.clone().applyMatrix4(object.matrixWorld), radius: bounds.radius });
+    }
   });
 
   return {
@@ -485,16 +498,17 @@ export function buildTrackWorld(track: Track): TrackWorld {
     look,
     sunLight,
     setStartLights: scenery.setStartLights,
+    setViewDistance(scale) {
+      fog.near = look.fogNear * scale;
+      fog.far = look.fogFar * scale;
+    },
     setShade(amount) {
       skyLight.intensity = 1.6 - amount * 1.0;
       sunLight.intensity = 2.2 * (1 - amount * 0.9);
     },
     update(camera, time) {
       sky.position.set(camera.position.x, 0, camera.position.z);
-      for (const cell of forestCells) {
-        const bounds = cell.boundingSphere;
-        if (bounds) cell.visible = bounds.center.distanceToSquared(camera.position) < (look.fogFar + bounds.radius) ** 2;
-      }
+      for (const cell of cells) cell.mesh.visible = cell.center.distanceToSquared(camera.position) < (fog.far + cell.radius) ** 2;
       scenery.update(time);
     },
     dispose() {

@@ -79,6 +79,7 @@ export function batchStatic(root: THREE.Object3D, cellSize = 450) {
     mesh.receiveShadow = receiveShadow;
     mesh.matrixAutoUpdate = false;
     mesh.matrixWorldNeedsUpdate = true;
+    mesh.userData.batched = true;
     root.add(mesh);
     merged.push(mesh);
   }
