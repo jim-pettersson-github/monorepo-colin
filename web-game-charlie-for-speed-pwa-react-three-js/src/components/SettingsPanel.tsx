@@ -40,7 +40,7 @@ export function SettingsPanel({ settings, onChange, name, onName, onClose }: Pro
             value={name}
             maxLength={16}
             autoComplete='nickname'
-            placeholder='Visas för de du kör mot online'
+            placeholder='Visas online och på topplistorna'
             onChange={(event) => onName(event.target.value)}
           />
         </label>

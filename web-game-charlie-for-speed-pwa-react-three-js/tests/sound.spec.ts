@@ -17,6 +17,8 @@ test('volume persists, mute is silent, pause suspends audio and exiting releases
       return Reflect.apply(connect, this, destination instanceof AudioNode ? [destination, output, input] : [destination, output]);
     } as typeof connect;
   });
+  // A race alone first asks for a name; this driver already has one.
+  await page.addInitScript(() => localStorage.setItem('charlie-for-speed:identity', JSON.stringify({ id: 'ptestdriver', name: 'Testare' })));
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto('./');

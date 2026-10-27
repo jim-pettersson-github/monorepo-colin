@@ -25,6 +25,8 @@ test('career: buy a car, upgrade it, enter a cup and start the first race', asyn
   await page.getByRole('button', { name: 'Anmäl dig' }).first().click();
   await page.screenshot({ path: testInfo.outputPath('cup.png') });
   await page.getByRole('button', { name: /Kör deltävling 1\/3: Smålandsslingan/ }).click();
+  await page.getByLabel('Ditt namn').fill('Testare');
+  await page.getByRole('button', { name: 'Kör', exact: true }).click();
 
   await expect(page.locator('.race-canvas')).toHaveAttribute('data-rendered', 'true');
   await expect(page.getByTestId('hud')).toHaveAttribute('data-phase', 'racing', { timeout: 8000 });

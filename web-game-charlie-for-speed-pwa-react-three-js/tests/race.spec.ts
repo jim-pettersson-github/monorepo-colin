@@ -15,6 +15,11 @@ test('choose a car and track, race, pause and return to the menu', async ({ page
   await page.getByRole('button', { name: /Rheinland-Ring/ }).click();
   await page.getByRole('button', { name: '1', exact: true }).click();
   await page.getByRole('button', { name: /Starta race/ }).click();
+  // A first race alone asks for the name its laps go up to the scoreboard with.
+  const prompt = page.getByRole('form', { name: 'Vad heter du?' });
+  await expect(prompt.getByRole('button', { name: 'Kör' })).toBeDisabled();
+  await prompt.getByLabel('Ditt namn').fill('Testare');
+  await prompt.getByRole('button', { name: 'Kör' }).click();
 
   const hud = page.getByTestId('hud');
   await expect(page.locator('.race-canvas')).toHaveAttribute('data-rendered', 'true');
@@ -37,6 +42,10 @@ test('choose a car and track, race, pause and return to the menu', async ({ page
   await page.getByRole('button', { name: 'Pausa' }).click();
   await page.getByRole('button', { name: 'Avsluta racet' }).click();
   await expect(page.getByRole('button', { name: /Snabbstart.*Spectre R42.*Rheinland-Ring.*1 varv/ })).toBeVisible();
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('charlie-for-speed:identity') ?? '{}').name)).toBe('Testare');
+  await page.getByRole('button', { name: /Snabbstart/ }).click();
+  await expect(page.locator('.race-canvas')).toBeVisible();
+  await expect(prompt).toBeHidden();
   expect(errors).toEqual([]);
 });
 

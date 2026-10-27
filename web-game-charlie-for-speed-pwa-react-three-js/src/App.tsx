@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { CareerHub } from './components/CareerHub';
 import { Garage } from './components/Garage';
+import { NamePrompt } from './components/NamePrompt';
 import { RaceView } from './components/RaceView';
 import { Scoreboard } from './components/Scoreboard';
 import { SettingsPanel } from './components/SettingsPanel';
@@ -105,6 +106,9 @@ export function App() {
     saveIdentity(next);
   };
   const changeName = (name: string) => changeIdentity({ ...identity, name });
+  // Races alone wait for a name first, so the laps they send to the scoreboard are someone's.
+  const [nameFor, setNameFor] = useState<'race' | 'career-race'>();
+  const startAlone = (race: 'race' | 'career-race') => (identity.name.trim() ? setScreen(race) : setNameFor(race));
 
   // Laps saved while offline go to the scoreboard once the game opens with a connection.
   useEffect(() => {
@@ -142,7 +146,7 @@ export function App() {
       {screen === 'title' && (
         <TitleScreen
           settings={settings}
-          onRace={() => setScreen('race')}
+          onRace={() => startAlone('race')}
           onGarage={() => setScreen('garage')}
           onCareer={() => setScreen('career')}
           onSettings={() => setSettingsOpen(true)}
@@ -329,9 +333,9 @@ export function App() {
           onNext={() => setScreen('tracks')}
         />
       )}
-      {screen === 'tracks' && <TrackSelect settings={settings} onChange={update} onBack={() => setScreen('garage')} onStart={() => setScreen('race')} />}
+      {screen === 'tracks' && <TrackSelect settings={settings} onChange={update} onBack={() => setScreen('garage')} onStart={() => startAlone('race')} />}
       {screen === 'race' && <RaceView settings={settings} onSettings={update} onExit={setScreen} onPlayerName={changeName} />}
-      {screen === 'career' && <CareerHub career={career} onChange={updateCareer} onRace={() => setScreen('career-race')} onBack={() => setScreen('title')} />}
+      {screen === 'career' && <CareerHub career={career} onChange={updateCareer} onRace={() => startAlone('career-race')} onBack={() => setScreen('title')} />}
       {screen === 'career-race' && career && cup && careerTrack && (
         <RaceView
           settings={{ ...settings, trackId: careerTrack, laps: cup.laps, carId: career.activeCarId, difficulty: 'normal' }}
@@ -347,6 +351,16 @@ export function App() {
             },
             onQuit: () => setScreen('career'),
           }}
+        />
+      )}
+      {nameFor && (
+        <NamePrompt
+          onName={(name) => {
+            changeName(name);
+            setScreen(nameFor);
+            setNameFor(undefined);
+          }}
+          onCancel={() => setNameFor(undefined)}
         />
       )}
       {settingsOpen && (

@@ -29,6 +29,8 @@ test('manifest and app links stay within the configured base path', async ({ pag
 });
 
 test('the installed shell reloads offline', async ({ page, context }) => {
+  // A race alone first asks for a name; this driver already has one.
+  await page.addInitScript(() => localStorage.setItem('charlie-for-speed:identity', JSON.stringify({ id: 'ptestdriver', name: 'Testare' })));
   await page.goto('./');
   await page.evaluate(async () => {
     await navigator.serviceWorker.ready;

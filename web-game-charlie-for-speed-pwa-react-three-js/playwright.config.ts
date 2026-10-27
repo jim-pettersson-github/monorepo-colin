@@ -1,3 +1,4 @@
+import { readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { defineConfig, devices } from '@playwright/test';
@@ -6,6 +7,14 @@ const port = Number(process.env.CFS_TEST_PORT || 4015);
 const roomPort = Number(process.env.CFS_ROOM_PORT || 4024);
 const roomServer = `http://127.0.0.1:${roomPort}/api.php`;
 const baseURL = `http://127.0.0.1:${port}${process.env.VITE_BASE_PATH || '/'}`;
+
+// Each run starts with an empty room server database, so scoreboards hold only this run's laps. The workers load this
+// file again and inherit the name, so only the first load picks it and clears out earlier runs' databases.
+if (!process.env.CFS_ROOM_DB) {
+  const stale = `charlie-room-test-${roomPort}`;
+  for (const file of readdirSync(tmpdir())) if (file.startsWith(stale) && file.includes('.sqlite')) rmSync(join(tmpdir(), file), { force: true });
+  process.env.CFS_ROOM_DB = join(tmpdir(), `charlie-room-test-${roomPort}-${Date.now().toString(36)}.sqlite`);
+}
 
 export default defineConfig({
   testDir: './tests',
@@ -35,7 +44,7 @@ export default defineConfig({
       url: `${roomServer}?a=health`,
       reuseExistingServer: false,
       stderr: 'ignore',
-      env: { GAME_DB: join(tmpdir(), `charlie-room-test-${roomPort}.sqlite`) },
+      env: { GAME_DB: process.env.CFS_ROOM_DB },
     },
   ],
 });

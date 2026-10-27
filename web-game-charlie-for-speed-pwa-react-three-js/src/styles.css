@@ -46,6 +46,11 @@ button[aria-pressed="true"] {
   color: #1a1200;
 }
 
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 h1,
 h2,
 h3 {
@@ -836,6 +841,11 @@ h3 {
   overflow-y: auto;
   padding: 16px;
   background: rgb(0 0 0 / 0.45);
+}
+
+.name-prompt {
+  position: fixed;
+  z-index: 10;
 }
 
 .pause-panel {
