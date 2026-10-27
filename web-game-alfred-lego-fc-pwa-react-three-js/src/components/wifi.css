@@ -22,9 +22,12 @@
 .wifi-intro h1 {
   font-size: clamp(36px, 6vw, 58px);
 }
-.wifi-intro p:last-child {
+.wifi-intro p:not(.eyebrow) {
   color: var(--muted);
   line-height: 1.7;
+}
+.wifi-intro .wifi-version {
+  font-size: 13px;
 }
 .wifi-intro-compact {
   padding-top: 0;
@@ -142,7 +145,7 @@
   gap: 4px;
   margin: 0 0 12px;
   padding: 14px 16px;
-  border: 2px solid var(--accent, #e4bd40);
+  border: 2px solid var(--accent);
   border-radius: 8px;
   text-align: center;
 }
@@ -160,9 +163,11 @@
   gap: 10px;
 }
 .room-join input {
+  width: 100%;
+  min-width: 0;
   min-height: 56px;
   padding: 0 12px;
-  border: 2px solid var(--border, #cec6bb);
+  border: 2px solid var(--border);
   border-radius: 6px;
   background: var(--surface, #fff9ef);
   color: var(--ink);
@@ -177,4 +182,159 @@
 }
 .room-join p {
   margin: 0;
+}
+
+.game-list ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.game-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.game-list li > span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.game-list small {
+  color: var(--muted);
+}
+
+.wifi-shell .list-toggle {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin: 0 0 12px;
+  cursor: pointer;
+}
+
+.wifi-shell .list-toggle input {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  margin: 2px 0 0;
+}
+
+.wifi-shell .list-toggle > span {
+  display: grid;
+  gap: 2px;
+  font-weight: 700;
+}
+
+.wifi-shell .list-toggle small {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+/* A guest's join, step by step: a bar, the steps with a spinner on the current one, and the time so far. */
+.join-progress {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 14px;
+  border: 2px solid var(--accent);
+  border-radius: 10px;
+}
+
+.join-bar {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--border);
+}
+
+.join-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 0.4s ease;
+}
+
+.join-progress ol {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.join-progress li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+}
+
+.join-progress li.current {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.join-progress li.done {
+  color: var(--ink);
+}
+
+.join-mark {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--border);
+  color: var(--ink);
+  font-size: 0.85rem;
+  font-weight: 900;
+}
+
+.join-progress li.done .join-mark {
+  background: var(--accent);
+  color: #1a1200;
+}
+
+.join-spinner {
+  width: 16px;
+  height: 16px;
+  border: 3px solid var(--accent);
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: join-spin 0.8s linear infinite;
+}
+
+.join-time {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes join-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .join-spinner {
+    animation: none;
+    border-right-color: var(--accent);
+  }
+
+  .join-fill {
+    transition: none;
+  }
 }

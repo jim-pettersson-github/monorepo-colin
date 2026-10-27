@@ -1,12 +1,28 @@
+import { execSync } from 'node:child_process';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
 const base = process.env.VITE_BASE_PATH || '/';
+
+// A build stamp shown in the menus and checked when joining online, so two devices on different releases notice it.
+function commit() {
+  if (process.env.GITHUB_SHA) return process.env.GITHUB_SHA.slice(0, 7);
+  try {
+    return execSync('git rev-parse --short=7 HEAD', { stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString()
+      .trim();
+  } catch {
+    return 'dev';
+  }
+}
+const build = commit();
+const version = `${new Date().toISOString().slice(0, 10)} · ${build}`;
 if (!base.startsWith('/') || !base.endsWith('/')) throw new Error('VITE_BASE_PATH must start and end with /');
 
 export default defineConfig({
   base,
+  define: { __APP_VERSION__: JSON.stringify(version), __APP_BUILD__: JSON.stringify(build) },
   plugins: [
     react(),
     VitePWA({

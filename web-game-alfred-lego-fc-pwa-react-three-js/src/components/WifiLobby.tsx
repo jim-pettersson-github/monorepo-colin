@@ -14,7 +14,7 @@ import { type TransferSave, withMatchSquads } from '../game/transfers';
 import { ControlSetup } from './ControlSetup';
 import { FullscreenButton } from './FullscreenButton';
 import { FiveEditor, LineupPicker } from './LineupPicker';
-import { RoomCodeCard, RoomInvite, RoomJoin } from './RoomPairing';
+import { GameList, JoinProgress, RoomCodeCard, RoomInvite, RoomJoin } from './RoomPairing';
 import { SoundToggle } from './SoundControls';
 import { MatchTeams } from './TeamBrowser';
 import { TeamSelection } from './TeamSelection';
@@ -77,6 +77,12 @@ export function WifiLobby({
   const [roomError, setRoomError] = useState('');
   const [notice, setNotice] = useState('');
   const [lastCode, setLastCode] = useState('');
+  const [listed, setListed] = useState(true);
+  const [pick, setPick] = useState<{ code: string; at: number }>();
+  // When the guest's current join attempt started; the progress steps count from it until the devices connect.
+  const [joinSince, setJoinSince] = useState<number | null>(null);
+  // Set when the host sends the guest away, so both screens can say why the connection ended.
+  const kicked = useRef(false);
   const ownedRoom = useRef<Room | null>(null);
   // Counts room attempts, so a slow answer from the server after Börja om or leaving the lobby is discarded.
   const attempt = useRef(0);
@@ -122,6 +128,10 @@ export function WifiLobby({
         setCupMatch(m.cup === 'alfred' || m.cup === 'masters' || m.cup === 'world' ? m.cup : null);
         if (validNetworkMatch(m.preview)) setGuestPreview(m.preview);
       }
+      if (link.role === 'guest' && m.kind === 'lobby-kick') {
+        kicked.current = true;
+        link.close();
+      }
       if (link.role === 'guest' && m.kind === 'start' && m.version === 1 && validNetworkMatch(m.state) && link.status === 'connected') {
         transferred.current = true;
         launch.current(link, m.state);
@@ -151,12 +161,16 @@ export function WifiLobby({
     if (!failed) return;
     setGuestReady(false);
     setReady(false);
+    setGuestChoice(null);
+    setJoinSince(null);
+    const reason = kicked.current ? (role === 'host' ? 'Du tog bort kompisen.' : 'Värden tog bort dig från matchen.') : failed.error || 'Anslutningen bröts.';
+    kicked.current = false;
     if (role === 'host' && room) {
-      setNotice(`${failed.error || 'Anslutningen bröts.'} Rummet är öppet igen.`);
+      setNotice(`${reason} Rummet är öppet igen.`);
       const next = keep(room.link());
       next.createOffer().catch((e) => setError(e instanceof Error ? e.message : 'Inbjudan kunde inte skapas.'));
     } else {
-      setNotice(`${failed.error || 'Anslutningen bröts.'} Tryck Gå med i rummet för att försöka igen.`);
+      setNotice(`${reason} Tryck Gå med i rummet för att försöka igen.`);
       owned.current = null;
       setLink(null);
     }
@@ -194,8 +208,30 @@ export function WifiLobby({
       if (current === attempt.current) setError(e instanceof Error ? e.message : 'Inbjudan kunde inte skapas.');
     }
   };
+  // The host can send the guest away; the message goes first so their screen can say why.
+  const kick = () => {
+    if (!link) return;
+    link.send({ kind: 'lobby-kick' });
+    kicked.current = true;
+    const target = link;
+    window.setTimeout(() => target.close(), 300);
+  };
+  // While the room waits for a guest it is on the open-match list, unless the host takes it off.
+  const listingTitle = fixture?.cup ? cupName(fixture.cup.kind) : fixture?.league ? 'Ligamatch' : 'Onlinematch';
+  const listingInfo = `${getClub(clubs[0]).name} – ${getClub(clubs[1]).name} · ${duration / 60} min`;
+  const players = connected ? 2 : 1;
+  useEffect(() => {
+    if (role !== 'host' || !room) return;
+    const announce = () => room.announce({ listed, title: listingTitle, info: listingInfo, players, capacity: 2 }).catch(() => {});
+    void announce();
+    const timer = window.setInterval(announce, 5000);
+    return () => clearInterval(timer);
+  }, [role, room, listed, listingTitle, listingInfo, players]);
   const reset = () => {
     attempt.current++;
+    kicked.current = false;
+    setJoinSince(null);
+    setPick(undefined);
     owned.current?.close();
     owned.current = null;
     ownedRoom.current?.close();
@@ -236,9 +272,10 @@ export function WifiLobby({
           </h1>
         )}
         <p>
-          Öppna Alfred FC på båda enheterna. En skapar matchen och får en rumskod, den andra skriver in koden. Sedan spelar ni direkt mellan enheterna via
-          internet.
+          Öppna Alfred FC på båda enheterna. En skapar matchen, den andra väljer den i listan över öppna matcher eller skriver rumskoden. Sedan spelar ni direkt
+          mellan enheterna via internet.
         </p>
+        <p className='wifi-version'>Version {__APP_VERSION__} · båda måste ha samma version för att spela ihop.</p>
       </section>
       {cupMatch && (
         <section className='wifi-connection-state' aria-label='Cupmatch'>
@@ -279,7 +316,7 @@ export function WifiLobby({
           {!fixture && (
             <button type='button' disabled={!supported} onClick={() => setRole('guest')}>
               <strong>Anslut</strong>
-              <span>Skriv kompisens rumskod · Spelare 2</span>
+              <span>Välj en öppen match eller skriv rumskoden · Spelare 2</span>
             </button>
           )}
         </div>
@@ -291,7 +328,7 @@ export function WifiLobby({
               {link
                 ? statusText[link.status]
                 : role === 'guest'
-                  ? 'Skriv värdens rumskod nedan.'
+                  ? 'Välj en öppen match eller skriv värdens rumskod.'
                   : roomError
                     ? 'Inget rum ännu.'
                     : 'Skapar ett rum på spelservern…'}
@@ -305,6 +342,14 @@ export function WifiLobby({
               <p className='control-warning' role='alert'>
                 {link.error}
               </p>
+            )}
+            {role === 'guest' && link && !connected && link.status !== 'error' && link.status !== 'closed' && (
+              <JoinProgress step='connecting' since={joinSince ?? Date.now()} />
+            )}
+            {role === 'host' && connected && (
+              <button type='button' onClick={kick}>
+                Sparka kompisen
+              </button>
             )}
             <button type='button' onClick={reset}>
               Börja om kopplingen
@@ -339,6 +384,13 @@ export function WifiLobby({
           {role === 'host' && room && !connected && link?.status !== 'error' && link?.status !== 'closed' && (
             <section className='wifi-connection-state' aria-label='Rumskod'>
               <RoomCodeCard room={room} />
+              <label className='list-toggle'>
+                <input type='checkbox' checked={listed} onChange={(event) => setListed(event.target.checked)} />
+                <span>
+                  Visa i listan över öppna matcher
+                  <small>Alla som öppnar spelet kan se och gå med. Utan listan går det bara med rumskoden.</small>
+                </span>
+              </label>
               {link && <RoomInvite room={room} link={link} onError={setError} />}
               {link?.status === 'connecting' && <p role='status'>Kompisen ansluter…</p>}
               {notice && <p role='status'>{notice}</p>}
@@ -353,18 +405,29 @@ export function WifiLobby({
               </button>
             </section>
           )}
+          {role === 'guest' && !link && joinSince === null && (
+            <section className='wifi-connection-state' aria-label='Öppna matcher'>
+              <h2>Öppna matcher</h2>
+              <GameList onPick={(code) => setPick({ code, at: Date.now() })} />
+            </section>
+          )}
           {role === 'guest' && !link && (
             <section className='wifi-connection-state' aria-label='Rumskod'>
-              <strong>Skriv kompisens rumskod</strong>
-              <p>Koden står på värdens skärm. Ni kan vara på samma nätverk eller på olika ställen.</p>
-              {notice && (
+              <strong>{joinSince === null ? 'Eller skriv kompisens rumskod' : 'Går med i matchen'}</strong>
+              {joinSince === null && <p>Koden står på värdens skärm. Ni kan vara på samma nätverk eller på olika ställen.</p>}
+              {notice && joinSince === null && (
                 <p className='control-warning' role='alert'>
                   {notice}
                 </p>
               )}
               <RoomJoin
                 initialCode={lastCode}
-                onLink={(next, code) => {
+                pick={pick}
+                onBusy={setJoinSince}
+                onLink={(next, code, since) => {
+                  setJoinSince(since);
+                  // A pick joins once: when this connection ends (a kick, a dropped line), the form must not rejoin by itself.
+                  setPick(undefined);
                   setLastCode(code);
                   setNotice('');
                   keep(next);
@@ -440,8 +503,9 @@ export function WifiLobby({
       <details className='wifi-help'>
         <summary>Om enheterna inte hittar varandra</summary>
         <p>
-          Båda enheterna behöver internet. Värden får en rumskod med fyra tecken från spelservern och kompisen skriver in den. Servern byter bara
-          anslutningskoderna; själva matchen går sedan direkt mellan enheterna. Ni kan vara på samma nätverk eller på olika ställen.
+          Båda enheterna behöver internet. Värden får en rumskod med fyra tecken från spelservern, och kompisen väljer matchen i listan eller skriver in koden.
+          Båda behöver samma version av spelet. Servern byter bara anslutningskoderna; själva matchen går sedan direkt mellan enheterna. Ni kan vara på samma
+          nätverk eller på olika ställen.
         </p>
         <p>
           Vissa strikta nätverk, till exempel en del skol-, jobb- och gästnätverk, stoppar direktkontakt mellan enheter. Då kan kopplingen misslyckas. Försök

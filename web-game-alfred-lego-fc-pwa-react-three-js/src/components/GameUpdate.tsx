@@ -18,6 +18,7 @@ export function GameUpdate({ onSave }: { onSave?: () => void }) {
   return (
     <section className='game-update' aria-label='Speluppdateringar'>
       <p role='status'>{messages[status]}</p>
+      <p className='game-version'>Version {__APP_VERSION__}</p>
       <button
         type='button'
         disabled={['checking', 'downloading', 'applying'].includes(status)}

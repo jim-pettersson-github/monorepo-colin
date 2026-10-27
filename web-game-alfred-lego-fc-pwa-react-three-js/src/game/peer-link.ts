@@ -167,6 +167,13 @@ export async function decodeSignal(code: string): Promise<Signal> {
   }
 }
 
+// Which ways a device offered to be reached: its local address, its internet address (STUN) or a relay (TURN).
+function routes(sdp: string) {
+  const types = new Set(sdp.split(/\r?\n/).flatMap((line) => (line.startsWith('a=candidate:') ? [line.split(' ')[7]] : [])));
+  const names = [types.has('host') && 'lokalt nät', types.has('srflx') && 'via internet', types.has('relay') && 'relä'].filter(Boolean);
+  return names.length ? names.join(', ') : 'inga';
+}
+
 export class PeerLink {
   status: LinkStatus = 'new';
   code = '';
@@ -180,6 +187,8 @@ export class PeerLink {
   private timer?: ReturnType<typeof setTimeout>;
   private grace?: ReturnType<typeof setTimeout>;
   private disposed = false;
+  private localRoutes = '';
+  private remoteRoutes = '';
   // Room pairing passes STUN (and relay) servers and a short timeout, so a blocked network gets a clear message instead of a long wait.
   constructor(
     public readonly role: PeerRole,
@@ -230,10 +239,17 @@ export class PeerLink {
       this.status = 'connected';
       this.publish();
     };
+    const left =
+      this.role === 'guest'
+        ? 'Värden lämnade matchen: stängde spelet, laddade om eller gick ur lobbyn.'
+        : 'Kompisen lämnade matchen: stängde spelet, laddade om eller gick ur lobbyn.';
     channel.onclose = () => {
-      if (!this.disposed) this.fail('Den andra spelaren kopplade från. Koppla ihop enheterna igen för en ny match.');
+      if (!this.disposed) this.fail(left);
     };
-    channel.onerror = () => this.fail('Det gick inte att överföra speldata. Skapa en ny anslutning.');
+    // A device that closes its page, reloads or leaves the lobby aborts the connection, which arrives here as an error
+    // (SCTP cause 12, user-initiated abort) rather than as a close.
+    channel.onerror = (event) =>
+      this.fail((event as RTCErrorEvent).error?.sctpCauseCode === 12 ? left : 'Det gick inte att överföra speldata. Skapa en ny anslutning.');
     channel.onmessage = (event) => {
       if (typeof event.data !== 'string' || event.data.length > 64_000 || this.disposed) return;
       try {
@@ -256,7 +272,8 @@ export class PeerLink {
   }
   private fail(message: string) {
     if (this.disposed) return;
-    this.error = message;
+    this.error =
+      this.status === 'connected' || !this.remoteRoutes ? message : `${message} (Den här enheten: ${this.localRoutes}. Den andra: ${this.remoteRoutes}.)`;
     this.close();
     this.status = 'error';
     this.publish();
@@ -264,11 +281,31 @@ export class PeerLink {
   private async gather(description: RTCSessionDescriptionInit) {
     this.status = 'gathering';
     this.publish();
+    const started = Date.now();
     await this.peer.setLocalDescription(description);
     if (this.peer.iceGatheringState !== 'complete')
       await new Promise<void>((resolve, reject) => {
+        // Phones often never report gathering as complete, and used to wait the full ten seconds here. A relay
+        // address is the last kind to arrive, so once one has and nothing new follows, the code is ready.
+        let relay = false;
+        let internet = false;
+        let settle: ReturnType<typeof setTimeout> | undefined;
+        const found = (event: RTCPeerConnectionIceEvent) => {
+          if (event.candidate?.type === 'relay') relay = true;
+          if (event.candidate?.type === 'srflx') internet = true;
+          clearTimeout(settle);
+          if (relay) settle = setTimeout(finish, 400);
+          // Without a relay (no TURN server, or it is unreachable), an internet address is enough after a few seconds.
+          else if (internet) settle = setTimeout(finish, Math.max(400, 3000 - (Date.now() - started)));
+        };
+        const finish = () => {
+          done();
+          resolve();
+        };
         const done = () => {
           clearTimeout(timer);
+          clearTimeout(settle);
+          this.peer.removeEventListener('icecandidate', found);
           this.peer.removeEventListener('icegatheringstatechange', check);
           this.peer.removeEventListener('signalingstatechange', check);
         };
@@ -287,11 +324,13 @@ export class PeerLink {
           if (this.peer.localDescription?.sdp.includes('a=candidate:')) resolve();
           else reject(new Error('Nätverksadresserna kunde inte hämtas. Försök igen.'));
         }, 10_000);
+        this.peer.addEventListener('icecandidate', found);
         this.peer.addEventListener('icegatheringstatechange', check);
         this.peer.addEventListener('signalingstatechange', check);
         check();
       });
     if (this.disposed || !this.peer.localDescription?.sdp) throw new Error('Anslutningen stängdes.');
+    this.localRoutes = routes(this.peer.localDescription.sdp);
     this.code = await encodeSignal({ v: 1, id: this.id, type: description.type as Signal['type'], sdp: this.peer.localDescription.sdp });
     if (!this.disposed && (this.status as LinkStatus) !== 'connected') this.status = 'waiting';
     this.publish();
@@ -304,6 +343,7 @@ export class PeerLink {
     const offer = await decodeSignal(code);
     if (this.role !== 'guest' || this.status !== 'new' || offer.type !== 'offer') throw new Error('Rummet har ingen giltig inbjudan.');
     this.id = offer.id;
+    this.remoteRoutes = routes(offer.sdp);
     await this.peer.setRemoteDescription({ type: 'offer', sdp: offer.sdp });
     await this.gather(await this.peer.createAnswer());
     this.startTimer();
@@ -312,6 +352,7 @@ export class PeerLink {
     const answer = await decodeSignal(code);
     if (this.role !== 'host' || answer.type !== 'answer') throw new Error('Svaret från kompisen kunde inte användas.');
     if (answer.id !== this.id) throw new Error('Svaret hör till en tidigare inbjudan. Försök igen.');
+    this.remoteRoutes = routes(answer.sdp);
     await this.peer.setRemoteDescription({ type: 'answer', sdp: answer.sdp });
     if (this.status !== 'connected') this.status = 'connecting';
     this.startTimer();

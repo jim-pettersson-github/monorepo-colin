@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { PeerLink } from '../game/peer-link';
-import { joinRoom, normalizeRoomCode, type Room } from '../game/room-server';
+import { type JoinPhase, joinRoom, listGames, normalizeRoomCode, type OpenGame, type Room } from '../game/room-server';
 
 // Host: the room code everyone types to join.
 export function RoomCodeCard({ room }: { room: Room }) {
@@ -10,7 +10,7 @@ export function RoomCodeCard({ room }: { room: Room }) {
       <strong className='room-code' data-testid='room-code'>
         {room.code}
       </strong>
-      <p>Kompisen väljer Anslut och skriver koden. Ni kan vara hemma tillsammans eller på olika ställen.</p>
+      <p>Kompisen väljer din match i listan eller väljer Anslut och skriver koden, var ni än är.</p>
     </div>
   );
 }
@@ -35,38 +35,161 @@ export function RoomInvite({ room, link, onError }: { room: Room; link: PeerLink
   return null;
 }
 
-// Guest: types the host's room code and waits for a free place.
-export function RoomJoin({ onLink, initialCode = '' }: { onLink: (link: PeerLink, code: string) => void; initialCode?: string }) {
-  const [code, setCode] = useState(initialCode);
-  const [state, setState] = useState<'idle' | 'joining' | 'waiting'>('idle');
+// Guest: the matches people are hosting right now, refreshed every few seconds. Picking one joins it.
+export function GameList({ onPick }: { onPick: (code: string) => void }) {
+  const [games, setGames] = useState<OpenGame[] | null>(null);
   const [error, setError] = useState('');
-  const cancel = useRef(false);
+  useEffect(() => {
+    let active = true;
+    const load = () =>
+      listGames().then(
+        (found) => {
+          if (!active) return;
+          setGames(found);
+          setError('');
+        },
+        (e) => active && setError(e instanceof Error ? e.message : 'Listan kunde inte hämtas.'),
+      );
+    void load();
+    const timer = window.setInterval(load, 3000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, []);
+  return (
+    <div className='game-list'>
+      {error && <p role='alert'>{error}</p>}
+      {games === null && !error && <p role='status'>Hämtar öppna matcher…</p>}
+      {games?.length === 0 && <p role='status'>Inga öppna matcher just nu. Be kompisen skapa en match, eller skriv en rumskod.</p>}
+      {!!games?.length && (
+        <ul aria-label='Öppna matcher'>
+          {games.map((game) => (
+            <li key={game.code}>
+              <span>
+                <strong>{game.title}</strong>
+                <small>{game.info}</small>
+              </span>
+              <button type='button' className='primary-button' onClick={() => onPick(game.code)}>
+                Gå med · {game.players}/{game.capacity}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+// A guest's way into a room, step by step, with the time so far. The last steps run after the room code form is gone.
+export type JoinStep = JoinPhase | 'connecting';
+const JOIN_STEPS: { label: string; phases: JoinStep[] }[] = [
+  { label: 'Hittar rummet', phases: ['finding', 'waiting'] },
+  { label: 'Svarar värden', phases: ['answering'] },
+  { label: 'Kopplar upp mot värden', phases: ['connecting'] },
+];
+
+export function JoinProgress({ step, since }: { step: JoinStep; since: number }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 500);
+    return () => clearInterval(timer);
+  }, []);
+  const seconds = Math.max(0, Math.floor((now - since) / 1000));
+  const current = JOIN_STEPS.findIndex((entry) => entry.phases.includes(step));
+  // Most joins take a few seconds; past that, say what the wait usually is.
+  const hint =
+    step === 'waiting'
+      ? 'Värden gör i ordning en plats. Värdens skärm måste vara tänd med spelet öppet.'
+      : step === 'connecting' && seconds >= 6
+        ? 'Det tar en stund när enheterna går via reläservern. Håll båda skärmarna tända.'
+        : '';
+  return (
+    <div className='join-progress' data-testid='join-progress'>
+      <div className='join-bar' aria-hidden='true'>
+        <span className='join-fill' style={{ width: `${((current + 0.5) / JOIN_STEPS.length) * 100}%` }} />
+      </div>
+      <ol aria-label='Går med'>
+        {JOIN_STEPS.map((entry, index) => (
+          <li
+            key={entry.label}
+            className={index < current ? 'done' : index === current ? 'current' : undefined}
+            aria-current={index === current ? 'step' : undefined}
+          >
+            <span className='join-mark' aria-hidden='true'>
+              {index < current ? '✓' : index === current ? <span className='join-spinner' /> : index + 1}
+            </span>
+            {index === current && step === 'waiting' ? 'Väntar på en ledig plats' : entry.label}
+          </li>
+        ))}
+      </ol>
+      <p className='join-time'>
+        <span aria-hidden='true'>{seconds} s</span>
+        {hint && <span role='status'> {hint}</span>}
+      </p>
+    </div>
+  );
+}
+
+// Guest: types the host's room code and waits for a free place; a pick from the game list joins straight away.
+export function RoomJoin({
+  onLink,
+  onBusy,
+  initialCode = '',
+  pick,
+}: {
+  onLink: (link: PeerLink, code: string, since: number) => void;
+  // When an attempt starts (its start time) or ends (null), so the screen can hide the game list meanwhile.
+  onBusy?: (since: number | null) => void;
+  initialCode?: string;
+  pick?: { code: string; at: number };
+}) {
+  const [code, setCode] = useState(initialCode);
+  const [state, setState] = useState<'idle' | JoinPhase>('idle');
+  const [since, setSince] = useState(0);
+  const [error, setError] = useState('');
+  const busy = useRef(onBusy);
+  busy.current = onBusy;
+  // Each attempt has its own number: a new pick, Avbryt or leaving the screen retires the one in progress.
+  const attempt = useRef(0);
   const done = useRef(onLink);
   done.current = onLink;
   useEffect(
     () => () => {
-      cancel.current = true;
+      attempt.current++;
     },
     [],
   );
-  const join = async () => {
-    cancel.current = false;
+  const join = async (value = code) => {
+    // One attempt at a time: a second tap on the list would leave the host waiting on an answer nobody uses.
+    if (state !== 'idle') return;
+    const id = ++attempt.current;
+    const cancelled = () => attempt.current !== id;
+    const started = Date.now();
     setError('');
-    setState('joining');
+    setState('finding');
+    setSince(started);
+    busy.current?.(started);
     try {
-      const link = await joinRoom(
-        code,
-        () => cancel.current,
-        () => setState('waiting'),
-      );
-      if (cancel.current) link.close();
-      else done.current(link, code);
+      const link = await joinRoom(value, cancelled, (phase) => !cancelled() && setState(phase));
+      if (cancelled()) link.close();
+      else done.current(link, value, started);
     } catch (e) {
-      if (!cancel.current) setError(e instanceof Error ? e.message : 'Det gick inte att gå med.');
+      if (!cancelled()) {
+        setError(e instanceof Error ? e.message : 'Det gick inte att gå med.');
+        busy.current?.(null);
+      }
     } finally {
-      if (!cancel.current) setState('idle');
+      if (!cancelled()) setState('idle');
     }
   };
+  const joinRef = useRef(join);
+  joinRef.current = join;
+  useEffect(() => {
+    if (!pick) return;
+    setCode(pick.code);
+    void joinRef.current(pick.code);
+  }, [pick]);
   return (
     <form
       className='room-join'
@@ -96,15 +219,15 @@ export function RoomJoin({ onLink, initialCode = '' }: { onLink: (link: PeerLink
         <button
           type='button'
           onClick={() => {
-            cancel.current = true;
+            attempt.current++;
             setState('idle');
+            busy.current?.(null);
           }}
         >
           Avbryt
         </button>
       )}
-      {state === 'joining' && <p role='status'>Ansluter till rummet…</p>}
-      {state === 'waiting' && <p role='status'>Rummet är hittat. Väntar på att värden har en ledig plats…</p>}
+      {state !== 'idle' && <JoinProgress step={state} since={since} />}
       {error && <p role='alert'>{error}</p>}
     </form>
   );

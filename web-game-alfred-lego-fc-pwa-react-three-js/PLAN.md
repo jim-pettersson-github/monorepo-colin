@@ -13,7 +13,7 @@
 - Twenty selectable clubs with distinct shirt colors, trim and crests; team selections persist through saves and rematches.
 - Procedural LEGO-style characters, animated limbs, selection rings, a patterned ball and brick-built stadium.
 - Solo versus AI or two local human players on one screen, with AI teammates.
-- Two-device online play via WebRTC, paired with a four-character room code through the PHP room server (games.charliecare.se by default). The server only swaps compact pairing codes; STUN, and TURN when the server supplies it, help devices connect. The host runs the match; the guest controls player 2. Separate device input/orientation, shared pause, lost-peer handling, room reopening after a failed join, host rematches and local-save isolation. QR pairing has been removed.
+- Two-device online play via WebRTC, paired with a four-character room code through the PHP room server (games.charliecare.se by default). The server only swaps compact pairing codes; STUN, and TURN when the server supplies it, help devices connect. The host runs the match; the guest controls player 2. An open-match list with one-tap join, join progress steps, a host kick, same-version checks and a visible version. Separate device input/orientation, shared pause, lost-peer handling, room reopening after a failed join, host rematches and local-save isolation. QR pairing has been removed.
 - Fixed-step movement, possession, directional passes, open-corner assisted shots and automatic/manual player switching.
 - Moving slide tackles with ball contact, possession transfer, opponent knockdowns and timed recovery.
 - Feet-first slides use small swept contact areas relative to both players' motion. Empty slides have no decision; any ball contact makes the tackle clean. Contact without a ball win has equal chances of a yellow card, free kick or play-on. Announcements identify the offender.
@@ -60,4 +60,4 @@ Desktop, portrait-phone and landscape-phone browser checks cover star search and
 
 ## Scope
 
-Local single-device quick matches, two-device online matches and two-division play with promotion/relegation and optional human opponents are implemented. Automatic matchmaking without a room code, full football rules, music and replays are not implemented. Controller compatibility depends on the OS, browser and device. Universal compatibility is not promised.
+Local single-device quick matches, two-device online matches and two-division play with promotion/relegation and optional human opponents are implemented. Automatic matchmaking, full football rules, music and replays are not implemented. Controller compatibility depends on the OS, browser and device. Universal compatibility is not promised.

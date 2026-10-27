@@ -19,7 +19,8 @@ export const ONLINE_ICE: RTCIceServer[] = [{ urls: ['stun:stun.l.google.com:1930
 export const ONLINE_TIMEOUT = 30_000;
 
 const GAME = 'alfred-fc';
-const POLL_MS = 1500;
+// The host checks for an answer, and a waiting guest for a free place, this often; joins wait about half of it.
+const POLL_MS = 750;
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 class ServerError extends Error {
@@ -67,6 +68,27 @@ export function onlineIce() {
   return ice.servers;
 }
 
+// A hosted match as the open-game list shows it.
+export type OpenGame = { code: string; title: string; info: string; players: number; capacity: number };
+
+const validGame = (value: unknown): value is OpenGame => {
+  const game = value as OpenGame;
+  return (
+    !!game &&
+    typeof game.code === 'string' &&
+    /^[A-Z0-9]{4}$/.test(game.code) &&
+    typeof game.title === 'string' &&
+    typeof game.info === 'string' &&
+    Number.isInteger(game.players) &&
+    Number.isInteger(game.capacity)
+  );
+};
+
+export async function listGames() {
+  const result = await call<{ games?: unknown[] }>('list', undefined, { game: GAME, version: __APP_BUILD__ });
+  return Array.isArray(result.games) ? result.games.filter(validGame) : [];
+}
+
 export const normalizeRoomCode = (value: string) => value.toUpperCase().replace(/[^A-Z0-9]/g, '');
 
 export class Room {
@@ -78,8 +100,14 @@ export class Room {
   ) {}
 
   static async open() {
-    const [{ code, host }, servers] = await Promise.all([call<{ code: string; host: string }>('create', { game: GAME }), onlineIce()]);
+    const [{ code, host }, servers] = await Promise.all([call<{ code: string; host: string }>('create', { game: GAME, version: __APP_BUILD__ }), onlineIce()]);
     return new Room(code, host, servers);
+  }
+
+  // Keeps the room on the open-game list (or takes it off); the server drops rooms that stop announcing.
+  announce(listing: { listed: boolean; title: string; info: string; players: number; capacity: number }) {
+    if (this.closed) return Promise.resolve();
+    return call('announce', { code: this.code, host: this.host, ...listing }).then(() => undefined);
   }
 
   // A host link for the next guest, using the room's STUN and relay servers.
@@ -106,15 +134,24 @@ export class Room {
 }
 
 // Guest: waits for the host's open invitation in the room, answers it, and returns the link that will connect.
-export async function joinRoom(code: string, cancelled: () => boolean, onWaiting: () => void) {
+// Where a guest's join is, for its progress steps: finding the room, waiting for a free place, answering the host.
+export type JoinPhase = 'finding' | 'waiting' | 'answering';
+
+export async function joinRoom(code: string, cancelled: () => boolean, onPhase: (phase: JoinPhase) => void) {
   while (!cancelled()) {
-    const claim = await call<{ offer?: string; claim?: string; game?: string }>('claim', { code });
+    const claim = await call<{ offer?: string; claim?: string; game?: string; version?: string | null }>('claim', { code });
     if (claim.game && claim.game !== GAME) throw new Error('Rumskoden hör till ett annat spel.');
     if (!claim.offer || !claim.claim) {
-      onWaiting();
+      onPhase('waiting');
       await wait(POLL_MS);
       continue;
     }
+    // Only a real invitation carries the host's version; a waiting answer has none.
+    if (claim.version !== __APP_BUILD__)
+      throw new Error(
+        `Värden har en annan version av spelet (${claim.version ?? 'äldre'}) än du (${__APP_BUILD__}). Uppdatera spelet på båda enheterna med Sök efter uppdatering i startmenyn och försök igen.`,
+      );
+    onPhase('answering');
     const signal = await decodeSignal(claim.offer);
     if (signal.type !== 'offer') throw new Error('Rummet har ingen giltig inbjudan.');
     const link = new PeerLink('guest', await onlineIce(), ONLINE_TIMEOUT);
