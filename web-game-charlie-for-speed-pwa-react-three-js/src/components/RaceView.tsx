@@ -202,7 +202,14 @@ export function RaceView({ settings, onSettings, onExit, career, network, onPlay
         if (bestLap > 0) {
           const run = ++boardRun.current;
           setBoard('sending');
-          const lap = { track: race.track.id, car: race.player.spec.id, transmission: settingsRef.current.transmission, time: Math.round(bestLap * 1000) };
+          const lap = {
+            track: race.track.id,
+            car: race.player.spec.id,
+            transmission: settingsRef.current.transmission,
+            time: Math.round(bestLap * 1000),
+            kind: career ? ('career' as const) : ('race' as const),
+            online: !!network,
+          };
           void submitLap(loadIdentity(), lap).then((result) => run === boardRun.current && setBoard(result));
         }
         finishTimer = setTimeout(
@@ -396,7 +403,7 @@ export function RaceView({ settings, onSettings, onExit, career, network, onPlay
               {race.track.name} · {race.settings.laps} varv
               {outcome.record && <strong className='record'> · Nytt banrekord {formatTime(outcome.bestLap)}!</strong>}
             </p>
-            <BoardStatus result={board} track={race.track.name} lapTime={Math.round(outcome.bestLap * 1000)} onName={giveName} />
+            <BoardStatus result={board} track={race.track.name} career={!!career} lapTime={Math.round(outcome.bestLap * 1000)} onName={giveName} />
             <table>
               <thead>
                 <tr>
@@ -464,17 +471,20 @@ export function RaceView({ settings, onSettings, onExit, career, network, onPlay
 function BoardStatus({
   result,
   track,
+  career,
   lapTime,
   onName,
 }: {
   result: LapResult | 'sending' | undefined;
   track: string;
+  career: boolean;
   lapTime: number;
   onName: (name: string) => void;
 }) {
   const [name, setName] = useState('');
   if (!result) return null;
-  if (result === 'sending') return <p className='lapboard-status'>Skickar ditt bästa varv till topplistan…</p>;
+  const list = career ? 'Karriärlistan' : 'Topplistan';
+  if (result === 'sending') return <p className='lapboard-status'>Skickar ditt bästa varv till {list.toLowerCase()}…</p>;
   if (result.state === 'nameless')
     return (
       <form
@@ -496,9 +506,9 @@ function BoardStatus({
   return (
     <p className='lapboard-status' role='status'>
       {result.state === 'sent'
-        ? `Topplistan för ${track}: plats ${result.rank} av ${result.drivers}${result.best === lapTime ? ' med det här varvet!' : `. Ditt bästa där är ${formatTime(result.best / 1000)}.`}`
+        ? `${list} för ${track}: plats ${result.rank} av ${result.drivers}${result.best === lapTime ? ' med det här varvet!' : `. Ditt bästa där är ${formatTime(result.best / 1000)}.`}`
         : result.state === 'queued'
-          ? 'Topplistan går inte att nå just nu. Varvet sparas och skickas nästa gång du är online.'
+          ? `${list} går inte att nå just nu. Varvet sparas och skickas nästa gång du är online.`
           : result.message}
     </p>
   );

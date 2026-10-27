@@ -40,22 +40,30 @@ test('choose a car and track, race, pause and return to the menu', async ({ page
   expect(errors).toEqual([]);
 });
 
-test('scoreboard: laps from every device rank per track and overall, and a lap saved offline is sent', async ({ page, request }, info) => {
+test('scoreboard: quick races alone and online rank together, careers apart, and a lap saved offline is sent', async ({ page, request }, info) => {
   test.skip(info.project.name !== 'desktop', 'One layout is enough for the lists.');
   // The test room server keeps its database between runs, so names are unique to this run.
   const run = Date.now().toString(36);
   const rival = `Rival${run.slice(-4)}`;
   const me = `Jag${run.slice(-4)}`;
-  const sent = await request.post(`${roomServer}?a=lap`, {
-    headers: { 'Content-Type': 'text/plain' },
-    data: JSON.stringify({ game: 'charlie-fs', track: 'vaxjo', player: `r${run}`, name: rival, car: 'diablo', transmission: 'auto', time: 10_500 }),
-  });
-  expect(sent.ok()).toBe(true);
+  const lap = async (lap: Record<string, unknown>) => {
+    const sent = await request.post(`${roomServer}?a=lap`, {
+      headers: { 'Content-Type': 'text/plain' },
+      data: JSON.stringify({ game: 'charlie-fs', track: 'vaxjo', car: 'diablo', transmission: 'auto', ...lap }),
+    });
+    expect(sent.ok()).toBe(true);
+  };
+  await lap({ player: `r${run}`, name: rival, time: 10_500, online: true });
+  // A faster career lap by the same player stays off the quick-race list.
+  await lap({ player: `p${run}`, name: me, car: 'corvette', time: 10_100, kind: 'career' });
   await page.addInitScript(
     ({ server, run, me }) => {
       localStorage.setItem('charlie-for-speed:room-server', server);
       localStorage.setItem('charlie-for-speed:identity', JSON.stringify({ id: `p${run}`, name: me }));
-      localStorage.setItem('charlie-for-speed:pending-laps', JSON.stringify([{ track: 'vaxjo', car: 'corvette', transmission: 'manual', time: 10_400 }]));
+      localStorage.setItem(
+        'charlie-for-speed:pending-laps',
+        JSON.stringify([{ track: 'vaxjo', car: 'corvette', transmission: 'manual', time: 10_400, kind: 'race', online: false }]),
+      );
     },
     { server: roomServer, run, me },
   );
@@ -75,6 +83,9 @@ test('scoreboard: laps from every device rank per track and overall, and a lap s
   const board = page.getByRole('region', { name: 'Topplista Växjö Motorring' });
   await expect(board.locator('tr.me')).toContainText(me);
   await expect(board.locator('tr.me')).toContainText('0:10.40');
+  await expect(board.locator('tr.me')).toContainText('Ensam');
+  await expect(board.locator('tr.me')).toContainText('Manuell');
+  await expect(board.locator('tr').filter({ hasText: rival })).toContainText('Online');
   const names = await board.locator('tbody tr td:nth-child(2)').allTextContents();
   expect(names.indexOf(me)).toBeGreaterThanOrEqual(0);
   expect(names.indexOf(me)).toBeLessThan(names.indexOf(rival));
@@ -87,4 +98,8 @@ test('scoreboard: laps from every device rank per track and overall, and a lap s
     .first()
     .click();
   await expect(overall).toBeVisible();
+
+  await page.getByRole('button', { name: 'Karriär', exact: true }).click();
+  const careerRecords = page.getByRole('region', { name: 'Banrekord' });
+  await expect(careerRecords.getByRole('button', { name: /Växjö Motorring/ }).locator('small')).toContainText('0:10.10');
 });

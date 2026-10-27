@@ -4,15 +4,17 @@ import { call, GAME, ServerError } from './room-server';
 // The scoreboard on the room server: every finished race sends its best lap, and the lists rank each player's best.
 
 export type Period = 'all' | 'month' | 'week';
-export type LapEntry = { name: string; car: string; transmission: 'auto' | 'manual' | null; time: number; at: number; me: boolean };
-export type Placing = { rank: number; time: number; car: string };
+// Quick races, alone or online, share one list; careers have their own, since career cars carry bought upgrades.
+export type BoardKind = 'race' | 'career';
+export type LapEntry = { name: string; car: string; transmission: 'auto' | 'manual' | null; online: boolean; time: number; at: number; me: boolean };
+export type Placing = { rank: number; time: number; car: string; online: boolean };
 export type TrackBoard = { board: LapEntry[]; me: Placing | null; drivers: number };
 export type TrackRecord = LapEntry & { track: string; drivers: number; mine: Placing | null };
 export type OverallEntry = { name: string; points: number; records: number; tracks: number; me: boolean };
 export type Overview = { tracks: TrackRecord[]; overall: OverallEntry[]; me: OverallEntry | null };
 
 // A lap as it is sent: the time in milliseconds.
-export type Lap = { track: string; car: string; transmission: 'auto' | 'manual'; time: number };
+export type Lap = { track: string; car: string; transmission: 'auto' | 'manual'; time: number; kind: BoardKind; online: boolean };
 export type LapResult =
   | { state: 'sent'; rank: number; best: number; drivers: number }
   // Kept on the device until the server can be reached.
@@ -36,10 +38,13 @@ const validLap = (value: unknown): value is Lap => {
   );
 };
 
+// Laps saved before races had a kind were quick races on this device.
+const withKind = (lap: Lap): Lap => ({ ...lap, kind: lap.kind === 'career' ? 'career' : 'race', online: lap.online === true });
+
 function loadPending(): Lap[] {
   try {
     const list = JSON.parse(localStorage.getItem(PENDING_KEY) || '[]') as unknown;
-    return Array.isArray(list) ? list.filter(validLap) : [];
+    return Array.isArray(list) ? list.filter(validLap).map(withKind) : [];
   } catch {
     return [];
   }
@@ -113,10 +118,10 @@ async function flushPending(identity: Identity): Promise<LapResult | undefined> 
   return last;
 }
 
-export function loadOverview(period: Period, player: string) {
-  return call<Overview>('laps', undefined, { game: GAME, period, player });
+export function loadOverview(kind: BoardKind, period: Period, player: string) {
+  return call<Overview>('laps', undefined, { game: GAME, kind, period, player });
 }
 
-export function loadTrackBoard(track: string, period: Period, player: string) {
-  return call<TrackBoard>('laps', undefined, { game: GAME, period, player, track });
+export function loadTrackBoard(kind: BoardKind, track: string, period: Period, player: string) {
+  return call<TrackBoard>('laps', undefined, { game: GAME, kind, period, player, track });
 }

@@ -1,11 +1,26 @@
 import { useEffect, useState } from 'react';
 import { carById, carName } from '../game/cars';
-import { flushLaps, loadOverview, loadTrackBoard, type Overview, type Period, pendingLaps, type TrackBoard } from '../game/leaderboard';
+import {
+  type BoardKind,
+  flushLaps,
+  type LapEntry,
+  loadOverview,
+  loadTrackBoard,
+  type Overview,
+  type Period,
+  pendingLaps,
+  type TrackBoard,
+} from '../game/leaderboard';
 import { formatTime } from '../game/race';
 import { loadIdentity, loadRecords } from '../game/storage';
 import { trackDefs } from '../game/tracks';
 
 type Props = { onBack: () => void };
+
+const kinds: [BoardKind, string][] = [
+  ['race', 'Snabbrace'],
+  ['career', 'Karriär'],
+];
 
 const periods: [Period, string][] = [
   ['all', 'Alla tider'],
@@ -17,9 +32,12 @@ const dates = new Intl.DateTimeFormat('sv-SE', { day: 'numeric', month: 'short',
 const trackName = (id: string) => trackDefs.find((track) => track.id === id)?.name ?? id;
 const car = (id: string) => carName(carById(id));
 const lapTime = (ms: number) => formatTime(ms / 1000);
+const mode = (online: boolean) => (online ? 'Online' : 'Ensam');
+const gearbox = (entry: LapEntry) => (entry.transmission === 'manual' ? 'Manuell' : entry.transmission === 'auto' ? 'Automat' : '–');
 
 // Best laps from every device, per track and over all tracks, read from the room server.
 export function Scoreboard({ onBack }: Props) {
+  const [kind, setKind] = useState<BoardKind>('race');
   const [period, setPeriod] = useState<Period>('all');
   // undefined shows every track; a track id shows that track's top list.
   const [track, setTrack] = useState<string>();
@@ -39,13 +57,13 @@ export function Scoreboard({ onBack }: Props) {
       .catch(() => undefined)
       .then(() => {
         if (active) setWaiting(pendingLaps());
-        return track ? loadTrackBoard(track, period, player).then(setBoard) : loadOverview(period, player).then(setOverview);
+        return track ? loadTrackBoard(kind, track, period, player).then(setBoard) : loadOverview(kind, period, player).then(setOverview);
       });
     load.catch((e) => active && setError(e instanceof Error ? e.message : 'Topplistan kunde inte hämtas.')).finally(() => active && setLoading(false));
     return () => {
       active = false;
     };
-  }, [track, period, player]);
+  }, [kind, track, period, player]);
 
   const records = loadRecords();
   return (
@@ -59,6 +77,19 @@ export function Scoreboard({ onBack }: Props) {
 
       <div className='scoreboard-body'>
         <div className='scoreboard-filters'>
+          <fieldset className='choice'>
+            <legend>Lista</legend>
+            {kinds.map(([value, label]) => (
+              <button key={value} type='button' aria-pressed={kind === value} onClick={() => setKind(value)}>
+                {label}
+              </button>
+            ))}
+          </fieldset>
+          <p className='hint'>
+            {kind === 'race'
+              ? 'Snabbrace ensam och online räknas tillsammans; Läge visar hur varvet kördes.'
+              : 'Karriärrace räknas för sig, eftersom karriärbilarna har köpta uppgraderingar.'}
+          </p>
           <fieldset className='choice'>
             <legend>Period</legend>
             {periods.map(([value, label]) => (
@@ -112,6 +143,8 @@ export function Scoreboard({ onBack }: Props) {
                     <th>Plats</th>
                     <th>Förare</th>
                     <th>Bil</th>
+                    <th>Läge</th>
+                    <th className='wide'>Växellåda</th>
                     <th>Bästa varv</th>
                     <th className='wide'>Datum</th>
                   </tr>
@@ -122,6 +155,8 @@ export function Scoreboard({ onBack }: Props) {
                       <td>{index + 1}</td>
                       <td>{row.name}</td>
                       <td>{car(row.car)}</td>
+                      <td>{mode(row.online)}</td>
+                      <td className='wide'>{gearbox(row)}</td>
                       <td>{lapTime(row.time)}</td>
                       <td className='wide'>{dates.format(row.at * 1000)}</td>
                     </tr>
@@ -131,7 +166,7 @@ export function Scoreboard({ onBack }: Props) {
             )}
             <p className='hint'>
               {board.me
-                ? `Du ligger på plats ${board.me.rank} av ${board.drivers} med ${lapTime(board.me.time)} (${car(board.me.car)}).`
+                ? `Du ligger på plats ${board.me.rank} av ${board.drivers} med ${lapTime(board.me.time)} (${car(board.me.car)}, ${mode(board.me.online).toLowerCase()}).`
                 : board.drivers
                   ? `${board.drivers} förare har kört här. Du har inget varv här under perioden.`
                   : ''}
@@ -181,7 +216,7 @@ export function Scoreboard({ onBack }: Props) {
                     <li key={def.id}>
                       <button type='button' onClick={() => setTrack(def.id)}>
                         <strong>{def.name}</strong>
-                        <span>{record ? `${lapTime(record.time)} · ${record.name} · ${car(record.car)}` : 'Inget varv ännu'}</span>
+                        <span>{record ? `${lapTime(record.time)} · ${record.name} · ${car(record.car)} · ${mode(record.online)}` : 'Inget varv ännu'}</span>
                         {record?.mine && (
                           <small>
                             Du: plats {record.mine.rank} av {record.drivers}, {lapTime(record.mine.time)}

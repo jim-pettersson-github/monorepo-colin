@@ -168,21 +168,26 @@ function laps(PDO $db): void
             version TEXT
         )'
     );
+    // Quick races (alone or online) and careers rank apart, since career cars carry bought upgrades.
+    $columns = array_column($db->query('PRAGMA table_info(laps)')->fetchAll(), 'name');
+    foreach (["kind TEXT NOT NULL DEFAULT 'race'", 'online INTEGER NOT NULL DEFAULT 0'] as $column) {
+        if (!in_array(strtok($column, ' '), $columns, true)) $db->exec("ALTER TABLE laps ADD COLUMN $column");
+    }
     $db->exec('CREATE INDEX IF NOT EXISTS laps_board ON laps (game, track, player, time)');
     $db->exec('CREATE TABLE IF NOT EXISTS drivers (game TEXT NOT NULL, player TEXT NOT NULL, name TEXT NOT NULL, PRIMARY KEY (game, player))');
 }
 
-// Each player's best lap per track since a time, fastest first, with the name they use now.
+// Each player's best lap per track of one kind since a time, fastest first, with the name they use now.
 // SQLite takes the bare columns of a MIN() group from the row that holds the minimum.
-function bests(PDO $db, string $game, int $since, ?string $track = null): array
+function bests(PDO $db, string $game, string $kind, int $since, ?string $track = null): array
 {
     $statement = $db->prepare(
-        'SELECT l.track, l.player, d.name, l.car, l.transmission, MIN(l.time) AS time, l.at, l.id
+        'SELECT l.track, l.player, d.name, l.car, l.transmission, l.online, MIN(l.time) AS time, l.at, l.id
          FROM laps l JOIN drivers d ON d.game = l.game AND d.player = l.player
-         WHERE l.game = ? AND l.at >= ? AND (? IS NULL OR l.track = ?)
+         WHERE l.game = ? AND l.kind = ? AND l.at >= ? AND (? IS NULL OR l.track = ?)
          GROUP BY l.track, l.player ORDER BY l.track, time, l.id'
     );
-    $statement->execute([$game, $since, $track, $track]);
+    $statement->execute([$game, $kind, $since, $track, $track]);
     $tracks = [];
     foreach ($statement->fetchAll() as $row) $tracks[$row['track']][] = $row;
     return $tracks;
@@ -191,13 +196,21 @@ function bests(PDO $db, string $game, int $since, ?string $track = null): array
 // A row as players see it: no device ids, only whether it is the asking player's own.
 function entry(array $row, string $player): array
 {
-    return ['name' => $row['name'], 'car' => $row['car'], 'transmission' => $row['transmission'], 'time' => (int) $row['time'], 'at' => (int) $row['at'], 'me' => $row['player'] === $player];
+    return [
+        'name' => $row['name'],
+        'car' => $row['car'],
+        'transmission' => $row['transmission'],
+        'online' => (bool) $row['online'],
+        'time' => (int) $row['time'],
+        'at' => (int) $row['at'],
+        'me' => $row['player'] === $player,
+    ];
 }
 
 function placing(array $bests, string $player): ?array
 {
     foreach ($bests as $index => $row) {
-        if ($row['player'] === $player) return ['rank' => $index + 1, 'time' => (int) $row['time'], 'car' => $row['car']];
+        if ($row['player'] === $player) return ['rank' => $index + 1, 'time' => (int) $row['time'], 'car' => $row['car'], 'online' => (bool) $row['online']];
     }
     return null;
 }
@@ -333,13 +346,14 @@ try {
             $player = text($body, 'player', '/^[a-z0-9]{6,40}$/');
             $name = trim(text($body, 'name', '/^[^\p{C}]{1,40}$/u'));
             if ($name === '' || mb_strlen($name) > 16) reply(['error' => 'Skriv ett namn med högst 16 tecken.'], 400);
+            $kind = in_array($body['kind'] ?? 'race', ['race', 'career'], true) ? ($body['kind'] ?? 'race') : reply(['error' => 'Ogiltig sorts lopp.'], 400);
             $time = $body['time'] ?? null;
             if (!is_int($time) || $time < LAP_MIN || $time > LAP_MAX) reply(['error' => 'Ogiltig varvtid.'], 400);
             $recent = $db->prepare('SELECT COUNT(*) FROM laps WHERE game = ? AND player = ? AND at > ?');
             // A device sends one lap per race, plus any it saved while offline; more than that is not a person racing.
             $recent->execute([$game, $player, $now - 60]);
             if ((int) $recent->fetchColumn() >= 10) reply(['error' => 'Vänta lite innan nästa varv skickas.'], 429);
-            $db->prepare('INSERT INTO laps (at, game, track, player, car, transmission, time, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')->execute([
+            $db->prepare('INSERT INTO laps (at, game, track, player, car, transmission, time, version, kind, online) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')->execute([
                 $now,
                 $game,
                 $track,
@@ -348,14 +362,16 @@ try {
                 in_array($body['transmission'] ?? null, ['auto', 'manual'], true) ? $body['transmission'] : null,
                 $time,
                 is_string($body['version'] ?? null) ? substr($body['version'], 0, 40) : null,
+                $kind,
+                empty($body['online']) ? 0 : 1,
             ]);
             $db->prepare('INSERT INTO drivers (game, player, name) VALUES (?, ?, ?) ON CONFLICT (game, player) DO UPDATE SET name = excluded.name')
                 ->execute([$game, $player, $name]);
             $db->prepare(
-                'DELETE FROM laps WHERE game = ? AND track = ? AND player = ? AND at < ?
-                 AND id <> (SELECT id FROM laps WHERE game = ? AND track = ? AND player = ? ORDER BY time, id LIMIT 1)'
-            )->execute([$game, $track, $player, $now - LAP_KEEP, $game, $track, $player]);
-            $bests = bests($db, $game, 0, $track)[$track] ?? [];
+                'DELETE FROM laps WHERE game = ? AND kind = ? AND track = ? AND player = ? AND at < ?
+                 AND id <> (SELECT id FROM laps WHERE game = ? AND kind = ? AND track = ? AND player = ? ORDER BY time, id LIMIT 1)'
+            )->execute([$game, $kind, $track, $player, $now - LAP_KEEP, $game, $kind, $track, $player]);
+            $bests = bests($db, $game, $kind, 0, $track)[$track] ?? [];
             $mine = placing($bests, $player);
             reply(['ok' => true, 'rank' => $mine['rank'] ?? null, 'best' => $mine['time'] ?? null, 'drivers' => count($bests)]);
 
@@ -367,17 +383,19 @@ try {
             $days = ['all' => 0, 'month' => 30, 'week' => 7][$_GET['period'] ?? 'all'] ?? null;
             if ($days === null) reply(['error' => 'Ogiltig period.'], 400);
             $since = $days ? $now - $days * 86400 : 0;
+            $kind = $_GET['kind'] ?? 'race';
+            if (!in_array($kind, ['race', 'career'], true)) reply(['error' => 'Ogiltig sorts lopp.'], 400);
             $player = is_string($_GET['player'] ?? null) ? $_GET['player'] : '';
             $track = $_GET['track'] ?? '';
             if ($track !== '') {
                 if (!is_string($track) || !preg_match('/^[a-z0-9-]{1,32}$/', $track)) reply(['error' => 'Ogiltig bana.'], 400);
-                $bests = bests($db, $game, $since, $track)[$track] ?? [];
+                $bests = bests($db, $game, $kind, $since, $track)[$track] ?? [];
                 $board = array_map(fn ($row) => entry($row, $player), array_slice($bests, 0, BOARD_SIZE));
                 reply(['board' => $board, 'me' => placing($bests, $player), 'drivers' => count($bests)]);
             }
             $tracks = [];
             $points = [];
-            foreach (bests($db, $game, $since) as $id => $bests) {
+            foreach (bests($db, $game, $kind, $since) as $id => $bests) {
                 $tracks[] = [...entry($bests[0], $player), 'track' => $id, 'drivers' => count($bests), 'mine' => placing($bests, $player)];
                 foreach ($bests as $index => $row) {
                     $points[$row['player']] ??= ['name' => $row['name'], 'points' => 0, 'records' => 0, 'tracks' => 0, 'me' => $row['player'] === $player];
