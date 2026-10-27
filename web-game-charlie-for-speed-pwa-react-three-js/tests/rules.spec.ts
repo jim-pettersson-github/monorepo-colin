@@ -584,6 +584,18 @@ test('online quick races allow mixed classes, carry lobby names and balance all 
   expect(humans.some((name) => name === 'Lotta' || name === 'Lotta 2')).toBe(true);
   expect(new Set(race.racers.map((racer) => racer.driverName)).size).toBe(race.racers.length);
 
+  // Every phone builds the same grid from the seed, whatever order its browser's sort compares in.
+  const grid = (built: typeof race) => built.racers.map((racer) => `${racer.driverName}:${racer.spec.id}`);
+  const sort = Array.prototype.sort;
+  try {
+    Array.prototype.sort = function (this: unknown[], compare?: (a: unknown, b: unknown) => number) {
+      return sort.call(this.reverse(), compare && ((a, b) => compare(b, a)));
+    };
+    expect(grid(createNetworkRace(config, 1))).toEqual(grid(race));
+  } finally {
+    Array.prototype.sort = sort;
+  }
+
   const online = cars.map((car) => arcadeSpec(car));
   const spread = (values: number[]) => Math.max(...values) - Math.min(...values);
   expect(spread(online.map((car) => car.topKmh))).toBeLessThan(12);

@@ -63,11 +63,25 @@ const skills: Record<Difficulty, number> = { easy: 0.84, normal: 0.93, hard: 1.0
 
 export type Entrant = { driverName: string; spec: CarSpec; skill: number; isPlayer?: boolean };
 
+// A shuffle that uses only the seeded random. Sorting with a random comparator gives a different order in each
+// browser's sort, so an online guest on another phone would put other names and cars on the host's grid.
+function shuffle<T>(items: T[], next: () => number) {
+  const list = [...items];
+  for (let i = list.length - 1; i > 0; i--) {
+    const j = Math.floor(next() * (i + 1));
+    [list[i], list[j]] = [list[j], list[i]];
+  }
+  return list;
+}
+
 // Quick races fill the grid with rivals from the player's class, repeating models when the class is small.
 function quickField(settings: RaceSettings, next: () => number): Entrant[] {
   const playerSpec = carById(settings.carId);
-  const sameClass = cars.filter((car) => car.id !== playerSpec.id && car.carClass === playerSpec.carClass).sort(() => next() - 0.5);
-  const driverNames = [...names].sort(() => next() - 0.5);
+  const sameClass = shuffle(
+    cars.filter((car) => car.id !== playerSpec.id && car.carClass === playerSpec.carClass),
+    next,
+  );
+  const driverNames = shuffle(names, next);
   const field: Entrant[] = [];
   for (let slot = 0; slot <= OPPONENTS; slot++) {
     if (slot === PLAYER_GRID_SLOT) field.push({ driverName: 'Du', spec: playerSpec, skill: 1, isPlayer: true });
