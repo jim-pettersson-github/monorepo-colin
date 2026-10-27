@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { CareerHub } from './components/CareerHub';
 import { Garage } from './components/Garage';
 import { RaceView } from './components/RaceView';
+import { Scoreboard } from './components/Scoreboard';
 import { SettingsPanel } from './components/SettingsPanel';
 import { Showroom } from './components/Showroom';
 import { TitleScreen } from './components/TitleScreen';
@@ -12,6 +13,7 @@ import { WifiLobby } from './components/WifiLobby';
 import { type Career, cupById, cupField, currentTrack, recordRace } from './game/career';
 import { type CareerLobbyConfig, CareerSession, validLobbyConfig } from './game/career-session';
 import { carName, cars } from './game/cars';
+import { flushLaps } from './game/leaderboard';
 import { newSession, type Session } from './game/multi-career';
 import { MAX_PLAYERS, NetworkRace, type RaceConfig, validRaceConfig } from './game/network-race';
 import {
@@ -77,7 +79,8 @@ type Screen =
   | 'career-race'
   | 'wifi-career'
   | 'wifi-career-lobby'
-  | 'wifi-career-hub';
+  | 'wifi-career-hub'
+  | 'scoreboard';
 
 export function App() {
   const [screen, setScreen] = useState<Screen>('title');
@@ -101,6 +104,12 @@ export function App() {
     setIdentity(next);
     saveIdentity(next);
   };
+  const changeName = (name: string) => changeIdentity({ ...identity, name });
+
+  // Laps saved while offline go to the scoreboard once the game opens with a connection.
+  useEffect(() => {
+    void flushLaps(loadIdentity()).catch(() => {});
+  }, []);
 
   const openCareerLobby = (session: Session | undefined) => {
     setHostSession(session);
@@ -139,8 +148,10 @@ export function App() {
           onSettings={() => setSettingsOpen(true)}
           onWifi={() => setScreen('wifi')}
           onWifiCareer={() => setScreen('wifi-career')}
+          onScoreboard={() => setScreen('scoreboard')}
         />
       )}
+      {screen === 'scoreboard' && <Scoreboard onBack={() => setScreen('title')} />}
       {screen === 'wifi-career' && (
         <WifiCareerStart
           identity={identity}
@@ -303,6 +314,7 @@ export function App() {
           network={network}
           settings={{ ...settings, ...network.config.settings }}
           onSettings={(next) => update({ ...settings, camera: next.camera, sound: next.sound, volume: next.volume })}
+          onPlayerName={changeName}
           onExit={() => {
             setNetwork(undefined);
             setScreen('wifi');
@@ -318,13 +330,14 @@ export function App() {
         />
       )}
       {screen === 'tracks' && <TrackSelect settings={settings} onChange={update} onBack={() => setScreen('garage')} onStart={() => setScreen('race')} />}
-      {screen === 'race' && <RaceView settings={settings} onSettings={update} onExit={setScreen} />}
+      {screen === 'race' && <RaceView settings={settings} onSettings={update} onExit={setScreen} onPlayerName={changeName} />}
       {screen === 'career' && <CareerHub career={career} onChange={updateCareer} onRace={() => setScreen('career-race')} onBack={() => setScreen('title')} />}
       {screen === 'career-race' && career && cup && careerTrack && (
         <RaceView
           settings={{ ...settings, trackId: careerTrack, laps: cup.laps, carId: career.activeCarId, difficulty: 'normal' }}
           onSettings={update}
           onExit={setScreen}
+          onPlayerName={changeName}
           career={{
             title: `${cup.name} ${(career.run?.race ?? 0) + 1}/${cup.tracks.length}`,
             field: cupField(career),

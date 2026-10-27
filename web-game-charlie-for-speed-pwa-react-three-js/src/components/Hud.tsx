@@ -1,7 +1,8 @@
 import { type RefObject, useEffect, useMemo, useRef } from 'react';
 import { forwardSpeed } from '../game/physics';
 import { formatTime, type Race } from '../game/race';
-import { mapProjection } from './TrackMap';
+import { formatGap, LapSplits } from '../game/splits';
+import { FinishMarker, mapProjection } from './TrackMap';
 
 export type HudController = { update: (race: Race) => void };
 
@@ -71,7 +72,11 @@ export function Hud({ race, controller }: { race: Race; controller: RefObject<Hu
       total: find('total'),
       banner: find('banner'),
       wrongWay: find('wrong-way'),
+      split: find('split'),
+      splitAhead: find('split-ahead'),
+      splitBehind: find('split-behind'),
     };
+    const splits = new LapSplits();
     const dots = [...element.querySelectorAll<SVGCircleElement>('[data-car]')];
     const rows = [...element.querySelectorAll<HTMLLIElement>('[data-board]')].map((row) => ({ row, name: row.querySelector('.board-name') }));
     const write = (field: Element | null, value: string) => {
@@ -98,6 +103,16 @@ export function Hud({ race, controller }: { race: Race; controller: RefObject<Hu
         write(fields.banner, banner);
         fields.banner?.classList.toggle('visible', banner !== '');
         fields.wrongWay?.classList.toggle('visible', current.wrongWay > 1.2 && Math.floor(current.time * 3) % 2 === 0);
+
+        // At the line: + is how far behind the car ahead, − how far ahead of the car behind once it crosses too.
+        splits.observe(current);
+        const split = splits.current;
+        const showSplit = splits.visible(current.time);
+        fields.split?.classList.toggle('visible', showSplit);
+        if (split && showSplit) {
+          write(fields.splitAhead, split.ahead ? `${split.ahead.name} ${formatGap(split.ahead.gap, '+')}` : '');
+          write(fields.splitBehind, split.behind ? `${split.behind.name} ${split.behind.gap === undefined ? '…' : formatGap(split.behind.gap, '−')}` : '');
+        }
 
         // The live standings: one row per place, in race order.
         for (const racer of racers) {
@@ -156,6 +171,7 @@ export function Hud({ race, controller }: { race: Race; controller: RefObject<Hu
         <svg className='hud-map' viewBox='0 0 150 150' aria-hidden='true'>
           <polygon points={map.points} className='map-road' />
           <polygon points={map.points} className='map-line' />
+          <FinishMarker track={race.track} project={map.project} />
           {race.racers.map((racer) => (
             <circle key={racer.id} data-car={racer.id} r={racer.isPlayer ? 5 : 3.5} className={racer.isPlayer ? 'map-player' : 'map-rival'} />
           ))}
@@ -163,6 +179,10 @@ export function Hud({ race, controller }: { race: Race; controller: RefObject<Hu
       </div>
 
       <div className='hud-banner' data-hud='banner' role='status' />
+      <div className='hud-split' data-hud='split' data-testid='lap-split'>
+        <span className='split-ahead' data-hud='split-ahead' />
+        <span className='split-behind' data-hud='split-behind' />
+      </div>
       <div className='hud-wrong-way' data-hud='wrong-way'>
         FEL HÅLL!
       </div>

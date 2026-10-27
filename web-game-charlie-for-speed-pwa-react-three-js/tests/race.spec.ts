@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { roomServer } from './wifi-helpers';
 
 test('choose a car and track, race, pause and return to the menu', async ({ page }, testInfo) => {
   const errors: string[] = [];
@@ -18,6 +19,8 @@ test('choose a car and track, race, pause and return to the menu', async ({ page
   const hud = page.getByTestId('hud');
   await expect(page.locator('.race-canvas')).toHaveAttribute('data-rendered', 'true');
   await expect(hud).toHaveAttribute('data-phase', 'racing', { timeout: 8000 });
+  // The minimap marks the start and finish line.
+  await expect(hud.getByTestId('map-finish')).toHaveCount(1);
   await page.keyboard.down('ArrowUp');
   await page.keyboard.down('ArrowRight');
   await page.waitForTimeout(250);
@@ -35,4 +38,53 @@ test('choose a car and track, race, pause and return to the menu', async ({ page
   await page.getByRole('button', { name: 'Avsluta racet' }).click();
   await expect(page.getByRole('button', { name: /Snabbstart.*Spectre R42.*Rheinland-Ring.*1 varv/ })).toBeVisible();
   expect(errors).toEqual([]);
+});
+
+test('scoreboard: laps from every device rank per track and overall, and a lap saved offline is sent', async ({ page, request }, info) => {
+  test.skip(info.project.name !== 'desktop', 'One layout is enough for the lists.');
+  // The test room server keeps its database between runs, so names are unique to this run.
+  const run = Date.now().toString(36);
+  const rival = `Rival${run.slice(-4)}`;
+  const me = `Jag${run.slice(-4)}`;
+  const sent = await request.post(`${roomServer}?a=lap`, {
+    headers: { 'Content-Type': 'text/plain' },
+    data: JSON.stringify({ game: 'charlie-fs', track: 'vaxjo', player: `r${run}`, name: rival, car: 'diablo', transmission: 'auto', time: 10_500 }),
+  });
+  expect(sent.ok()).toBe(true);
+  await page.addInitScript(
+    ({ server, run, me }) => {
+      localStorage.setItem('charlie-for-speed:room-server', server);
+      localStorage.setItem('charlie-for-speed:identity', JSON.stringify({ id: `p${run}`, name: me }));
+      localStorage.setItem('charlie-for-speed:pending-laps', JSON.stringify([{ track: 'vaxjo', car: 'corvette', transmission: 'manual', time: 10_400 }]));
+    },
+    { server: roomServer, run, me },
+  );
+  await page.goto('./');
+  await page.getByRole('button', { name: 'Topplistor' }).click();
+
+  const overall = page.getByRole('region', { name: 'Totalt' });
+  await expect(overall.locator('tr.me')).toContainText(me);
+  await expect(page.getByRole('region', { name: 'Banrekord' })).toContainText('Växjö Motorring');
+  expect(await page.evaluate(() => localStorage.getItem('charlie-for-speed:pending-laps'))).toBeNull();
+  await page.screenshot({ path: info.outputPath('scoreboard.png'), fullPage: true });
+
+  await page
+    .getByRole('region', { name: 'Banrekord' })
+    .getByRole('button', { name: /Växjö Motorring/ })
+    .click();
+  const board = page.getByRole('region', { name: 'Topplista Växjö Motorring' });
+  await expect(board.locator('tr.me')).toContainText(me);
+  await expect(board.locator('tr.me')).toContainText('0:10.40');
+  const names = await board.locator('tbody tr td:nth-child(2)').allTextContents();
+  expect(names.indexOf(me)).toBeGreaterThanOrEqual(0);
+  expect(names.indexOf(me)).toBeLessThan(names.indexOf(rival));
+  await expect(board).toContainText('Du ligger på plats');
+  await page.getByRole('button', { name: '7 dagar' }).click();
+  await expect(board.locator('tr.me')).toContainText(me);
+  await page.screenshot({ path: info.outputPath('scoreboard-track.png'), fullPage: true });
+  await page
+    .getByRole('button', { name: /Alla banor/ })
+    .first()
+    .click();
+  await expect(overall).toBeVisible();
 });

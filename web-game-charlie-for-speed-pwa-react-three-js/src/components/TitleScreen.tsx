@@ -11,9 +11,10 @@ type Props = {
   onSettings: () => void;
   onWifi: () => void;
   onWifiCareer: () => void;
+  onScoreboard: () => void;
 };
 
-export function TitleScreen({ settings, onRace, onGarage, onCareer, onSettings, onWifi, onWifiCareer }: Props) {
+export function TitleScreen({ settings, onRace, onGarage, onCareer, onSettings, onWifi, onWifiCareer, onScoreboard }: Props) {
   const car = carById(settings.carId);
   const track = trackById(settings.trackId);
   return (
@@ -50,9 +51,14 @@ export function TitleScreen({ settings, onRace, onGarage, onCareer, onSettings, 
           Online-karriär
           <small>Cuper och uppgraderingar med kompisar</small>
         </button>
-        <button type='button' onClick={onSettings}>
-          Inställningar
-        </button>
+        <div className='title-menu-row'>
+          <button type='button' onClick={onScoreboard}>
+            Topplistor
+          </button>
+          <button type='button' onClick={onSettings}>
+            Inställningar
+          </button>
+        </div>
       </nav>
       <p className='app-version' data-testid='app-version'>
         Version {__APP_VERSION__}

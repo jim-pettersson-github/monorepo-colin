@@ -16,12 +16,12 @@ export function roomServer() {
 export const ONLINE_ICE: RTCIceServer[] = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] }];
 export const ONLINE_TIMEOUT = 30_000;
 
-const GAME = 'charlie-fs';
+export const GAME = 'charlie-fs';
 // The host checks for an answer, and a waiting guest for a free place, this often; joins wait about half of it.
 const POLL_MS = 750;
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-class ServerError extends Error {
+export class ServerError extends Error {
   constructor(
     message: string,
     readonly status: number,
@@ -30,7 +30,7 @@ class ServerError extends Error {
   }
 }
 
-async function call<T>(action: string, body?: unknown, query: Record<string, string | number> = {}): Promise<T> {
+export async function call<T>(action: string, body?: unknown, query: Record<string, string | number> = {}): Promise<T> {
   const base = roomServer();
   if (!base) throw new Error('Ingen spelserver är inställd.');
   const params = new URLSearchParams({ a: action, ...Object.fromEntries(Object.entries(query).map(([key, value]) => [key, String(value)])) });

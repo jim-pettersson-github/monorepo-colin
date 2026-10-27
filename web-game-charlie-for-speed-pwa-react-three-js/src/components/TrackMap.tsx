@@ -19,14 +19,49 @@ export function mapProjection(track: Track, size: number, padding = 8) {
   return { project, points };
 }
 
+// The start and finish line: a short chequered bar across the road at the track's first sample.
+export function FinishMarker({ track, project }: { track: Track; project: (x: number, z: number) => readonly [number, number] }) {
+  const { x, z, rx, rz, tx, tz } = track.path.samples[0];
+  const [cx, cy] = project(x, z);
+  const across = Math.hypot(rx, rz) || 1;
+  const along = Math.hypot(tx, tz) || 1;
+  const half = 7;
+  const row = (offset: number, dash: number) => {
+    const ox = (tx / along) * offset;
+    const oy = (tz / along) * offset;
+    return (
+      <line
+        x1={cx - (rx / across) * half + ox}
+        y1={cy - (rz / across) * half + oy}
+        x2={cx + (rx / across) * half + ox}
+        y2={cy + (rz / across) * half + oy}
+        className='map-finish-row'
+        strokeDashoffset={dash}
+      />
+    );
+  };
+  return (
+    <g className='map-finish' data-testid='map-finish'>
+      <line
+        x1={cx - (rx / across) * half}
+        y1={cy - (rz / across) * half}
+        x2={cx + (rx / across) * half}
+        y2={cy + (rz / across) * half}
+        className='map-finish-base'
+      />
+      {row(-0.9, 0)}
+      {row(0.9, 1.75)}
+    </g>
+  );
+}
+
 export function TrackMap({ track, size = 160, className }: { track: Track; size?: number; className?: string }) {
   const { project, points } = mapProjection(track, size);
-  const [startX, startY] = project(track.path.samples[0].x, track.path.samples[0].z);
   return (
     <svg className={className} viewBox={`0 0 ${size} ${size}`} role='img' aria-label={`Karta över ${track.name}`}>
       <polygon points={points} className='map-road' />
       <polygon points={points} className='map-line' />
-      <circle cx={startX} cy={startY} r={4} className='map-start' />
+      <FinishMarker track={track} project={project} />
     </svg>
   );
 }

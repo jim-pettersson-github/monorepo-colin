@@ -3,11 +3,12 @@ import { RaceAudio } from '../game/audio';
 import { POINTS } from '../game/career';
 import { carName } from '../game/cars';
 import { DriverInput, type InputAction, type TouchState } from '../game/input';
+import { flushLaps, type LapResult, submitLap } from '../game/leaderboard';
 import type { NetworkRace } from '../game/network-race';
 import { forwardSpeed, shift } from '../game/physics';
 import { createRace, type Entrant, formatTime, type Race, type ResultRow, raceResults, resetRacer, STEP, stepRace } from '../game/race';
 import { reportStats } from '../game/room-server';
-import { type Settings, saveLapRecord } from '../game/storage';
+import { loadIdentity, type Settings, saveIdentity, saveLapRecord } from '../game/storage';
 import { cameraModes, RaceRenderer } from '../render/race-renderer';
 import { FullscreenButton } from './FullscreenButton';
 import { Hud, type HudController } from './Hud';
@@ -19,6 +20,8 @@ type Props = {
   settings: Settings;
   onSettings: (settings: Settings) => void;
   onExit: (screen: 'title' | 'garage') => void;
+  // A name typed on the results screen, for the scoreboard, is the player's name everywhere.
+  onPlayerName?: (name: string) => void;
   // Career races use a prepared field and hand the results back instead of offering a rematch.
   career?: { title: string; field: Entrant[]; onFinish: (rows: ResultRow[]) => void; onQuit: () => void };
 };
@@ -27,12 +30,15 @@ type Outcome = { rows: ResultRow[]; bestLap: number; record: boolean };
 
 const cameraNames = { chase: 'Jakt', far: 'Lång jakt', bumper: 'Stötfångare' };
 
-export function RaceView({ settings, onSettings, onExit, career, network }: Props) {
+export function RaceView({ settings, onSettings, onExit, career, network, onPlayerName }: Props) {
   const [attempt, setAttempt] = useState(0);
   const [race, setRace] = useState<Race>(() => network?.race ?? createRace(settings, undefined, career?.field));
   const [paused, setPaused] = useState(false);
   const [, refreshNetwork] = useState(0);
   const [outcome, setOutcome] = useState<Outcome>();
+  // The finished race's best lap on the server's scoreboard; each race has its own number so a late answer is dropped.
+  const [board, setBoard] = useState<LapResult | 'sending'>();
+  const boardRun = useRef(0);
   const [renderError, setRenderError] = useState(false);
   const [touchMode, setTouchMode] = useState(() => matchMedia('(pointer: coarse)').matches);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -193,6 +199,12 @@ export function RaceView({ settings, onSettings, onExit, career, network }: Prop
         finishSeen = true;
         const bestLap = race.player.bestLap;
         const record = !network && saveLapRecord(race.track.id, bestLap, race.player.spec.id);
+        if (bestLap > 0) {
+          const run = ++boardRun.current;
+          setBoard('sending');
+          const lap = { track: race.track.id, car: race.player.spec.id, transmission: settingsRef.current.transmission, time: Math.round(bestLap * 1000) };
+          void submitLap(loadIdentity(), lap).then((result) => run === boardRun.current && setBoard(result));
+        }
         finishTimer = setTimeout(
           () =>
             setOutcome({
@@ -216,6 +228,8 @@ export function RaceView({ settings, onSettings, onExit, career, network }: Prop
           finishSeen = false;
           lastBeep = 4;
           setOutcome(undefined);
+          boardRun.current++;
+          setBoard(undefined);
         }
         if (pausedRef.current !== network.wire.paused) applyPausedState(network.wire.paused);
         else setPaused(network.wire.paused);
@@ -276,9 +290,21 @@ export function RaceView({ settings, onSettings, onExit, career, network }: Prop
       return;
     }
     setOutcome(undefined);
+    boardRun.current++;
+    setBoard(undefined);
     setPausedState(false);
     setAttempt((value) => value + 1);
     setRace(createRace(settingsRef.current, undefined, career?.field));
+  };
+
+  const giveName = async (name: string) => {
+    const identity = { ...loadIdentity(), name };
+    if (onPlayerName) onPlayerName(name);
+    else saveIdentity(identity);
+    const run = ++boardRun.current;
+    setBoard('sending');
+    const result = await flushLaps(identity);
+    if (run === boardRun.current) setBoard(result ?? { state: 'queued' });
   };
 
   const player = race.player;
@@ -370,6 +396,7 @@ export function RaceView({ settings, onSettings, onExit, career, network }: Prop
               {race.track.name} · {race.settings.laps} varv
               {outcome.record && <strong className='record'> · Nytt banrekord {formatTime(outcome.bestLap)}!</strong>}
             </p>
+            <BoardStatus result={board} track={race.track.name} lapTime={Math.round(outcome.bestLap * 1000)} onName={giveName} />
             <table>
               <thead>
                 <tr>
@@ -430,5 +457,49 @@ export function RaceView({ settings, onSettings, onExit, career, network }: Prop
         </div>
       )}
     </main>
+  );
+}
+
+// One line under the results about the server's scoreboard, or a name field when the player has none yet.
+function BoardStatus({
+  result,
+  track,
+  lapTime,
+  onName,
+}: {
+  result: LapResult | 'sending' | undefined;
+  track: string;
+  lapTime: number;
+  onName: (name: string) => void;
+}) {
+  const [name, setName] = useState('');
+  if (!result) return null;
+  if (result === 'sending') return <p className='lapboard-status'>Skickar ditt bästa varv till topplistan…</p>;
+  if (result.state === 'nameless')
+    return (
+      <form
+        className='lapboard-status lapboard-name'
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (name.trim()) onName(name.trim());
+        }}
+      >
+        <label>
+          Ditt namn på topplistan
+          <input value={name} maxLength={16} autoComplete='nickname' onChange={(event) => setName(event.target.value)} />
+        </label>
+        <button type='submit' disabled={!name.trim()}>
+          Spara mitt varv
+        </button>
+      </form>
+    );
+  return (
+    <p className='lapboard-status' role='status'>
+      {result.state === 'sent'
+        ? `Topplistan för ${track}: plats ${result.rank} av ${result.drivers}${result.best === lapTime ? ' med det här varvet!' : `. Ditt bästa där är ${formatTime(result.best / 1000)}.`}`
+        : result.state === 'queued'
+          ? 'Topplistan går inte att nå just nu. Varvet sparas och skickas nästa gång du är online.'
+          : result.message}
+    </p>
   );
 }

@@ -17,6 +17,7 @@ import { applyUpgrades, arcadeSpec, carById, cars } from '../src/game/cars';
 import { brakeDecel, type CarState, cornerGrip, forwardSpeed, placeCar, stepCar } from '../src/game/physics';
 import { createRace, formatTime, raceDistance, raceResults, STEP, stepRace } from '../src/game/race';
 import { migrateCareer, migrateSession } from '../src/game/roster-migration';
+import { formatGap, LapSplits } from '../src/game/splits';
 import { trackById, trackDefs } from '../src/game/tracks';
 import { batchStatic } from '../src/render/batch';
 import { QualityGovernor, qualityLadder } from '../src/render/quality';
@@ -701,4 +702,44 @@ test('graphics step down on a 10 fps phone until it nears 30 fps, and back up wh
   // A fast device climbs back to the top.
   for (let i = 0; i < 60 * 60; i++) quality.frame(1 / 60);
   expect(quality.index).toBe(0);
+});
+
+test('at the line each lap the player sees the gap to the car ahead, and to the car behind once it crosses', () => {
+  const race = createRace({ trackId: 'vaxjo', carId: 'corvette', laps: 3, difficulty: 'normal', transmission: 'auto' }, 7);
+  const splits = new LapSplits();
+  const [ahead, , behind] = race.racers.filter((racer) => racer !== race.player);
+  for (const racer of race.racers) {
+    racer.lap = 0;
+    racer.position = 8;
+  }
+  Object.assign(ahead, { position: 1 });
+  Object.assign(race.player, { position: 2 });
+  Object.assign(behind, { position: 3 });
+  splits.observe(race);
+  const cross = (racer: (typeof race.racers)[number], time: number) => {
+    race.time = time;
+    racer.lap++;
+    racer.lapStart = time;
+    splits.observe(race);
+  };
+  cross(ahead, 60.2);
+  cross(race.player, 61.45);
+  expect(splits.current?.ahead).toEqual({ name: ahead.driverName, gap: expect.closeTo(1.25, 5) });
+  expect(splits.current?.behind?.gap).toBeUndefined();
+  expect(splits.visible(62)).toBe(true);
+  cross(behind, 62.25);
+  expect(splits.current?.behind?.gap).toBeCloseTo(0.8, 5);
+  expect(formatGap(splits.current?.ahead?.gap ?? 0, '+')).toBe('+1.25');
+  expect(formatGap(splits.current?.behind?.gap ?? 0, '−')).toBe('−0.80');
+  expect(splits.visible(66)).toBe(true);
+  expect(splits.visible(68)).toBe(false);
+
+  // Leading, there is only a car behind; one that never comes is given up on.
+  Object.assign(race.player, { position: 1 });
+  Object.assign(ahead, { position: 2 });
+  cross(race.player, 120);
+  expect(splits.current?.ahead).toBeUndefined();
+  expect(splits.current?.behind?.name).toBe(ahead.driverName);
+  expect(splits.visible(129)).toBe(true);
+  expect(splits.visible(131)).toBe(false);
 });

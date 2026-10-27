@@ -151,6 +151,12 @@ h3 {
   font-style: italic;
 }
 
+.title-menu-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
 .title-menu small {
   font-size: 0.72rem;
   font-style: normal;
@@ -327,10 +333,16 @@ h3 {
   stroke-linejoin: round;
 }
 
-.map-start {
-  fill: var(--danger);
+.map-finish-base {
+  stroke: #000;
+  stroke-width: 5;
+  stroke-linecap: square;
+}
+
+.map-finish-row {
   stroke: #fff;
-  stroke-width: 1.5;
+  stroke-width: 1.8;
+  stroke-dasharray: 1.75 1.75;
 }
 
 .race-options {
@@ -667,6 +679,38 @@ h3 {
   opacity: 1;
 }
 
+.hud-split {
+  position: absolute;
+  top: calc(max(10px, env(safe-area-inset-top)) + 56px);
+  left: 50%;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  transform: translateX(-50%);
+  opacity: 0;
+  white-space: nowrap;
+  font-size: clamp(1rem, 3vw, 1.6rem);
+  font-variant-numeric: tabular-nums;
+  transition: opacity 0.2s;
+}
+
+.hud-split.visible {
+  opacity: 1;
+}
+
+.split-ahead {
+  color: #ff8a7a;
+}
+
+.split-behind {
+  color: #8dff9a;
+}
+
+.split-ahead:empty,
+.split-behind:empty {
+  display: none;
+}
+
 .hud-wrong-way {
   top: 40%;
   color: var(--danger);
@@ -826,26 +870,63 @@ h3 {
   color: var(--accent);
 }
 
-.results-panel table {
+.lapboard-status {
+  margin: 0 0 12px;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.lapboard-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 10px;
+}
+
+.lapboard-name label {
+  display: grid;
+  gap: 4px;
+  color: var(--ink);
+  font-weight: 400;
+}
+
+.lapboard-name input {
+  min-height: 48px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0 12px;
+  border: 2px solid var(--border);
+  border-radius: 4px;
+  background: #0a0d18;
+  color: var(--ink);
+  font: inherit;
+}
+
+.results-panel table,
+.scoreboard-panel table {
   width: 100%;
   border-collapse: collapse;
   font-variant-numeric: tabular-nums;
 }
 
 .results-panel th,
-.results-panel td {
+.results-panel td,
+.scoreboard-panel th,
+.scoreboard-panel td {
   padding: 6px 8px;
   border-bottom: 1px solid var(--border);
   text-align: left;
 }
 
-.results-panel th {
+.results-panel th,
+.scoreboard-panel th {
   color: var(--muted);
   font-size: 0.8rem;
   text-transform: uppercase;
 }
 
-.results-panel tr.me td {
+.results-panel tr.me td,
+.scoreboard-panel tr.me td {
   color: var(--accent);
   font-weight: 700;
 }
@@ -1068,4 +1149,66 @@ h3 {
   font-size: 0.75rem;
   font-variant-numeric: tabular-nums;
   text-shadow: 1px 1px 0 #000;
+}
+
+/* Scoreboard */
+
+.scoreboard-body {
+  display: grid;
+  gap: 14px;
+  width: min(860px, 100%);
+  margin: 0 auto;
+  padding: 0 max(16px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+}
+
+.scoreboard-filters {
+  display: grid;
+  gap: 10px;
+}
+
+.track-choice {
+  flex-wrap: wrap;
+}
+
+.scoreboard-panel h3 {
+  margin: 0 0 6px;
+  color: var(--accent);
+}
+
+.track-records {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.track-records button {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 12px;
+  text-align: left;
+  text-transform: none;
+  font-weight: 400;
+}
+
+.track-records strong {
+  font-style: italic;
+  text-transform: uppercase;
+}
+
+.track-records small {
+  color: var(--accent);
+}
+
+.local-records {
+  margin: 0;
+  padding-left: 18px;
+}
+
+@media (max-width: 560px) {
+  .scoreboard-panel .wide {
+    display: none;
+  }
 }
