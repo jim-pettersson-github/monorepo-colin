@@ -10,7 +10,8 @@ export type LapEntry = { name: string; car: string; transmission: 'auto' | 'manu
 export type Placing = { rank: number; time: number; car: string; online: boolean };
 export type TrackBoard = { board: LapEntry[]; me: Placing | null; drivers: number };
 export type TrackRecord = LapEntry & { track: string; drivers: number; mine: Placing | null };
-export type OverallEntry = { name: string; points: number; records: number; tracks: number; me: boolean };
+// time: the player's best laps on the tracks they have driven, added up (missing from servers before it was sent).
+export type OverallEntry = { name: string; points: number; records: number; tracks: number; time?: number; me: boolean };
 export type Overview = { tracks: TrackRecord[]; overall: OverallEntry[]; me: OverallEntry | null };
 
 // A lap as it is sent: the time in milliseconds.

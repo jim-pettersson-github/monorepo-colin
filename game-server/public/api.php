@@ -398,10 +398,11 @@ try {
             foreach (bests($db, $game, $kind, $since) as $id => $bests) {
                 $tracks[] = [...entry($bests[0], $player), 'track' => $id, 'drivers' => count($bests), 'mine' => placing($bests, $player)];
                 foreach ($bests as $index => $row) {
-                    $points[$row['player']] ??= ['name' => $row['name'], 'points' => 0, 'records' => 0, 'tracks' => 0, 'me' => $row['player'] === $player];
+                    $points[$row['player']] ??= ['name' => $row['name'], 'points' => 0, 'records' => 0, 'tracks' => 0, 'time' => 0, 'me' => $row['player'] === $player];
                     $points[$row['player']]['points'] += POINTS[$index] ?? 0;
                     $points[$row['player']]['records'] += $index === 0 ? 1 : 0;
                     $points[$row['player']]['tracks']++;
+                    $points[$row['player']]['time'] += (int) $row['time'];
                 }
             }
             $overall = array_values($points);

@@ -72,6 +72,7 @@ test('scoreboard: quick races alone and online rank together, careers apart, and
 
   const overall = page.getByRole('region', { name: 'Totalt' });
   await expect(overall.locator('tr.me')).toContainText(me);
+  await expect(overall.locator('tr.me')).toContainText('0:10.40');
   await expect(page.getByRole('region', { name: 'Banrekord' })).toContainText('Växjö Motorring');
   expect(await page.evaluate(() => localStorage.getItem('charlie-for-speed:pending-laps'))).toBeNull();
   await page.screenshot({ path: info.outputPath('scoreboard.png'), fullPage: true });

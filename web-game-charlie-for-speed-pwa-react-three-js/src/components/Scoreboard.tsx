@@ -178,7 +178,10 @@ export function Scoreboard({ onBack }: Props) {
           <>
             <section className='panel scoreboard-panel' aria-label='Totalt'>
               <h3>Totalt</h3>
-              <p className='hint'>Placeringen på varje bana ger poäng: 10 för bästa varvet, sedan 8, 6, 5, 4, 3, 2 och 1.</p>
+              <p className='hint'>
+                Placeringen på varje bana ger poäng: 10 för bästa varvet, sedan 8, 6, 5, 4, 3, 2 och 1. Tid är förarens bästa varv på banorna den kört, lagda
+                ihop.
+              </p>
               {overview.overall.length === 0 ? (
                 <p>Inga varv under den här perioden ännu.</p>
               ) : (
@@ -188,6 +191,7 @@ export function Scoreboard({ onBack }: Props) {
                       <th>Plats</th>
                       <th>Förare</th>
                       <th>Poäng</th>
+                      <th>Tid</th>
                       <th>Rekord</th>
                       <th className='wide'>Banor</th>
                     </tr>
@@ -199,6 +203,7 @@ export function Scoreboard({ onBack }: Props) {
                         <td>{index + 1}</td>
                         <td>{row.name}</td>
                         <td>{row.points}</td>
+                        <td>{row.time ? lapTime(row.time) : '–'}</td>
                         <td>{row.records}</td>
                         <td className='wide'>{row.tracks}</td>
                       </tr>
